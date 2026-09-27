@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-lab-030-03"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-two-istioctl"
+      description: "Installs istioctl 1.29.8 as the default binary and istioctl-1.30.5 as the upgrade target"
+      type: "file"
+      source: "bootstrap/01-install-tooling.sh"
+    - name: "install-istio-1-25-3"
+      description: "Installs Istio 1.29.8 with the default profile and meshes inplace-demo with a two-replica workload"
+      type: "file"
+      source: "bootstrap/02-install-istio.sh"
+
+validation:
+  scripts:
+    - name: "verify-in-place-upgrade"
+      description: "Confirms the single control plane was replaced in place rather than canaried, that the profile's ingress gateway survived, and that every proxy including the gateway was restarted onto the new version"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

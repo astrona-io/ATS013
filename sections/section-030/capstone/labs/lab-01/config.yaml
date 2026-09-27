@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-capstone-030"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-two-istioctl"
+      description: "Installs istioctl 1.29.8 as the default binary and istioctl-1.30.5 as the upgrade target"
+      type: "file"
+      source: "bootstrap/01-install-tooling.sh"
+    - name: "capstone-030-setup"
+      description: "Installs Istio 1.29.8 as the default control plane and meshes two namespaces with three workloads between them"
+      type: "file"
+      source: "bootstrap/02-install-istio.sh"
+
+validation:
+  scripts:
+    - name: "verify-section-030-capstone"
+      description: "Confirms a complete canary migration: the new revision behind a prod tag, both namespaces moved and restarted, every proxy on the new version, and the old control plane retired only after the workloads left it"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

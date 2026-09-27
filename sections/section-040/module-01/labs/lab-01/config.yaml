@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-lab-040-01"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-ambient"
+      description: "Installs istioctl 1.30.5 and the ambient profile (istiod, istio-cni, ztunnel)"
+      type: "file"
+      source: "bootstrap/01-install-ambient.sh"
+    - name: "lab-040-01-setup"
+      description: "Creates the unenrolled ambient-demo namespace and records each pod's UID so the grader can prove nothing was recreated"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+validation:
+  scripts:
+    - name: "verify-ambient-enrollment"
+      description: "Confirms the namespace was enrolled in ambient mode, that no pod was recreated to achieve it, that no sidecar was injected, and that ztunnel reports the workloads over HBONE"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

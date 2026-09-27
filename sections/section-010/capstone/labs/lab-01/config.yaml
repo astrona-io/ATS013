@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-capstone-010"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-helm-and-istioctl"
+      description: "Installs helm 3 and istioctl 1.30.5 and registers the istio chart repository; leaves the cluster with no Istio"
+      type: "file"
+      source: "bootstrap/01-install-tooling.sh"
+    - name: "capstone-010-setup"
+      description: "Creates the payments and legacy namespaces, each with one unmeshed workload"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+validation:
+  scripts:
+    - name: "verify-section-010-capstone"
+      description: "Confirms the full platform spec: three pinned Helm releases, a NodePort gateway named public-gateway in edge, the mesh-wide and sidecar-default settings from the values file, payments fully meshed with the configured proxy resources, legacy deliberately left out of the mesh, and no egress gateway"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

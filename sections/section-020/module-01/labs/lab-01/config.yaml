@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-lab-020-01"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-baseline-istio"
+      description: "Installs istioctl 1.30.5 and a stock demo-profile control plane as the unmodified baseline"
+      type: "file"
+      source: "bootstrap/01-install-baseline.sh"
+    - name: "lab-020-01-setup"
+      description: "Creates the meshed mesh-demo namespace and its workload"
+      type: "file"
+      source: "bootstrap/02-create-workload.sh"
+
+validation:
+  scripts:
+    - name: "verify-customized-install"
+      description: "Confirms the egress gateway was removed while the ingress gateway survived, that istiod carries the requested CPU request, and that both mesh-wide settings are live in the istio ConfigMap"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

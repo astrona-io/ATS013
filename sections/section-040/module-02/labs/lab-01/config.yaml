@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-lab-040-02"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-ambient-and-gateway-api"
+      description: "Installs istioctl 1.30.5, the Gateway API CRDs and the ambient profile"
+      type: "file"
+      source: "bootstrap/01-install-ambient.sh"
+    - name: "lab-040-02-setup"
+      description: "Creates the ambient-l7 namespace already enrolled in ambient mode, with no waypoint and no routes"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+validation:
+  scripts:
+    - name: "verify-waypoint-l7"
+      description: "Confirms a namespace waypoint of the istio-waypoint class is programmed and enrolled, that ztunnel routes the workloads through it, that the HTTPRoute is attached to the Service, and that a live request actually carries the L7 response header"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

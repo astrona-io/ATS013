@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-lab-020-02"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-istio-default"
+      description: "Installs istioctl 1.30.5 and a default-profile control plane"
+      type: "file"
+      source: "bootstrap/01-install-istio.sh"
+    - name: "lab-020-02-setup"
+      description: "Creates the unlabelled inject-demo namespace with three workloads that have different injection needs"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+validation:
+  scripts:
+    - name: "verify-injection-control"
+      description: "Confirms the namespace opted in, that each of the three workloads has the intended sidecar status, and that every override label sits on the pod template rather than the Deployment"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

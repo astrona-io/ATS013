@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-capstone-020"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-baseline-istio"
+      description: "Installs istioctl 1.30.5 and a stock demo-profile control plane as the unmodified baseline"
+      type: "file"
+      source: "bootstrap/01-install-baseline.sh"
+    - name: "capstone-020-setup"
+      description: "Creates the payments and legacy namespaces with three unmeshed workloads between them"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+validation:
+  scripts:
+    - name: "verify-section-020-capstone"
+      description: "Confirms the customized installation across all three IstioOperator layers and the full injection matrix: namespace opted in, one workload excluded, one forced in, and a second namespace left entirely out of the mesh"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

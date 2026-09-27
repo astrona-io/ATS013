@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-capstone-040"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-ambient-and-gateway-api"
+      description: "Installs istioctl 1.30.5, the Gateway API CRDs and the ambient profile"
+      type: "file"
+      source: "bootstrap/01-install-ambient.sh"
+    - name: "capstone-040-setup"
+      description: "Creates an unenrolled ambient-shop namespace with three workloads and records the pod UIDs"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+validation:
+  scripts:
+    - name: "verify-section-040-capstone"
+      description: "Confirms ambient enrollment with no pod recreated, a programmed and enrolled waypoint, an HTTPRoute proving L7 is in the path, and an L7 AuthorizationPolicy enforced live - GET allowed, DELETE denied"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

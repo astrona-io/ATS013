@@ -1,0 +1,329 @@
+training:
+  id: ATS013
+  title: "ICA: Installation, Upgrade And Configuration"
+  description: >
+    Training material covering the Istio Certified Associate (ICA)
+    Installation, Upgrade And Configuration domain — installing with istioctl
+    and Helm, customizing the installation, controlling sidecar injection,
+    canary and in-place upgrades, and ambient mode with waypoint proxies.
+    Each module pairs a layered reader with an ungraded hands-on playground.
+
+  certification:
+    name: Istio Certified Associate
+    code: ICA
+    provider: CNCF / Linux Foundation
+    domain: Installation, Upgrade And Configuration
+
+modules:
+  - id: module-010
+    title: "Section 010: Installing Istio With istioctl Or Helm"
+    description: >
+      Get an Istio control plane onto a cluster by both supported methods — the
+      istioctl CLI and the Helm charts — and understand what each one creates,
+      owns and leaves behind.
+
+    content:
+      - type: reading
+        title: Section Overview
+        path: sections/section-010/README.md
+
+      - type: reading
+        title: "Module 1: Install Istio With istioctl"
+        path: sections/section-010/module-01/course.md
+      - type: reading
+        title: "Module 1.1: The Render-And-Apply Pipeline"
+        path: sections/section-010/module-01/course-01-render-and-apply-pipeline.md
+      - type: reading
+        title: "Module 1.2: Profiles And The Objects They Produce"
+        path: sections/section-010/module-01/course-02-profiles-and-installed-objects.md
+      - type: reading
+        title: "Module 1.3: Injection And The Version Triad"
+        path: sections/section-010/module-01/course-03-injection-and-version-alignment.md
+      - type: reading
+        title: "Module 1.4: Reconciliation And Clean Removal"
+        path: sections/section-010/module-01/course-04-reconciliation-and-removal.md
+
+      - type: reading
+        title: Question
+        path: sections/section-010/module-01/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-010/module-01/labs/lab-01/solution.md
+      - type: lab
+        title: "Install Istio With istioctl Lab"
+        path: sections/section-010/module-01/labs/lab-01
+
+      - type: reading
+        title: "Module 2: Install Istio With Helm"
+        path: sections/section-010/module-02/course.md
+      - type: reading
+        title: "Module 2.1: The Chart Model And Its Ordering"
+        path: sections/section-010/module-02/course-01-chart-model-and-ordering.md
+      - type: reading
+        title: "Module 2.2: Installing The Three Releases"
+        path: sections/section-010/module-02/course-02-installing-the-releases.md
+      - type: reading
+        title: "Module 2.3: Release State, Verification And Cleanup"
+        path: sections/section-010/module-02/course-03-release-state-and-verification.md
+
+      - type: reading
+        title: Question
+        path: sections/section-010/module-02/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-010/module-02/labs/lab-01/solution.md
+      - type: lab
+        title: "Install Istio With Helm Lab"
+        path: sections/section-010/module-02/labs/lab-01
+
+      - type: reading
+        title: "Section 010 Knowledge Check: Installing Istio With istioctl Or Helm"
+        path: sections/section-010/quiz.md
+
+      - type: reading
+        title: Question
+        path: sections/section-010/capstone/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-010/capstone/labs/lab-01/solution.md
+      - type: lab
+        title: "Install And Onboard A Mesh Capstone Lab"
+        path: sections/section-010/capstone/labs/lab-01
+
+  - id: module-020
+    title: "Section 020: Customizing Your Istio Installation"
+    description: >
+      Shape an installation to a cluster's needs through the IstioOperator
+      configuration layers, and decide precisely which pods join the mesh via
+      sidecar injection.
+
+    content:
+      - type: reading
+        title: Section Overview
+        path: sections/section-020/README.md
+
+      - type: reading
+        title: "Module 1: Customize An Istio Installation"
+        path: sections/section-020/module-01/course.md
+      - type: reading
+        title: "Module 1.1: The Four Configuration Layers"
+        path: sections/section-020/module-01/course-01-the-four-configuration-layers.md
+      - type: reading
+        title: "Module 1.2: meshConfig: From File To ConfigMap To Proxy"
+        path: sections/section-020/module-01/course-02-meshconfig-from-file-to-proxy.md
+      - type: reading
+        title: "Module 1.3: Writing, Validating And Re-applying The Document"
+        path: sections/section-020/module-01/course-03-writing-validating-reapplying.md
+
+      - type: reading
+        title: Question
+        path: sections/section-020/module-01/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-020/module-01/labs/lab-01/solution.md
+      - type: lab
+        title: "Customize An Istio Installation Lab"
+        path: sections/section-020/module-01/labs/lab-01
+
+      - type: reading
+        title: "Module 2: Control Sidecar Injection"
+        path: sections/section-020/module-02/course.md
+      - type: reading
+        title: "Module 2.1: Injection As Admission Control"
+        path: sections/section-020/module-02/course-01-injection-as-admission-control.md
+      - type: reading
+        title: "Module 2.2: The Precedence Rules"
+        path: sections/section-020/module-02/course-02-the-precedence-rules.md
+      - type: reading
+        title: "Module 2.3: What Injection Writes Into The Pod"
+        path: sections/section-020/module-02/course-03-what-injection-writes.md
+
+      - type: reading
+        title: Question
+        path: sections/section-020/module-02/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-020/module-02/labs/lab-01/solution.md
+      - type: lab
+        title: "Control Sidecar Injection Lab"
+        path: sections/section-020/module-02/labs/lab-01
+
+      - type: reading
+        title: "Section 020 Knowledge Check: Customizing Your Istio Installation"
+        path: sections/section-020/quiz.md
+
+      - type: reading
+        title: Question
+        path: sections/section-020/capstone/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-020/capstone/labs/lab-01/solution.md
+      - type: lab
+        title: "Shape The Install, Then Choose Who Joins Capstone Lab"
+        path: sections/section-020/capstone/labs/lab-01
+
+  - id: module-030
+    title: "Section 030: Upgrading Istio (Canary, In-Place)"
+    description: >
+      Upgrade a mesh without losing configuration or stranding the data plane:
+      Helm value semantics, canary upgrades with revisions and tags, and the
+      in-place path with its skew window and rollback cost.
+
+    content:
+      - type: reading
+        title: Section Overview
+        path: sections/section-030/README.md
+
+      - type: reading
+        title: "Module 1: Upgrade And Reconfigure Istio With Helm"
+        path: sections/section-030/module-01/course.md
+      - type: reading
+        title: "Module 1.1: Where A Release Lives"
+        path: sections/section-030/module-01/course-01-where-a-release-lives.md
+      - type: reading
+        title: "Module 1.2: How `helm upgrade` Computes Values"
+        path: sections/section-030/module-01/course-02-how-upgrade-computes-values.md
+      - type: reading
+        title: "Module 1.3: Executing And Reverting An Upgrade"
+        path: sections/section-030/module-01/course-03-executing-and-reverting.md
+
+      - type: reading
+        title: Question
+        path: sections/section-030/module-01/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-030/module-01/labs/lab-01/solution.md
+      - type: lab
+        title: "Upgrade And Reconfigure Istio With Helm Lab"
+        path: sections/section-030/module-01/labs/lab-01
+
+      - type: reading
+        title: "Module 2: Canary Upgrade With Revisions And Revision Tags"
+        path: sections/section-030/module-02/course.md
+      - type: reading
+        title: "Module 2.1: Revisions: A Named Control Plane"
+        path: sections/section-030/module-02/course-01-revisions-a-named-control-plane.md
+      - type: reading
+        title: "Module 2.2: Selecting, Moving And Retiring A Revision"
+        path: sections/section-030/module-02/course-02-selecting-moving-retiring.md
+
+      - type: reading
+        title: Question
+        path: sections/section-030/module-02/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-030/module-02/labs/lab-01/solution.md
+      - type: lab
+        title: "Canary Upgrade With Revisions And Tags Lab"
+        path: sections/section-030/module-02/labs/lab-01
+
+      - type: reading
+        title: "Module 3: In-Place Upgrade Of The Control Plane"
+        path: sections/section-030/module-03/course.md
+      - type: reading
+        title: "Module 3.1: Replacing The Control Plane"
+        path: sections/section-030/module-03/course-01-replacing-the-control-plane.md
+      - type: reading
+        title: "Module 3.2: Skew, Completion And The Cost Of Reverting"
+        path: sections/section-030/module-03/course-02-skew-completion-and-reverting.md
+
+      - type: reading
+        title: Question
+        path: sections/section-030/module-03/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-030/module-03/labs/lab-01/solution.md
+      - type: lab
+        title: "In-Place Upgrade Lab"
+        path: sections/section-030/module-03/labs/lab-01
+
+      - type: reading
+        title: "Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)"
+        path: sections/section-030/quiz.md
+
+      - type: reading
+        title: Question
+        path: sections/section-030/capstone/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-030/capstone/labs/lab-01/solution.md
+      - type: lab
+        title: "A Complete Canary Migration Capstone Lab"
+        path: sections/section-030/capstone/labs/lab-01
+
+  - id: module-040
+    title: "Section 040: Installing Istio In Sidecar Or Ambient Mode"
+    description: >
+      Install and operate the sidecar-less ambient data plane — ztunnel and the
+      Istio CNI plugin for L4 — and add waypoint proxies where HTTP-aware
+      behaviour is required.
+
+    content:
+      - type: reading
+        title: Section Overview
+        path: sections/section-040/README.md
+
+      - type: reading
+        title: "Module 1: Install Istio In Ambient Mode"
+        path: sections/section-040/module-01/course.md
+      - type: reading
+        title: "Module 1.1: The Ambient Data Plane"
+        path: sections/section-040/module-01/course-01-the-ambient-data-plane.md
+      - type: reading
+        title: "Module 1.2: Enrollment, Verification And The L4 Boundary"
+        path: sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
+
+      - type: reading
+        title: Question
+        path: sections/section-040/module-01/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-040/module-01/labs/lab-01/solution.md
+      - type: lab
+        title: "Install Istio In Ambient Mode Lab"
+        path: sections/section-040/module-01/labs/lab-01
+
+      - type: reading
+        title: "Module 2: Add A Waypoint Proxy For L7 In Ambient Mode"
+        path: sections/section-040/module-02/course.md
+      - type: reading
+        title: "Module 2.1: What A Waypoint Is And How Traffic Reaches It"
+        path: sections/section-040/module-02/course-01-what-a-waypoint-is.md
+      - type: reading
+        title: "Module 2.2: L7 Configuration Through A Waypoint"
+        path: sections/section-040/module-02/course-02-l7-configuration-through-a-waypoint.md
+
+      - type: reading
+        title: Question
+        path: sections/section-040/module-02/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-040/module-02/labs/lab-01/solution.md
+      - type: lab
+        title: "Waypoint Proxy For L7 Lab"
+        path: sections/section-040/module-02/labs/lab-01
+
+      - type: reading
+        title: "Section 040 Knowledge Check: Installing Istio In Sidecar Or Ambient Mode"
+        path: sections/section-040/quiz.md
+
+      - type: reading
+        title: Question
+        path: sections/section-040/capstone/labs/lab-01/question.md
+      - type: reading
+        title: Solution Walkthrough
+        path: sections/section-040/capstone/labs/lab-01/solution.md
+      - type: lab
+        title: "An Ambient Mesh With Selective L7 Capstone Lab"
+        path: sections/section-040/capstone/labs/lab-01
+
+  - id: final-exam
+    title: "Final Domain Exam Simulator"
+    description: >
+      A closed-book, timed simulation of the Installation, Upgrade And
+      Configuration domain, drawing on all four sections.
+
+    content:
+      - type: reading
+        title: "Final Domain Exam Simulator"
+        path: sections/final-domain-quiz.md

@@ -1,0 +1,26 @@
+metadata:
+  name: "ats-013-lab-010-02"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-helm-and-istioctl"
+      description: "Installs helm 3 and istioctl 1.30.5 and registers the istio chart repository; leaves the cluster with no Istio"
+      type: "file"
+      source: "bootstrap/01-install-tooling.sh"
+    - name: "lab-010-02-setup"
+      description: "Creates the unlabelled mesh-demo namespace and its workload"
+      type: "file"
+      source: "bootstrap/02-create-workload.sh"
+
+validation:
+  scripts:
+    - name: "verify-helm-install"
+      description: "Confirms all three charts were installed as Helm releases at the pinned version, the gateway runs as its own release in the edge namespace, access logging reached the mesh ConfigMap, no egress gateway exists, and the workload was restarted into the mesh"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false
