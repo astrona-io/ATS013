@@ -61,8 +61,17 @@ app_line=$(grep -E "[[:space:]]notification-service-" <<<"$zt" | head -1)
 if [[ -z "$app_line" ]]; then
   fail "ztunnel does not report a workload for notification-service in $NS"
 fi
-if ! grep -qw "$WP" <<<"$app_line"; then
-  fail "ztunnel does not route notification-service through the waypoint: $app_line. The WAYPOINT column should name '$WP'"
+
+# The waypoint here is attached to the Service, so it shows up in ztunnel's
+# SERVICE view. The workload view's WAYPOINT column stays None for a
+# service-attached waypoint, which says nothing about whether it is in the path.
+svc_line=$(istioctl ztunnel-config service 2>/dev/null \
+  | awk -v ns="$NS" '$1 == ns && $2 == "notification-service"')
+if [[ -z "$svc_line" ]]; then
+  fail "ztunnel does not report the notification-service Service in $NS"
+fi
+if ! grep -qw "$WP" <<<"$svc_line"; then
+  fail "ztunnel does not route the notification-service Service through the waypoint: $svc_line. The WAYPOINT column should name '$WP'"
 fi
 
 # --- 5. the HTTPRoute is attached to the Service ----------------------------

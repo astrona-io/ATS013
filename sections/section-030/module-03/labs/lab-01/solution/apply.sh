@@ -6,9 +6,9 @@ set -eu
 
 istioctl-1.30.5 install --set profile=default -y
 
-# istioctl and helm return once the Deployments report ready, which is a moment
-# before the mutating webhook can inject: a pod recreated in that window comes
-# back with no istio-proxy and nothing reports an error.
+# istioctl and helm return once the Deployments report ready, a moment before the
+# mutating webhook can inject: a pod recreated in that window comes back with no
+# istio-proxy and nothing reports an error.
 wait_for_injector() {
   local i
   for i in $(seq 1 90); do

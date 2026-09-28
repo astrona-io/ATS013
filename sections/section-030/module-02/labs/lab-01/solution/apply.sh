@@ -12,10 +12,9 @@ istioctl-1.30.5 tag list
 kubectl label namespace canary-demo istio-injection-
 kubectl label namespace canary-demo istio.io/rev=prod --overwrite
 
-# The namespace is moved onto the 'prod' tag, so the webhook that must be
-# serving before any pod is recreated is istio-revision-tag-prod - not the
-# old default injector, which exists from the start and would make any
-# weaker check pass immediately and hand the pod back to the old control plane.
+# On a revision move the webhook that must be serving before pods are recreated
+# is istio-revision-tag-prod, not the default injector, which exists from the
+# start and would make a weaker check pass immediately.
 wait_for_injector() {
   local i
   for i in $(seq 1 90); do

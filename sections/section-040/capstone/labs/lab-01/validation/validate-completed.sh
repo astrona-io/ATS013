@@ -102,8 +102,17 @@ app_line=$(grep -E "[[:space:]]catalog-api-" <<<"$zt" | head -1)
 if [[ -z "$app_line" ]]; then
   fail "ztunnel does not report a workload for catalog-api in $NS"
 fi
-if ! grep -qw "$WP" <<<"$app_line"; then
-  fail "ztunnel does not route catalog-api through the waypoint: $app_line"
+
+# A waypoint attached to the Service shows in ztunnel's SERVICE view; the
+# workload view's WAYPOINT column stays None for one, which says nothing about
+# whether the waypoint is in the path.
+svc_line=$(istioctl ztunnel-config service 2>/dev/null \
+  | awk -v ns="$NS" '$1 == ns && $2 == "catalog-api"')
+if [[ -z "$svc_line" ]]; then
+  fail "ztunnel does not report the catalog-api Service in $NS"
+fi
+if ! grep -qw "$WP" <<<"$svc_line"; then
+  fail "ztunnel does not route the catalog-api Service through the waypoint: $svc_line"
 fi
 
 # --- 4. the HTTPRoute -------------------------------------------------------
