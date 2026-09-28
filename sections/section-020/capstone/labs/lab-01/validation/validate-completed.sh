@@ -77,13 +77,13 @@ fi
 pod=$(running_pod payments checkout-api)
 [[ -n "$pod" ]] || fail "checkout-api - no running pod found in payments"
 
-containers=$(kubectl -n payments get pod "$pod" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+containers=$(kubectl -n payments get pod "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$containers"; then
   fail "checkout-api pod has containers [$containers] - no istio-proxy. Labelling the namespace does not inject a pod that already exists; restart the workload"
 fi
 
 proxy_cpu=$(kubectl -n payments get pod "$pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].resources.requests.cpu}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].resources.requests.cpu}{.spec.containers[?(@.name=="istio-proxy")].resources.requests.cpu}' 2>/dev/null)
 if [[ "$proxy_cpu" != "20m" ]]; then
   fail "the injected sidecar requests cpu '$proxy_cpu', expected 20m. Sidecar defaults come from values.global.proxy.resources - a different layer from components.pilot, which sizes istiod itself"
 fi
@@ -92,7 +92,7 @@ fi
 pod=$(running_pod payments audit-shipper)
 [[ -n "$pod" ]] || fail "audit-shipper - no running pod found in payments"
 
-containers=$(kubectl -n payments get pod "$pod" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+containers=$(kubectl -n payments get pod "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if grep -qw "istio-proxy" <<<"$containers"; then
   fail "audit-shipper pod has an istio-proxy sidecar - it must stay out of the mesh"
 fi
@@ -123,7 +123,7 @@ done
 pod=$(running_pod legacy nightly-report)
 [[ -n "$pod" ]] || fail "nightly-report - no running pod found in legacy; it should have been left alone"
 
-containers=$(kubectl -n legacy get pod "$pod" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+containers=$(kubectl -n legacy get pod "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if grep -qw "istio-proxy" <<<"$containers"; then
   fail "nightly-report pod has an istio-proxy sidecar - legacy must stay out of the mesh"
 fi

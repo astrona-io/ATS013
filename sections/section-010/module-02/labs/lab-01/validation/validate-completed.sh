@@ -118,7 +118,7 @@ if [[ -z "$pod" ]]; then
 fi
 
 containers=$(kubectl -n "$NS" get pod "$pod" \
-  -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$containers"; then
   fail "$pod has containers [$containers] - no istio-proxy. Labelling the namespace does not inject pods that already exist; restart the workload"
 fi
@@ -130,7 +130,7 @@ if [[ "$pod_ready" != "True" ]]; then
 fi
 
 dp_image=$(kubectl -n "$NS" get pod "$pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].image}{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
 dp_version="${dp_image##*:}"
 if [[ "$cp_version" != "$dp_version" ]]; then
   fail "version skew - control plane is $cp_version, the injected proxy is $dp_version"

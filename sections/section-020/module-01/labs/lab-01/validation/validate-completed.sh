@@ -60,7 +60,7 @@ if [[ -z "$pod" ]]; then
 fi
 
 containers=$(kubectl -n mesh-demo get pod "$pod" \
-  -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$containers"; then
   fail "$pod has containers [$containers] - no istio-proxy. Reinstalling must not break the meshed workload"
 fi

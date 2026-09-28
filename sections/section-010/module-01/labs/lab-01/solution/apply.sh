@@ -2,11 +2,29 @@
 # Reference solution, applied only by `astrona test` (the `testing:` block).
 # `astrona run` never runs this, so students still do the work themselves.
 # Kept in step with solution.md - if one changes, change the other.
-set -euo pipefail
+set -eu
 
 istioctl install --set profile=demo -y
 
 kubectl label namespace mesh-demo istio-injection=enabled
+
+# Wait until the sidecar injector is actually serving before recreating any
+# workload. istioctl and helm return once the Deployments report ready, which
+# is a moment before the mutating webhook can inject: a pod recreated in that
+# window comes back with no istio-proxy and nothing reports an error.
+wait_for_injector() {
+  kubectl -n istio-system rollout status deployment/istiod --timeout=300s 2>/dev/null || true
+  local i
+  for i in $(seq 1 60); do
+    if kubectl get mutatingwebhookconfiguration -o name 2>/dev/null | grep -q sidecar-injector; then
+      if kubectl -n istio-system get endpoints istiod -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | grep -q .; then
+        return 0
+      fi
+    fi
+    sleep 2
+  done
+}
+wait_for_injector
 
 kubectl -n mesh-demo rollout restart deployment notification-service
 kubectl -n mesh-demo rollout status deployment notification-service --timeout=180s

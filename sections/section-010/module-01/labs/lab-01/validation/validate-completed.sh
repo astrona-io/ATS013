@@ -72,7 +72,7 @@ if [[ -z "$pod" ]]; then
 fi
 
 containers=$(kubectl -n "$NS" get pod "$pod" \
-  -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$containers"; then
   fail "$pod has containers [$containers] - no istio-proxy. Labelling the namespace does not inject pods that already exist; the workload must be recreated"
 fi
@@ -97,7 +97,7 @@ cp_image=$(kubectl -n istio-system get deployment istiod \
 cp_version="${cp_image##*:}"
 
 dp_image=$(kubectl -n "$NS" get pod "$pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].image}{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
 dp_version="${dp_image##*:}"
 
 if [[ -z "$cp_version" || -z "$dp_version" ]]; then

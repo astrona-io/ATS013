@@ -97,13 +97,13 @@ if [[ -z "$pod" ]]; then
 fi
 
 containers=$(kubectl -n default get pod "$pod" \
-  -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$containers"; then
   fail "$pod has containers [$containers] - no istio-proxy"
 fi
 
 dp_image=$(kubectl -n default get pod "$pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].image}{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
 dp_version="${dp_image##*:}"
 if [[ "$dp_version" != "$WANT" ]]; then
   fail "version skew - the control plane is $cp_version but the application sidecar is $dp_version. Upgrading istiod does not touch running pods; restart the workload"
@@ -111,9 +111,9 @@ fi
 
 # --- 6. the sidecar default from the original install survived --------------
 proxy_cpu=$(kubectl -n default get pod "$pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].resources.requests.cpu}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].resources.requests.cpu}{.spec.containers[?(@.name=="istio-proxy")].resources.requests.cpu}' 2>/dev/null)
 proxy_mem=$(kubectl -n default get pod "$pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].resources.requests.memory}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].resources.requests.memory}{.spec.containers[?(@.name=="istio-proxy")].resources.requests.memory}' 2>/dev/null)
 if [[ "$proxy_cpu" != "10m" || "$proxy_mem" != "64Mi" ]]; then
   fail "the injected sidecar requests cpu='$proxy_cpu' memory='$proxy_mem', expected 10m/64Mi - the global.proxy.resources block from the original install was lost"
 fi

@@ -1,0 +1,15 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: catalog-methods
+  namespace: ambient-shop
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: catalog-api
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            methods: ["GET"]

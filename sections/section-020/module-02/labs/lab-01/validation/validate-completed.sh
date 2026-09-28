@@ -53,7 +53,7 @@ done
 # --- 3. notification-service: meshed by the namespace label -----------------
 pod=$(running_pod notification-service)
 [[ -n "$pod" ]] || fail "notification-service - no running pod found"
-containers=$(kubectl -n "$NS" get pod "$pod" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+containers=$(kubectl -n "$NS" get pod "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$containers"; then
   fail "notification-service pod has containers [$containers] - no istio-proxy. Labelling the namespace does not inject pods that already exist; restart the workload"
 fi
@@ -61,7 +61,7 @@ fi
 # --- 4. logging-agent: excluded, by a TEMPLATE label ------------------------
 pod=$(running_pod logging-agent)
 [[ -n "$pod" ]] || fail "logging-agent - no running pod found"
-containers=$(kubectl -n "$NS" get pod "$pod" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+containers=$(kubectl -n "$NS" get pod "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if grep -qw "istio-proxy" <<<"$containers"; then
   fail "logging-agent pod has an istio-proxy sidecar - it must stay out of the mesh"
 fi
@@ -83,7 +83,7 @@ fi
 # --- 5. batch-job: forced in, by a TEMPLATE label ---------------------------
 pod=$(running_pod batch-job)
 [[ -n "$pod" ]] || fail "batch-job - no running pod found"
-containers=$(kubectl -n "$NS" get pod "$pod" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+containers=$(kubectl -n "$NS" get pod "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$containers"; then
   fail "batch-job pod has containers [$containers] - no istio-proxy"
 fi

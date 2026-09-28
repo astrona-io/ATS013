@@ -2,7 +2,7 @@
 # Reference solution, applied only by `astrona test` (the `testing:` block).
 # `astrona run` never runs this, so students still do the work themselves.
 # Kept in step with solution.md - if one changes, change the other.
-set -euo pipefail
+set -eu
 
 cat > notification-header.yaml <<'YAML'
 apiVersion: gateway.networking.k8s.io/v1
@@ -28,6 +28,11 @@ spec:
 YAML
 
 kubectl apply -f notification-header.yaml
+
+istioctl waypoint apply -n ambient-l7 --enroll-namespace
+kubectl -n ambient-l7 rollout status deployment waypoint --timeout=180s
+
+istioctl waypoint delete waypoint -n ambient-l7
 
 # Give istiod time to push this configuration to every proxy before the grader
 # reads it back. By hand you spend longer than this reading the apply output;

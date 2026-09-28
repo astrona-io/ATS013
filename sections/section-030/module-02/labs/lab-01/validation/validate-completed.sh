@@ -79,13 +79,13 @@ if [[ -z "$pod" ]]; then
 fi
 
 containers=$(kubectl -n "$NS" get pod "$pod" \
-  -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$containers"; then
   fail "$pod has containers [$containers] - no istio-proxy. Relabelling a namespace does not move a pod that already exists; restart the workload"
 fi
 
 dp_image=$(kubectl -n "$NS" get pod "$pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].image}{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
 dp_version="${dp_image##*:}"
 if [[ "$dp_version" != "$WANT" ]]; then
   fail "$pod is running proxy image '$dp_image' - expected $WANT. The pod predates the move; restart the workload so it is re-injected by the canary control plane"

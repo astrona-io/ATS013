@@ -92,7 +92,7 @@ for ns in payments orders; do
     [[ -n "$p" ]] || continue
     total=$((total + 1))
     img=$(kubectl -n "$ns" get pod "$p" \
-      -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
+      -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].image}{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
     if [[ -z "$img" ]]; then
       fail "$ns/$p has no istio-proxy container - every workload in both namespaces should be meshed"
     fi

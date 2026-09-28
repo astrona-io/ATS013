@@ -1,0 +1,16 @@
+global:
+  proxy:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+meshConfig:
+  accessLogFile: /dev/stdout
+  outboundTrafficPolicy:
+    mode: ALLOW_ANY
+pilot:
+  autoscaleEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi

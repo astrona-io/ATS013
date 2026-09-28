@@ -2,9 +2,12 @@
 # Reference solution, applied only by `astrona test` (the `testing:` block).
 # `astrona run` never runs this, so students still do the work themselves.
 # Kept in step with solution.md - if one changes, change the other.
-set -euo pipefail
+set -eu
 
 kubectl label namespace ambient-shop istio.io/dataplane-mode=ambient
+
+istioctl waypoint apply -n ambient-shop --enroll-namespace
+kubectl -n ambient-shop rollout status deployment waypoint --timeout=180s
 
 cat > catalog-header.yaml <<'YAML'
 apiVersion: gateway.networking.k8s.io/v1
@@ -48,6 +51,12 @@ spec:
             methods: ["GET"]
 YAML
 kubectl apply -f catalog-methods.yaml
+
+istioctl waypoint delete waypoint -n ambient-shop
+sleep 10
+
+istioctl waypoint apply -n ambient-shop --enroll-namespace
+kubectl -n ambient-shop rollout status deployment waypoint --timeout=180s
 
 # Give istiod time to push this configuration to every proxy before the grader
 # reads it back. By hand you spend longer than this reading the apply output;

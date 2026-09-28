@@ -118,7 +118,7 @@ if [[ -z "$pay_pod" ]]; then
 fi
 
 pay_containers=$(kubectl -n payments get pod "$pay_pod" \
-  -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if ! grep -qw "istio-proxy" <<<"$pay_containers"; then
   fail "$pay_pod has containers [$pay_containers] - no istio-proxy. Labelling the namespace does not inject a pod that already exists; restart the workload"
 fi
@@ -130,9 +130,9 @@ if [[ "$pay_ready" != "True" ]]; then
 fi
 
 proxy_cpu=$(kubectl -n payments get pod "$pay_pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].resources.requests.cpu}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].resources.requests.cpu}{.spec.containers[?(@.name=="istio-proxy")].resources.requests.cpu}' 2>/dev/null)
 proxy_mem=$(kubectl -n payments get pod "$pay_pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].resources.requests.memory}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].resources.requests.memory}{.spec.containers[?(@.name=="istio-proxy")].resources.requests.memory}' 2>/dev/null)
 if [[ "$proxy_cpu" != "10m" ]]; then
   fail "the injected sidecar requests cpu '$proxy_cpu', expected 10m from global.proxy.resources.requests.cpu"
 fi
@@ -161,7 +161,7 @@ if [[ -z "$legacy_pod" ]]; then
 fi
 
 legacy_containers=$(kubectl -n legacy get pod "$legacy_pod" \
-  -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
 if grep -qw "istio-proxy" <<<"$legacy_containers"; then
   fail "$legacy_pod has an istio-proxy sidecar - legacy must stay out of the mesh"
 fi
@@ -173,7 +173,7 @@ fi
 
 # --- 7. no version skew ------------------------------------------------------
 dp_image=$(kubectl -n payments get pod "$pay_pod" \
-  -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
+  -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].image}{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
 dp_version="${dp_image##*:}"
 if [[ "$cp_version" != "$dp_version" ]]; then
   fail "version skew - control plane is $cp_version, the injected proxy is $dp_version"

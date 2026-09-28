@@ -55,7 +55,7 @@ while read -r line; do
   [[ -n "$line" ]] || continue
   pod="${line%%=*}"
   containers=$(kubectl -n "$NS" get pod "$pod" \
-    -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)
+    -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}' 2>/dev/null)
   if grep -qw "istio-proxy" <<<"$containers"; then
     fail "$pod has an istio-proxy sidecar - ambient mode never modifies the pod"
   fi

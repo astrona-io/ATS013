@@ -76,7 +76,7 @@ stale=""
 while read -r p; do
   [[ -n "$p" ]] || continue
   img=$(kubectl -n "$NS" get pod "$p" \
-    -o jsonpath='{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
+    -o jsonpath='{.spec.initContainers[?(@.name=="istio-proxy")].image}{.spec.containers[?(@.name=="istio-proxy")].image}' 2>/dev/null)
   if [[ -z "$img" ]]; then
     fail "$p has no istio-proxy container - every workload in $NS should be meshed"
   fi
