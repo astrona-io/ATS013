@@ -100,8 +100,10 @@ for ns in payments orders; do
     v="${img##*:}"
     [[ "$v" == "$WANT" ]] || stale="$stale $ns/$p($v)"
 
+# Istio 1.30 records the injecting revision as a pod ANNOTATION; the label form
+# is what older releases wrote. Read the annotation first and fall back.
     r=$(kubectl -n "$ns" get pod "$p" \
-      -o jsonpath='{.metadata.labels.istio\.io/rev}' 2>/dev/null)
+  -o jsonpath='{.metadata.annotations.istio\.io/rev}{.metadata.labels.istio\.io/rev}' 2>/dev/null)
     [[ "$r" == "$REV" ]] || wrongrev="$wrongrev $ns/$p(rev=$r)"
   done <<<"$pods"
 done

@@ -91,8 +91,10 @@ if [[ "$dp_version" != "$WANT" ]]; then
   fail "$pod is running proxy image '$dp_image' - expected $WANT. The pod predates the move; restart the workload so it is re-injected by the canary control plane"
 fi
 
+# Istio 1.30 records the injecting revision as a pod ANNOTATION; the label form
+# is what older releases wrote. Read the annotation first and fall back.
 pod_rev=$(kubectl -n "$NS" get pod "$pod" \
-  -o jsonpath='{.metadata.labels.istio\.io/rev}' 2>/dev/null)
+  -o jsonpath='{.metadata.annotations.istio\.io/rev}{.metadata.labels.istio\.io/rev}' 2>/dev/null)
 if [[ "$pod_rev" != "$REV" ]]; then
   fail "$pod reports istio.io/rev='$pod_rev', expected '$REV'. The tag did not resolve to the canary revision, or the pod was injected before the move"
 fi
