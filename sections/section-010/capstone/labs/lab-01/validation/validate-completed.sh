@@ -179,8 +179,11 @@ if [[ "$cp_version" != "$dp_version" ]]; then
   fail "version skew - control plane is $cp_version, the injected proxy is $dp_version"
 fi
 
-gw_image=$(kubectl -n edge get deployment public-gateway \
-  -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+# A gateway Deployment carries `image: auto`; the injector substitutes the real
+# proxy image on the Pod. Reading the Deployment template always yields 'auto',
+# so the running pod is the only place the version is visible.
+gw_image=$(kubectl -n edge get pod -l app=public-gateway \
+  -o jsonpath='{.items[0].spec.containers[0].image}' 2>/dev/null)
 gw_version="${gw_image##*:}"
 if [[ "$cp_version" != "$gw_version" ]]; then
   fail "version skew - control plane is $cp_version, the gateway proxy is $gw_version. Gateways are proxies too"

@@ -46,8 +46,11 @@ if [[ -z "$gw_ready" || "$gw_ready" -lt 1 ]]; then
   fail "istio-ingressgateway - not found or not ready. The upgrade keeps the default profile, which includes the ingress gateway"
 fi
 
-gw_image=$(kubectl -n istio-system get deployment istio-ingressgateway \
-  -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+# A gateway Deployment carries `image: auto`; the injector substitutes the real
+# proxy image on the Pod. Reading the Deployment template always yields 'auto',
+# so the running pod is the only place the version is visible.
+gw_image=$(kubectl -n istio-system get pod -l app=istio-ingressgateway \
+  -o jsonpath='{.items[0].spec.containers[0].image}' 2>/dev/null)
 gw_version="${gw_image##*:}"
 if [[ "$gw_version" != "$WANT" ]]; then
   fail "the ingress gateway proxy is on $gw_version, expected $WANT. Gateways are Envoy workloads with no namespace label driving them - restart them explicitly"

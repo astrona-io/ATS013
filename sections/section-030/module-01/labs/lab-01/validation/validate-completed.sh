@@ -52,8 +52,11 @@ if [[ -z "$istiod_ready" || "$istiod_ready" -lt 1 ]]; then
   fail "istiod - has no ready replicas after the upgrade"
 fi
 
-gw_image=$(kubectl -n istio-ingress get deployment istio-ingressgateway \
-  -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+# A gateway Deployment carries `image: auto`; the injector substitutes the real
+# proxy image on the Pod. Reading the Deployment template always yields 'auto',
+# so the running pod is the only place the version is visible.
+gw_image=$(kubectl -n istio-ingress get pod -l app=istio-ingressgateway \
+  -o jsonpath='{.items[0].spec.containers[0].image}' 2>/dev/null)
 gw_version="${gw_image##*:}"
 if [[ -z "$gw_version" ]]; then
   fail "istio-ingressgateway - deployment not found in istio-ingress"

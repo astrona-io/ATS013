@@ -37,11 +37,10 @@ kubectl label namespace payments istio-injection=enabled
 # is a moment before the mutating webhook can inject: a pod recreated in that
 # window comes back with no istio-proxy and nothing reports an error.
 wait_for_injector() {
-  kubectl -n istio-system rollout status deployment/istiod --timeout=300s 2>/dev/null || true
   local i
   for i in $(seq 1 60); do
     if kubectl get mutatingwebhookconfiguration -o name 2>/dev/null | grep -q sidecar-injector; then
-      if kubectl -n istio-system get endpoints istiod -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | grep -q .; then
+      if kubectl -n istio-system get endpoints -o name 2>/dev/null | grep -q istiod; then
         return 0
       fi
     fi
