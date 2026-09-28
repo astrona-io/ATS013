@@ -70,9 +70,9 @@ if ! command -v istioctl >/dev/null 2>&1; then
   export PATH="$HOME/.local/bin:$PATH"
 fi
 
-zt=$(istioctl ztunnel-config workload --namespace "$NS" 2>/dev/null || true)
+zt=$(istioctl ztunnel-config workload 2>/dev/null | awk -v ns="$NS" '$1 == ns' || true)
 if [[ -z "$zt" ]]; then
-  fail "could not read 'istioctl ztunnel-config workload --namespace $NS' - is ztunnel running?"
+  fail "'istioctl ztunnel-config workload' reported nothing for $NS - is ztunnel running and the namespace enrolled?"
 fi
 
 for app in notification-service tester; do

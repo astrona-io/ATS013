@@ -63,7 +63,7 @@ The `WAYPOINT` column is the other half of the picture and reads `None` until th
 > **Try it — ask ztunnel who is in the mesh**
 >
 > ```sh
-> istioctl ztunnel-config workload --namespace ambient-demo
+> istioctl ztunnel-config workload | grep ambient-demo
 > ```
 >
 > Expect something like:

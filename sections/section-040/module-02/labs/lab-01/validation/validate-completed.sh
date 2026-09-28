@@ -53,9 +53,9 @@ if [[ "$use" != "$WP" ]]; then
 fi
 
 # --- 4. ztunnel routes the workloads through it -----------------------------
-zt=$(istioctl ztunnel-config workload --namespace "$NS" 2>/dev/null || true)
+zt=$(istioctl ztunnel-config workload 2>/dev/null | awk -v ns="$NS" '$1 == ns' || true)
 if [[ -z "$zt" ]]; then
-  fail "could not read 'istioctl ztunnel-config workload --namespace $NS'"
+  fail "'istioctl ztunnel-config workload' reported nothing for $NS - is ztunnel running and the namespace enrolled?"
 fi
 app_line=$(grep -E "[[:space:]]notification-service-" <<<"$zt" | head -1)
 if [[ -z "$app_line" ]]; then

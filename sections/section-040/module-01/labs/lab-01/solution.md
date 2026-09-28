@@ -41,7 +41,7 @@ DaemonSets, not sidecars. Sidecar mode scales proxies with the number of *pods*;
 ## Step 2: See That Nothing Is Enrolled Yet
 
 ```sh
-istioctl ztunnel-config workload --namespace ambient-demo
+istioctl ztunnel-config workload | grep ambient-demo
 ```
 
 ```text
@@ -96,7 +96,7 @@ Same names, `RESTARTS` still 0, `AGE` simply larger, identical UIDs. These workl
 ## Step 5: Confirm With ztunnel
 
 ```sh
-istioctl ztunnel-config workload --namespace ambient-demo
+istioctl ztunnel-config workload | grep ambient-demo
 ```
 
 ```text

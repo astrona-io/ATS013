@@ -45,7 +45,7 @@ One label, no restart. `RESTARTS` is still 0 and `AGE` just kept counting.
 The reason is mechanical and worth being able to state: sidecar injection mutates the **pod spec**, so it can only happen at admission. Ambient enrollment changes **node-level redirection** (via `istio-cni-node`) and **ztunnel's configuration** (via `istiod`) — both outside the pod.
 
 ```sh
-istioctl ztunnel-config workload --namespace ambient-shop
+istioctl ztunnel-config workload | grep ambient-shop
 ```
 
 ```text

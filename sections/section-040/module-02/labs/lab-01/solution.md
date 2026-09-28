@@ -94,7 +94,7 @@ ambient-l7   Active   12m   istio.io/dataplane-mode=ambient,istio.io/use-waypoin
 ## Step 3: Confirm ztunnel Knows Where to Send Traffic
 
 ```sh
-istioctl ztunnel-config workload --namespace ambient-l7
+istioctl ztunnel-config workload | grep ambient-l7
 ```
 
 ```text

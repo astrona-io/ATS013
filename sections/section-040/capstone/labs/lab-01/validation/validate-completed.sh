@@ -97,7 +97,7 @@ if [[ "$use" != "$WP" ]]; then
   fail "$NS - label istio.io/use-waypoint is '$use', expected '$WP'. Creating the waypoint is not enough; enroll the namespace to it"
 fi
 
-zt=$(istioctl ztunnel-config workload --namespace "$NS" 2>/dev/null || true)
+zt=$(istioctl ztunnel-config workload 2>/dev/null | awk -v ns="$NS" '$1 == ns' || true)
 app_line=$(grep -E "[[:space:]]catalog-api-" <<<"$zt" | head -1)
 if [[ -z "$app_line" ]]; then
   fail "ztunnel does not report a workload for catalog-api in $NS"

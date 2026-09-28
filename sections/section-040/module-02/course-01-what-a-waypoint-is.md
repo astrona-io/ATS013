@@ -149,7 +149,7 @@ The `WAYPOINT` column in `istioctl ztunnel-config workload` is where the routing
 > **Try it — confirm ztunnel knows where to send traffic**
 >
 > ```sh
-> istioctl ztunnel-config workload --namespace ambient-l7
+> istioctl ztunnel-config workload | grep ambient-l7
 > istioctl waypoint list -n ambient-l7
 > ```
 >

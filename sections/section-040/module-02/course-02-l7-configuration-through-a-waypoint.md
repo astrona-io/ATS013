@@ -78,7 +78,7 @@ Both are `Gateway` resources of class `istio-waypoint`. The difference is entire
 > kubectl -n ambient-l7 rollout status deployment svc-waypoint --timeout=180s
 > kubectl -n ambient-l7 label service notification-service istio.io/use-waypoint=svc-waypoint
 > istioctl waypoint list -n ambient-l7
-> istioctl ztunnel-config workload --namespace ambient-l7
+> istioctl ztunnel-config workload | grep ambient-l7
 > ```
 >
 > Expect something like:
@@ -119,7 +119,7 @@ The security consequence deserves stating plainly: if an `AuthorizationPolicy` w
 > ```sh
 > istioctl waypoint delete waypoint -n ambient-l7
 > kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -3
-> istioctl ztunnel-config workload --namespace ambient-l7 | head -3
+> istioctl ztunnel-config workload | grep ambient-l7 | head -3
 > kubectl -n istio-system logs ds/ztunnel --tail=10 | grep -c 'src.identity'
 > ```
 >
