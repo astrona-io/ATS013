@@ -7,7 +7,7 @@ global:
 meshConfig:
   accessLogFile: /dev/stdout
   outboundTrafficPolicy:
-    mode: ALLOW_ANY
+    mode: REGISTRY_ONLY
 pilot:
   autoscaleEnabled: false
   resources:

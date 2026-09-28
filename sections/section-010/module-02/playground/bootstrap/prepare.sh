@@ -31,6 +31,8 @@ helm repo update >/dev/null
 echo "[playground] Ready:"
 helm version --short
 "$BIN_DIR/istioctl" version --remote=false
-helm search repo istio --versions | head -5
+# `| head` closes the pipe early, and under `pipefail` the SIGPIPE it sends to
+# helm fails the whole script (exit 141). Limit the output with helm itself.
+helm search repo istio --versions --max-col-width 0 | sed -n '1,5p'
 
 echo "[playground] No chart is installed. 'helm ls -A' is empty and there are no Istio CRDs."
