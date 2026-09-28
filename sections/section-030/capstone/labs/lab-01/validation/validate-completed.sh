@@ -87,7 +87,8 @@ wrongrev=""
 total=0
 for ns in payments orders; do
   pods=$(kubectl -n "$ns" get pods --field-selector=status.phase=Running \
-    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+    -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.deletionTimestamp}{"\n"}{end}' 2>/dev/null \
+  | awk 'NF==1 {print $1}')
   while read -r p; do
     [[ -n "$p" ]] || continue
     total=$((total + 1))

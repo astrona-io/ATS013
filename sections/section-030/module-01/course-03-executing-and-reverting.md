@@ -23,8 +23,12 @@ Note the `-f` on the middle line and its absence on the other two. `base` and `g
 Make the configuration change you actually wanted by editing the file, not by adding a `--set`:
 
 ```sh
-sed -i 's/mode: ALLOW_ANY/mode: REGISTRY_ONLY/' istiod-values.yaml
+sed -i.bak 's/mode: ALLOW_ANY/mode: REGISTRY_ONLY/' istiod-values.yaml && rm -f istiod-values.yaml.bak
 ```
+
+> `-i` takes no argument on GNU sed but requires one on the BSD sed that ships
+> with macOS. `-i.bak` works on both: it edits in place and leaves a backup,
+> which the `rm` then removes.
 
 That keeps the file complete, which is the entire point of Part 2.
 

@@ -70,7 +70,8 @@ fi
 
 # --- 4. EVERY proxy in the namespace is on the new version ------------------
 pods=$(kubectl -n "$NS" get pods --field-selector=status.phase=Running \
-  -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+  -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.deletionTimestamp}{"\n"}{end}' 2>/dev/null \
+  | awk 'NF==1 {print $1}')
 if [[ -z "$pods" ]]; then
   fail "no running pods found in $NS"
 fi

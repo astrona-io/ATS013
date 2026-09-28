@@ -6,7 +6,7 @@ set -eu
 
 helm get values istiod -n istio-system --revision 1 | tail -n +2 > istiod-values.yaml
 
-sed -i 's/mode: ALLOW_ANY/mode: REGISTRY_ONLY/' istiod-values.yaml
+sed -i.bak 's/mode: ALLOW_ANY/mode: REGISTRY_ONLY/' istiod-values.yaml && rm -f istiod-values.yaml.bak
 grep -A2 outboundTrafficPolicy istiod-values.yaml
 
 helm upgrade istio-base istio/base -n istio-system --version 1.30.5 --wait

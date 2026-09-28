@@ -58,9 +58,13 @@ cat istiod-values.yaml
 Edit the file rather than adding a `--set`. That keeps the file complete, which is the entire point:
 
 ```sh
-sed -i 's/mode: ALLOW_ANY/mode: REGISTRY_ONLY/' istiod-values.yaml
+sed -i.bak 's/mode: ALLOW_ANY/mode: REGISTRY_ONLY/' istiod-values.yaml && rm -f istiod-values.yaml.bak
 grep -A2 outboundTrafficPolicy istiod-values.yaml
 ```
+
+> `-i` takes no argument on GNU sed but requires one on the BSD sed that ships
+> with macOS. `-i.bak` works on both: it edits in place and leaves a backup,
+> which the `rm` then removes.
 
 ```text
   outboundTrafficPolicy:
