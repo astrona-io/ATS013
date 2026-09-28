@@ -12,14 +12,14 @@ istioctl-1.30.5 tag list
 kubectl label namespace canary-demo istio-injection-
 kubectl label namespace canary-demo istio.io/rev=prod --overwrite
 
-# Wait until the sidecar injector is actually serving before recreating any
-# workload. istioctl and helm return once the Deployments report ready, which
-# is a moment before the mutating webhook can inject: a pod recreated in that
-# window comes back with no istio-proxy and nothing reports an error.
+# The namespace is moved onto the 'prod' tag, so the webhook that must be
+# serving before any pod is recreated is istio-revision-tag-prod - not the
+# old default injector, which exists from the start and would make any
+# weaker check pass immediately and hand the pod back to the old control plane.
 wait_for_injector() {
   local i
-  for i in $(seq 1 60); do
-    if kubectl get mutatingwebhookconfiguration -o name 2>/dev/null | grep -q sidecar-injector; then
+  for i in $(seq 1 90); do
+    if kubectl get mutatingwebhookconfiguration -o name 2>/dev/null | grep -q 'istio-revision-tag-prod'; then
       if kubectl -n istio-system get endpoints -o name 2>/dev/null | grep -q istiod; then
         return 0
       fi

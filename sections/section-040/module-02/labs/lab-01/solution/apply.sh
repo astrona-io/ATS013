@@ -32,8 +32,6 @@ kubectl apply -f notification-header.yaml
 istioctl waypoint apply -n ambient-l7 --enroll-namespace
 kubectl -n ambient-l7 rollout status deployment waypoint --timeout=180s
 
-istioctl waypoint delete waypoint -n ambient-l7
-
 # Give istiod time to push this configuration to every proxy before the grader
 # reads it back. By hand you spend longer than this reading the apply output;
 # `astrona test` applies and grades in the same second, and would otherwise
