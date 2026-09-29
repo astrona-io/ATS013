@@ -10,11 +10,15 @@ This is the part with the incident in it. `helm upgrade` has one default that re
 
 Stated as a pipeline, the default upgrade is:
 
-```text
-  chart defaults  ──►  this run's -f files  ──►  this run's --set flags  ──►  new revision
-        ▲
-        └── the previous revision's values are NOT in this picture
+```mermaid
+flowchart LR
+    C["chart defaults"] --> F["this run's -f files"]
+    F --> S["this run's --set flags"]
+    S --> N["the new revision"]
+    P["the PREVIOUS revision's values"] -.->|"not in this picture at all"| N
 ```
+
+The dotted arrow is the whole lesson: `helm upgrade` does not start from what you installed last time. Anything you do not pass again is gone.
 
 Compare that with the mental model most people arrive with, which is closer to `kubectl patch`: "change this one thing, leave everything else". Helm's model is closer to `kubectl apply` of a complete object — the arguments *are* the desired state.
 

@@ -149,6 +149,17 @@ The last row is why this is a recoverable mistake rather than a fatal one, and t
 
 > *Helm's history is a stack of Secrets in the cluster; it is the only copy of any value nobody committed, and it is one careless cleanup away from being gone.*
 
+## Common pitfalls
+
+> [!WARNING]
+> **Treating `helm get values` as the source of truth.** It is a recovery tool; the committed values file you pass on every run is the source of truth.
+>
+> **Deleting `sh.helm.release.v1.*` Secrets to tidy a namespace.** That is the release history — rollback and value recovery go with it.
+>
+> **Reading `STATUS: deployed` as a working mesh.** It means the manifests applied, nothing more.
+>
+> **Forgetting `--all`.** `helm get values` shows only what you supplied; `--all` shows the computed set including chart defaults.
+
 ## Reference
 
 - [Helm: release records](https://helm.sh/docs/topics/advanced/#storage-backends) — where release state is kept and how to change the backend.

@@ -18,17 +18,20 @@ Already done on the playground. It produces three things:
 
 DaemonSet is the load-bearing word in the last two. Sidecar mode scales proxies with the number of **pods**; ambient mode scales them with the number of **nodes**.
 
-```text
-  SIDECAR MODE                        AMBIENT MODE
-  ────────────                        ────────────
-  node-1                              node-1
-   ├─ pod-a [app + envoy]              ├─ pod-a [app]
-   ├─ pod-b [app + envoy]              ├─ pod-b [app]          ztunnel  ◄── one
-   ├─ ...                              ├─ ...                  istio-cni
-   └─ pod-z [app + envoy]              └─ pod-z [app]
-
-  80 pods → 80 Envoys                 80 pods → 1 ztunnel
+```mermaid
+flowchart TD
+    S0["sidecar mode: 80 pods, 80 Envoys"] --> SA["pod-a: app + envoy"]
+    S0 --> SB["pod-b: app + envoy"]
+    S0 --> SZ["pod-z: app + envoy"]
+    A0["ambient mode: 80 pods, 1 ztunnel"] --> AA["pod-a: app"]
+    A0 --> AB["pod-b: app"]
+    A0 --> AZ["pod-z: app"]
+    AA --> ZT["ztunnel, one per node"]
+    AB --> ZT
+    AZ --> ZT
 ```
+
+The proxy moves out of the pod and onto the node. Everything else about ambient follows from that one change — including what it can no longer do without a waypoint.
 
 That is the cost model in one picture, and it is why ambient exists. It is also the trade: one proxy per node is a shared, node-wide dependency, with a node-wide blast radius if it is starved of resources or crashes.
 
@@ -63,21 +66,14 @@ In sidecar mode, the `istio-init` container ran inside the pod's network namespa
 
 In ambient mode there is no proxy in the pod. `istio-cni-node` still programs the pod's network namespace, but it redirects traffic **out of the pod to the node's ztunnel** instead, using a combination of iptables rules and a network device that moves packets between namespaces. The pod itself is never modified — no container added, no spec change, nothing the pod can observe.
 
-```text
-   pod (unchanged, one container)
-        │  connect to notification-service:80
-        ▼
-   [ redirection programmed by istio-cni-node in the pod's netns ]
-        │
-        ▼
-   ztunnel on THIS node
-        │  establishes an HBONE tunnel (mTLS) to the destination
-        ▼
-   ztunnel on the DESTINATION node  :15008
-        │
-        ▼
-   destination pod :80
+```mermaid
+flowchart TD
+    P["pod, unchanged, one container<br/>connects to notification-service:80"] --> R["redirection programmed by istio-cni-node<br/>in the pod's network namespace"]
+    R --> Z["ztunnel on THIS node"]
+    Z --> H["an HBONE tunnel, mTLS, to the destination"]
 ```
+
+Nothing was added to the pod. The redirect is installed from outside it, which is why enrolling a workload needs no restart.
 
 Port **15008** is HBONE's port and it will appear in every ztunnel log line you read in Part 2. HBONE — **H**TTP-**B**ased **O**verlay **N**etwork **E**nvironment — is the transport ambient mode uses between ztunnels: the original connection is carried inside an mTLS-encrypted HTTP/2 tunnel, so both ends are authenticated and the payload is encrypted, without either application knowing.
 
@@ -124,6 +120,17 @@ Two absences are worth naming, because both come up as questions.
 **No Gateway API CRDs.** Istio does not ship them, and ambient mode's L4 features do not need them. They become a hard requirement the moment you want a waypoint, because a waypoint *is* a `Gateway` — which is why the next module's playground installs them separately.
 
 > *Ambient moves the proxy from the pod to the node: `istio-cni` redirects the pod's traffic out to ztunnel, which tunnels it over mTLS on port 15008, and the pod is never modified.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Expecting a sidecar container to appear.** Ambient pods keep their original container count; membership is not visible in `kubectl get pods`.
+>
+> **Assuming ambient gives you L7 features.** ztunnel is an L4 boundary — mTLS and identity, not routing or header matching. That needs a waypoint.
+>
+> **Forgetting `istio-cni`.** The redirection ambient relies on is programmed by the CNI node agent, not by an init container.
+>
+> **Treating ztunnel as per-workload.** It is one per node, shared by every enrolled pod on it.
 
 ## Reference
 

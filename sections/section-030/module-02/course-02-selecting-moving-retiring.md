@@ -17,11 +17,14 @@ So removing the old label is step one of a move, not a tidy-up afterwards.
 
 ## The move is three operations
 
-```text
- 1. kubectl label namespace <ns> istio-injection-          ← remove the old selector
- 2. kubectl label namespace <ns> istio.io/rev=<rev> --overwrite
- 3. kubectl rollout restart deployment -n <ns>             ← the step that actually moves anything
+```mermaid
+flowchart TD
+    S1["1. remove the old selector<br/>kubectl label namespace ns istio-injection-"] --> S2["2. point at the revision<br/>kubectl label namespace ns istio.io/rev=REV --overwrite"]
+    S2 --> S3["3. recreate the pods<br/>kubectl rollout restart deployment -n ns"]
+    S3 --> D["only now has anything moved"]
 ```
+
+Steps 1 and 2 change which control plane *future* pods get. Step 3 is the one that moves the workloads you already have.
 
 Step 3 is where the upgrade happens for that workload. Steps 1 and 2 change which webhook *would* fire; only a new pod goes through admission.
 
@@ -57,15 +60,15 @@ The workflow above has an obvious problem at size. Every upgrade means editing e
 
 A **revision tag** is an alias that points at a revision. Namespaces are labelled with the tag once; afterwards you move the tag, not the namespaces.
 
-```text
-   WITHOUT a tag                      WITH a tag
-   ──────────────                     ──────────
-   ns-a: istio.io/rev=1-30-5          ns-a: istio.io/rev=prod ──┐
-   ns-b: istio.io/rev=1-30-5          ns-b: istio.io/rev=prod ──┼──► prod ──► 1-30-5
-   ns-c: istio.io/rev=1-30-5          ns-c: istio.io/rev=prod ──┘
-   ...                                ...
-   upgrade = relabel every namespace  upgrade = move the tag (one command)
+```mermaid
+flowchart LR
+    A1["ns-a, ns-b, ns-c<br/>istio.io/rev=1-30-5"] --> U1["upgrade means<br/>relabelling every namespace"]
+    B1["ns-a, ns-b, ns-c<br/>istio.io/rev=prod"] --> T["tag prod"]
+    T --> R["revision 1-30-5"]
+    T --> U2["upgrade means<br/>moving the tag, one command"]
 ```
+
+A tag is a level of indirection between the namespaces and the revision. Without it every upgrade touches every namespace; with it the namespaces never change.
 
 Mechanically a tag is **another mutating webhook configuration** — you saw `istio-revision-tag-default` in Part 1's output — whose `namespaceSelector` matches `istio.io/rev=<tag>` and whose backend is the tagged revision's `istiod` Service. Moving a tag rewrites that webhook's backend. Like everything else here, it changes nothing until pods are recreated.
 

@@ -8,16 +8,19 @@
 
 Compare the two strategies by what they do to the cluster's objects:
 
-```text
-  IN-PLACE                                CANARY
-  ────────                                ──────
-  Deployment  istiod         (updated)    Deployment  istiod          (untouched)
-  Service     istiod         (untouched)  Deployment  istiod-1-30-5   (new)
-  Webhook     istio-sidecar-injector      Service     istiod-1-30-5   (new)
-                             (updated)    Webhook     istio-sidecar-injector-1-30-5
-                                                                      (new)
-  → one control plane, new image          → two control planes, both running
+```mermaid
+flowchart TD
+    I0["in-place"] --> I1["Deployment istiod, updated in place"]
+    I0 --> I2["Service istiod, untouched"]
+    I0 --> I3["webhook, updated"]
+    I0 --> I4["one control plane, new image"]
+    C0["canary"] --> C1["Deployment istiod, untouched"]
+    C0 --> C2["Deployment istiod-1-30-5, new"]
+    C0 --> C3["Service and webhook, suffixed, new"]
+    C0 --> C4["two control planes, both running"]
 ```
+
+In-place mutates the objects you already have; canary adds a parallel set. That difference is why one is reversible by relabelling and the other is not.
 
 An in-place upgrade **reuses the same revision**, so every object keeps its name and Istio's reconciliation updates it rather than creating a sibling. Kubernetes then rolls the `istiod` Deployment the way it rolls any Deployment: new pod up, old pod down, one object throughout.
 
@@ -145,6 +148,17 @@ Rolling the `istiod` Deployment means there is a short window with no ready cont
 For a single-replica `istiod` on a small cluster the gap is a few seconds. Running `istiod` with two or more replicas removes it entirely, which is the usual production setting and worth having in place before you need it.
 
 > *In place means the same objects with a new image — same names, same uid, nothing to relabel and nothing to fall back to.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Upgrading with a mismatched `istioctl`.** The binary renders the manifests, so its version decides what you install. Check it before you check the cluster.
+>
+> **Skipping `x precheck`.** It is the one cheap chance to see what the new version rejects while the old one is still serving.
+>
+> **Expecting no gap.** Replacing the control plane means a window with no `istiod`: existing proxies keep serving, new pods and pushes wait.
+>
+> **Treating in-place as reversible.** Going back is another in-place upgrade with the same gap — there is no second control plane to fall back to.
 
 ## Reference
 

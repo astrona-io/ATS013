@@ -116,24 +116,17 @@ Read `istioctl waypoint` as the subcommand family for these proxies: `apply` cre
 
 The waypoint is not on the network path by default — **ztunnel puts it there**. When ztunnel handles a connection to a destination whose Service has a waypoint registered, it does not connect to the destination pod. It connects to the waypoint instead, over HBONE.
 
-```text
-   tester pod  (unchanged, one container)
-        │  connect to notification-service:80
-        ▼
-   ztunnel on tester's node
-        │   looks up the destination: does it have a waypoint?
-        │   yes → send there instead
-        ▼
-   waypoint pod  (Envoy)
-        │   terminates HBONE, parses HTTP,
-        │   applies HTTPRoute / L7 AuthorizationPolicy,
-        │   picks a backend
-        ▼
-   ztunnel on the destination node
-        │   (HBONE again — still mTLS)
-        ▼
-   notification-service pod :80
+```mermaid
+flowchart TD
+    T["tester pod, unchanged"] --> Z1["ztunnel on the tester's node"]
+    Z1 --> Q{"does the destination have a waypoint"}
+    Q -->|"yes"| W["waypoint pod, an Envoy:<br/>terminates HBONE, parses HTTP,<br/>applies HTTPRoute and L7 policy, picks a backend"]
+    Q -->|"no"| Z2["ztunnel on the destination node"]
+    W --> Z2
+    Z2 --> D["notification-service pod :80"]
 ```
+
+The waypoint is a detour ztunnel takes only when one exists. Every hop is still HBONE and still mTLS — the waypoint adds L7 understanding, not encryption.
 
 Three things follow from that diagram.
 
@@ -187,6 +180,17 @@ kubectl get crd gateways.gateway.networking.k8s.io >/dev/null 2>&1 || \
 ```
 
 > *A waypoint is a `Gateway` of class `istio-waypoint`, and ztunnel — not the application, not the network — is what decides to send traffic through it.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Expecting L7 policy to work without a waypoint.** ztunnel cannot parse HTTP, so an `HTTPRoute` with nothing to execute it is silently inert.
+>
+> **Forgetting the Gateway API CRDs.** A waypoint is a `Gateway` of a particular class; without the CRDs the apply fails with `no matches for kind`.
+>
+> **Assuming a waypoint is per pod.** It is per namespace or per service, and it is a separate Deployment you can see and scale.
+>
+> **Reading the extra hop as a bug.** Traffic to a waypointed destination goes via the waypoint by design; that is where the L7 work happens.
 
 ## Reference
 

@@ -10,11 +10,14 @@ A sidecar proxy's image is fixed at pod creation. [The injection module](../../s
 
 So immediately after Part 1's upgrade:
 
-```text
-   istiod 1.30.5  ──xDS──►  proxy 1.29.8   (inplace-demo, replica 1)
-                  ──xDS──►  proxy 1.29.8   (inplace-demo, replica 2)
-                  ──xDS──►  proxy 1.29.8   (ingress gateway)
+```mermaid
+flowchart LR
+    I["istiod 1.30.5"] -->|"xDS"| P1["proxy 1.29.8<br/>inplace-demo replica 1"]
+    I -->|"xDS"| P2["proxy 1.29.8<br/>inplace-demo replica 2"]
+    I -->|"xDS"| P3["proxy 1.29.8<br/>ingress gateway"]
 ```
+
+The control plane moved and the data plane did not. Every proxy here is still the image it was injected with, and stays that way until its pod is recreated.
 
 A new control plane computing configuration for old proxies. Istio calls this **version skew** and supports it across **one minor version**: a 1.30 control plane may serve 1.29 proxies, and makes no promise about 1.28 ones.
 

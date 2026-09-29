@@ -8,17 +8,13 @@ A canary upgrade works because two Istio control planes can run in one cluster w
 
 Concretely, compare two installs:
 
-```text
-istioctl install --set profile=minimal -y
-  ├─ Deployment   istiod
-  ├─ Service      istiod
-  └─ MutatingWebhookConfiguration  istio-sidecar-injector
-
-istioctl install --set profile=minimal --set revision=1-30-5 -y
-  ├─ Deployment   istiod-1-30-5
-  ├─ Service      istiod-1-30-5
-  └─ MutatingWebhookConfiguration  istio-sidecar-injector-1-30-5
+```mermaid
+flowchart TD
+    A["istioctl install --set profile=minimal"] --> A1["Deployment istiod<br/>Service istiod<br/>Webhook istio-sidecar-injector"]
+    B["istioctl install --set profile=minimal --set revision=1-30-5"] --> B1["Deployment istiod-1-30-5<br/>Service istiod-1-30-5<br/>Webhook istio-sidecar-injector-1-30-5"]
 ```
+
+A revision is a naming scheme. The same render produces the same objects with the revision suffixed, which is why two control planes coexist without either one's reconciliation touching the other's objects.
 
 The general rule: **a revision is a named, independent instance of the control plane, and every namespaced object it owns carries the name as a suffix.** Without a revision name, an install is "the default revision" — which is why the existing `istiod` has no suffix and its webhook does not either.
 
@@ -126,6 +122,17 @@ Two control planes run for the whole migration. On a small cluster that is notic
 It is also the price of a rollback that is a label change rather than a reinstall. The in-place module makes the comparison explicit; the number to hold onto here is that the overlap is temporary and bounded by how quickly you restart workloads.
 
 > *A revision suffixes every namespaced object it owns, which is why two control planes coexist, why reconciliation cannot cross between them, and why installing one changes nothing for running pods.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Expecting a revision install to move workloads.** It creates a second control plane and nothing else. Nothing migrates until a namespace is relabelled and its pods recreated.
+>
+> **Using a revision name that is not a DNS label.** Dots and underscores are rejected, which is why versions appear as `1-30-5` rather than `1.30.5`.
+>
+> **Forgetting the second control plane costs resources.** Two `istiod` Deployments run until you retire one.
+>
+> **Assuming the default revision is privileged.** It is simply the one with no suffix, and it can be the older of the two.
 
 ## Reference
 
