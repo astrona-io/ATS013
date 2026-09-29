@@ -6,6 +6,16 @@ Three releases reporting `deployed` is not proof that the mesh works. This part 
 
 ## Where a release lives
 
+```mermaid
+flowchart LR
+    H["helm install"] --> S["a Secret named sh.helm.release.v1.NAME.vN<br/>in the release's namespace"]
+    S --> M["the rendered manifests"]
+    S --> V["the values you supplied"]
+    S --> R["the revision history that rollback reads"]
+```
+
+Helm keeps no state of its own — everything it knows is in those Secrets, in the cluster. Delete them to tidy a namespace and you have deleted the history and the rollback with it.
+
 Helm stores each release's full state **in the cluster**, as a Secret in the release's namespace, of type `helm.sh/release.v1`. That record contains the rendered manifests and the values used to produce them, gzipped and base64-encoded.
 
 Every `install` or `upgrade` writes a new Secret and increments the **revision** number, starting at 1. Old revisions are kept. That store is what makes `helm history` and `helm rollback` possible — and it is also why values that exist only inside a release are values you can lose but not easily notice losing.
@@ -152,16 +162,24 @@ kubectl label namespace default istio-injection-
 > The first command removes the Istio API group cluster-wide, and with it every `VirtualService`, `DestinationRule`, `AuthorizationPolicy` and `Gateway` in every namespace — not just the ones related to this install. On a shared cluster, inventory them first with `kubectl get virtualservices,destinationrules,gateways -A`. On this playground there is nothing to lose.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **Installing `istiod` before `base`.** The API server rejects the unknown kinds. Read the kind named in the error rather than retrying.
 >
-> - **Installing `istiod` before `base`.** The API server rejects the unknown kinds. Read the kind named in the error rather than retrying.
-> - **Treating `STATUS: deployed` as proof the mesh works.** It means the manifests applied. Inject a pod to prove the rest.
-> - **Relying on `helm get values` as the source of truth.** It is a recovery tool. A committed values file passed with `-f` on every run is the source of truth — section 030 shows what goes wrong otherwise.
-> - **Expecting `helm uninstall` to clean up CRDs.** It never does. Remove them explicitly, and understand what that deletes.
-> - **Deleting `sh.helm.release.v1.*` Secrets to tidy a namespace.** That is the release history: rollback and value recovery both go with it.
-> - **Assuming a gateway comes with the control plane.** Without an `istio/gateway` release there is no ingress, and a `Gateway` resource you apply matches no workload and silently does nothing.
-> - **Omitting `--version`.** Two runs a month apart install two different Istio versions.
-> - **Mixing Helm and `istioctl install` on one cluster.** Both write the same Deployments and webhooks; each run reverts parts of the other.
+> **Treating `STATUS: deployed` as proof the mesh works.** It means the manifests applied. Inject a pod to prove the rest.
+>
+> **Relying on `helm get values` as the source of truth.** It is a recovery tool. A committed values file passed with `-f` on every run is the source of truth — section 030 shows what goes wrong otherwise.
+>
+> **Expecting `helm uninstall` to clean up CRDs.** It never does. Remove them explicitly, and understand what that deletes.
+>
+> **Deleting `sh.helm.release.v1.*` Secrets to tidy a namespace.** That is the release history: rollback and value recovery both go with it.
+>
+> **Assuming a gateway comes with the control plane.** Without an `istio/gateway` release there is no ingress, and a `Gateway` resource you apply matches no workload and silently does nothing.
+>
+> **Omitting `--version`.** Two runs a month apart install two different Istio versions.
+>
+> **Mixing Helm and `istioctl install` on one cluster.** Both write the same Deployments and webhooks; each run reverts parts of the other.
 
 > *Helm's state lives in Secrets in the cluster, `deployed` only means the manifests applied, and uninstall leaves the CRDs, the namespace labels and every running sidecar exactly where they were.*
 

@@ -171,16 +171,24 @@ The two common approaches:
 Either way, do it as a distinct step with its own verification, because a gateway is the piece whose failure is immediately visible from outside the cluster.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **Leaving both `istio-injection` and `istio.io/rev` on a namespace.** `istio-injection` wins and the revision label is ignored. The workload stays on the default control plane and the upgrade appears to do nothing.
 >
-> - **Leaving both `istio-injection` and `istio.io/rev` on a namespace.** `istio-injection` wins and the revision label is ignored. The workload stays on the default control plane and the upgrade appears to do nothing.
-> - **Forgetting the restart.** Installing a revision and relabelling a namespace changes nothing for running pods. `kubectl rollout restart` is the step that performs the upgrade.
-> - **Uninstalling the old revision before restarting workloads.** Those pods lose configuration updates and certificate renewal, and fail later in ways that look unrelated.
-> - **`istioctl uninstall --purge` during a canary.** It removes every revision, including the new one, and the shared CRDs with them.
-> - **Installing a full profile as the canary.** Two sets of gateways contend for the same names. Install `minimal` and migrate gateways separately.
-> - **Using a dotted revision name.** `1.30.5` is not a valid DNS label; use `1-30-5`.
-> - **Assuming a tag change moves workloads.** It rewrites a webhook's backend. Pods still have to be recreated.
-> - **Skipping a minor version.** Two control planes does not widen the one-minor-version skew window — each workload still talks to exactly one control plane, and the constraint is per workload.
+> **Forgetting the restart.** Installing a revision and relabelling a namespace changes nothing for running pods. `kubectl rollout restart` is the step that performs the upgrade.
+>
+> **Uninstalling the old revision before restarting workloads.** Those pods lose configuration updates and certificate renewal, and fail later in ways that look unrelated.
+>
+> **`istioctl uninstall --purge` during a canary.** It removes every revision, including the new one, and the shared CRDs with them.
+>
+> **Installing a full profile as the canary.** Two sets of gateways contend for the same names. Install `minimal` and migrate gateways separately.
+>
+> **Using a dotted revision name.** `1.30.5` is not a valid DNS label; use `1-30-5`.
+>
+> **Assuming a tag change moves workloads.** It rewrites a webhook's backend. Pods still have to be recreated.
+>
+> **Skipping a minor version.** Two control planes does not widen the one-minor-version skew window — each workload still talks to exactly one control plane, and the constraint is per workload.
 
 ## Operational considerations
 

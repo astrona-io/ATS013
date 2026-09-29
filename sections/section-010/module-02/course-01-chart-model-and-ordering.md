@@ -65,15 +65,13 @@ The final clause is the whole diagnosis. Read the kind in the error before assum
 
 Why `gateway` after `istiod`: a gateway pod is an Envoy that fetches its entire configuration from the control plane over xDS. Started with no control plane to reach, it comes up and sits there with an empty configuration — not crash-looping, just useless. It will recover when `istiod` appears, so this ordering is softer than the first one, but installing into a working control plane means the gateway is serving from the moment it is ready.
 
-```text
-  base        defines the kinds
-    │         (CRDs, cluster roles)
-    ▼
-  istiod      creates objects OF those kinds
-    │         (webhook configs), and becomes the xDS source
-    ▼
-  gateway     is an xDS client with nothing to do until istiod exists
+```mermaid
+flowchart TD
+    B["base<br/>defines the kinds: CRDs and cluster roles"] --> I["istiod<br/>creates objects OF those kinds, such as webhook<br/>configurations, and becomes the xDS source"]
+    I --> G["gateway<br/>an xDS client with nothing to do until istiod exists"]
 ```
+
+Each arrow is a hard dependency, not a habit. Install out of order and the API server rejects kinds it has never heard of.
 
 ## Why a gateway is its own release
 
@@ -117,6 +115,17 @@ One more structural fact, because it saves learning the same thing twice. Chart 
 That is not a coincidence: `istioctl install` renders the Istio charts internally. The two install methods are two front ends over one templating layer, which is why knowledge transfers between them — and also why running both against one cluster produces two owners of identical objects.
 
 > *Istio ships as separate charts because its pieces have separate lifecycles; the install order is the CRD dependency, not a style rule.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Treating the order as a convention.** `base` defines the CRDs; without it the API server rejects `istiod`'s objects outright. The error names the missing kind.
+>
+> **Expecting one chart to install everything.** Sidecar mode needs three releases, and a gateway is deliberately its own.
+>
+> **Forgetting a gateway release entirely.** Without it there is no ingress workload, and a `Gateway` object you apply selects nothing and silently does nothing.
+>
+> **Assuming the release name is cosmetic.** It becomes the object name, so it is what you will be reading in `kubectl get` for the life of the cluster.
 
 ## Reference
 

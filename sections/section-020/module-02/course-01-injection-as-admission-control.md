@@ -6,38 +6,18 @@ Injection is not an Istio feature bolted onto Kubernetes; it is a standard Kuber
 
 ## The path a pod takes
 
-```text
-  kubectl apply (Deployment)
-        │
-        ▼
-  Deployment controller  ──creates──►  ReplicaSet  ──creates──►  Pod object
-        │
-        ▼
-  API SERVER
-   ├─ authentication
-   ├─ authorization
-   ├─ MUTATING ADMISSION  ◄── Istio's webhook lives here
-   │     │
-   │     ├─ does the webhook's selector match this pod / its namespace?
-   │     │        no ──► skip
-   │     │       yes
-   │     ▼
-   │   POST the pod object to istiod's /inject endpoint
-   │     │
-   │     ▼
-   │   istiod returns a JSON patch:
-   │     + container  istio-proxy
-   │     + initContainer  istio-init      (or nothing, with CNI — see Part 3)
-   │     + volumes, env vars, annotations
-   │     ▼
-   │   API server applies the patch to the object
-   │
-   ├─ VALIDATING ADMISSION
-   └─ persist to etcd
-        │
-        ▼
-  kubelet starts whatever was persisted
+```mermaid
+flowchart TD
+    A["kubectl apply, a Deployment"] --> B["Deployment controller creates a ReplicaSet,<br/>which creates a Pod object"]
+    B --> C["API SERVER: authentication, then authorization,<br/>then MUTATING ADMISSION"]
+    C --> D{"does the webhook selector match<br/>this pod and its namespace"}
+    D -->|"no"| S["skip: the pod is stored unchanged"]
+    D -->|"yes"| P["POST the pod object to istiod's /inject endpoint"]
+    P --> J["istiod returns a JSON patch:<br/>istio-proxy container, istio-init, volumes, env, annotations"]
+    J --> ST["the patched pod is stored, then scheduled"]
 ```
+
+Injection is an API-server concern, not a scheduling one. By the time a pod exists on a node the decision is already made and permanent for that pod.
 
 Two structural facts fall out of that, and between them they cover most injection questions.
 
@@ -169,6 +149,17 @@ That is the right default — silently un-injected pods in a mesh enforcing STRI
 This is also why a stale webhook configuration left over from a removed install is so disruptive, and why `istioctl x precheck` looks for exactly that.
 
 > *The webhook fires on Pod CREATE only, selected by namespace or by pod label — every injection surprise is a consequence of those two words.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Labelling a namespace and expecting existing pods to change.** The decision is made at admission. Label first, then recreate the pods.
+>
+> **Reading a missing sidecar as a broken webhook.** The far more common cause is a selector that does not match, or a pod created before the label existed.
+>
+> **Forgetting the webhook is in the request path.** If `istiod` is unreachable, pod creation in injected namespaces is affected — the `failurePolicy` decides whether it fails open or closed.
+>
+> **Assuming injection is retried.** It happens once, for that pod object, and never again.
 
 ## Reference
 

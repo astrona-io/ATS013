@@ -167,6 +167,19 @@ Getting a setting on the wrong side of that line is not a syntax error — it is
 
 > *The values file is the `spec.values` tree under another name; `meshConfig` lands in a ConfigMap, `pilot` lands on the Deployment, and `global.proxy` multiplies by every meshed pod.*
 
+## Common pitfalls
+
+> [!WARNING]
+> **Omitting `--version`.** Helm installs whatever the repository currently offers, so two runs a month apart install two different Istio versions.
+>
+> **Creating the namespace as an afterthought.** `helm install -n` does not create it unless you ask; `--create-namespace` or a prior `kubectl create ns` is part of the step.
+>
+> **Setting a mesh-wide value on the wrong release.** `meshConfig` belongs to `istiod`. Passing it to `base` or `gateway` is accepted by Helm and does nothing.
+>
+> **Leaving `defaultRevision` unset when you meant to own the default.** The injection webhook needs a revision to point at, and section 030 depends on this being deliberate.
+>
+> **Configuring at install time what belongs in a runtime object.** Gateways, routing and policy are Istio objects you apply later, not chart values.
+
 ## Reference
 
 - [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the procedure this part follows.

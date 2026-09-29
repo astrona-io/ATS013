@@ -8,32 +8,19 @@ An installed control plane does nothing to your applications. This part covers t
 
 Trace one `kubectl apply` of a Deployment in an injection-enabled namespace:
 
-```text
-  kubectl apply (Deployment)
-        │
-        ▼
-  Deployment controller creates a Pod object
-        │
-        ▼
-  API server: authentication → authorization → MUTATING ADMISSION
-        │                                            │
-        │          namespaceSelector matches? ───────┤
-        │                    │ yes                   │ no
-        │                    ▼                       ▼
-        │          POST to istiod's                 (store unchanged)
-        │          injection webhook
-        │                    │
-        │          istiod returns a JSON patch:
-        │          + istio-proxy container
-        │          + istio-init init container
-        │          + volumes, env vars
-        │                    ▼
-        ▼          API server applies the patch
-  VALIDATING ADMISSION → object stored in etcd
-        │
-        ▼
-  kubelet starts whatever was stored
+```mermaid
+flowchart TD
+    A["kubectl apply, a Deployment"] --> B["the Deployment controller creates a Pod object"]
+    B --> C["API server: authentication, then authorization,<br/>then MUTATING ADMISSION"]
+    C --> D{"does the namespaceSelector match"}
+    D -->|"no"| E["store the pod unchanged<br/>no proxy, ever"]
+    D -->|"yes"| F["POST to istiod's injection webhook"]
+    F --> G["istiod returns a JSON patch:<br/>add istio-init and istio-proxy"]
+    G --> H["the patched pod is stored, then scheduled"]
 ```
+
+The decision happens once, inside the API server, before the pod is ever scheduled. Nothing revisits it afterwards — which is the whole reason a namespace label does not change pods that already exist.
+
 
 Two structural facts fall out of that diagram, and between them they explain most injection questions.
 
@@ -147,12 +134,36 @@ The last column, `ISTIOD`, names the control plane pod each proxy is connected t
 
 Putting the two halves of this part together gives a diagnostic order that is worth internalising, because it goes from cheapest to most expensive:
 
+```mermaid
+flowchart TD
+    S["something is applied and not working"] --> L1{"is the workload in the mesh at all"}
+    L1 -->|"no"| F1["injection problem:<br/>the namespace label, or a pod that predates it"]
+    L1 -->|"yes"| L2{"did the configuration reach the control plane"}
+    L2 -->|"no"| F2["rejected or malformed: istioctl analyze"]
+    L2 -->|"yes"| L3{"did the control plane push it"}
+    L3 -->|"no"| F3["a stuck push: proxy-status"]
+    L3 -->|"yes"| L4["the version triad:<br/>a new control plane can send what an old proxy ignores"]
+```
+
 1. **Is the workload in the mesh at all?** Container count, or `proxy-status` listing it. If not, it is an injection problem — check the namespace label, then check whether the pod predates it.
 2. **Did the configuration reach the control plane?** `istioctl analyze` and the relevant object's `kubectl get`. A rejected or malformed object never gets further.
 3. **Did the control plane push it?** `proxy-status` columns. Persistent `STALE` points here.
 4. **Can the proxy act on it?** The version triad. A 1.30 control plane can send a proxy configuration that a 1.28 proxy silently ignores.
 
 Most real incidents stop at step 1 or 2. Step 4 is rare and is almost always the tail of an upgrade nobody finished.
+
+## Common pitfalls
+
+> [!WARNING]
+> **Labelling a namespace and expecting running pods to change.** Injection is an admission-time decision. Label first, then `kubectl rollout restart deployment -n <namespace>`.
+>
+> **Reading the container count as health.** It tells you a proxy was injected, not that it holds useful configuration.
+>
+> **Forgetting there are three versions, not one.** `istioctl`, the control plane and each sidecar can all differ, and only the data plane lags silently.
+>
+> **Letting the data plane trail by more than one minor version.** That is the supported skew; beyond it, a proxy may quietly ignore configuration the control plane sends.
+>
+> **Starting a diagnosis at the proxy.** The ordered list above is cheapest-first for a reason: most incidents stop at injection or at a rejected object.
 
 > *Injection is decided once, at pod creation; versions drift because the control plane is one Deployment and the data plane is every pod.*
 

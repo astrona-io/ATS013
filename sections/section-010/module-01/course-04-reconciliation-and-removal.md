@@ -49,6 +49,16 @@ The load-bearing one is `install.operator.istio.io/owning-resource`, alongside `
 
 Three consequences worth knowing:
 
+```mermaid
+flowchart TD
+    O["an object in the cluster"] --> Q{"does it carry Istio's ownership labels<br/>for THIS revision"}
+    Q -->|"no, you created it by hand"| K["left alone, always"]
+    Q -->|"no, it belongs to another revision"| K2["left alone: this is what makes canary upgrades possible"]
+    Q -->|"yes"| R{"is it still in the newly rendered manifest set"}
+    R -->|"yes"| U["updated to match the render"]
+    R -->|"no"| D["pruned"]
+```
+
 - **Objects you created by hand are not pruned.** A `VirtualService` you applied has none of these labels, so reconciliation ignores it entirely. Install-time reconciliation only touches install-time objects.
 - **Pruning is scoped to a revision.** An install of revision `1-30-5` does not prune objects owned by the default revision. That scoping is exactly what makes canary upgrades possible — two control planes coexist because neither one's reconciliation can see the other's objects.
 - **Hand-edits to installed objects are silently reverted.** If you `kubectl edit` the `istiod` Deployment, nothing undoes it immediately (Part 1: there is no in-cluster operator), but the next `istioctl install` renders the object from the document and overwrites your change. The edit survives exactly until someone runs the install again, which is the worst possible duration.
@@ -123,15 +133,22 @@ The third one is the operationally interesting one. A pod with an orphaned sidec
 > The CRDs are genuinely gone — the same error you saw before the very first install. But the namespace is still labelled, and `tester` still has a sidecar with nothing to talk to. Finish the job with `kubectl label namespace default istio-injection-` and `kubectl delete pod tester`.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **"The second install added `minimal` on top of `demo`."** It did not. Reconciliation removes components the new document does not contain. Keep one `IstioOperator` file as the source of truth and pass it every time.
 >
-> - **"The second install added `minimal` on top of `demo`."** It did not. Reconciliation removes components the new document does not contain. Keep one `IstioOperator` file as the source of truth and pass it every time.
-> - **`--set` flags as the installation record.** They exist in your shell history and nowhere else, and the cluster shows the result rather than the inputs. Commit a file.
-> - **Hand-editing an installed object.** It works until the next install, then silently reverts. Change the document instead.
-> - **`istioctl uninstall` without `--purge`, expecting a clean cluster.** The CRDs stay. The next install starts on top of stale definitions, which is exactly what `x precheck` warns about.
-> - **`--purge` mid-upgrade.** It removes every revision, canary included.
-> - **Assuming uninstall removes sidecars.** It does not. Existing pods keep the proxy container until they are recreated.
-> - **`istioctl` and Helm both owning one cluster.** Two reconcilers, two sets of ownership labels, changes that revert unpredictably. Pick one method per cluster.
+> **`--set` flags as the installation record.** They exist in your shell history and nowhere else, and the cluster shows the result rather than the inputs. Commit a file.
+>
+> **Hand-editing an installed object.** It works until the next install, then silently reverts. Change the document instead.
+>
+> **`istioctl uninstall` without `--purge`, expecting a clean cluster.** The CRDs stay. The next install starts on top of stale definitions, which is exactly what `x precheck` warns about.
+>
+> **`--purge` mid-upgrade.** It removes every revision, canary included.
+>
+> **Assuming uninstall removes sidecars.** It does not. Existing pods keep the proxy container until they are recreated.
+>
+> **`istioctl` and Helm both owning one cluster.** Two reconcilers, two sets of ownership labels, changes that revert unpredictably. Pick one method per cluster.
 
 ## Making the install reproducible
 

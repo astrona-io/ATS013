@@ -159,13 +159,18 @@ diff /tmp/current.yaml /tmp/proposed.yaml | head -30
 In a pipeline, the equivalent is the `helm-diff` plugin, which does this properly and is worth installing wherever Helm upgrades are automated.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **`helm upgrade` with neither `-f` nor `--reuse-values`.** Everything falls back to chart defaults and the command reports success. This is the most expensive mistake in the module.
 >
-> - **`helm upgrade` with neither `-f` nor `--reuse-values`.** Everything falls back to chart defaults and the command reports success. This is the most expensive mistake in the module.
-> - **`--reuse-values` with a `-f` file that removes a key.** The removal is not honoured; the file is merged onto the old values. To genuinely drop a key, pass a complete file without `--reuse-values`.
-> - **Assuming `--set` is additive across runs.** It applies to this invocation only, on top of whatever base the flags selected.
-> - **Treating exit code zero as verification.** Helm's success means the manifests applied. Whether they contain what you intended is a separate question with a separate check.
-> - **Recovering a values file and not committing it.** The cluster being the only copy is the root cause; reconstruction alone does not fix it.
+> **`--reuse-values` with a `-f` file that removes a key.** The removal is not honoured; the file is merged onto the old values. To genuinely drop a key, pass a complete file without `--reuse-values`.
+>
+> **Assuming `--set` is additive across runs.** It applies to this invocation only, on top of whatever base the flags selected.
+>
+> **Treating exit code zero as verification.** Helm's success means the manifests applied. Whether they contain what you intended is a separate question with a separate check.
+>
+> **Recovering a values file and not committing it.** The cluster being the only copy is the root cause; reconstruction alone does not fix it.
 
 > *`helm upgrade` reconciles to the arguments of this run, not to the state of the last one — and it reports success either way.*
 

@@ -144,14 +144,20 @@ It **cannot read HTTP**, because it is not an HTTP proxy. Everything that depend
 The failure mode matters more than the list. Applying an `AuthorizationPolicy` that matches on `methods: ["GET"]` to an ambient namespace with no waypoint does **not** fail loudly. The policy is accepted, stored, and reports healthy — and there is nothing in the request path able to evaluate it. That silent no-op is the single most common ambient-mode mistake, and the next module opens by demonstrating it.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **Grepping for `istio-proxy` to check membership.** Ambient pods never have a sidecar. Use `istioctl ztunnel-config workload` and read the `PROTOCOL` column.
 >
-> - **Grepping for `istio-proxy` to check membership.** Ambient pods never have a sidecar. Use `istioctl ztunnel-config workload` and read the `PROTOCOL` column.
-> - **Labelling a namespace for both modes.** `istio-injection=enabled` and `istio.io/dataplane-mode=ambient` on one namespace is a contradiction. Pick one mode per namespace.
-> - **Expecting L7 behaviour from ztunnel.** HTTP routing and L7 authorization need a waypoint. Without one, the configuration is accepted and silently does nothing.
-> - **Assuming `istio-cni` replaces your cluster CNI.** It chains onto the existing plugin. Where a cluster's CNI does not tolerate chaining, pods end up unable to reach anything — check `istio-cni-node` logs before blaming Istio configuration.
-> - **Migrating a namespace from sidecar to ambient without a restart.** Removing the injection label and adding the ambient label enrolls it immediately, but the existing pods keep their now-redundant sidecars until they are recreated.
-> - **Sizing ztunnel like a sidecar.** One ztunnel serves every enrolled pod on its node. Its limits are a node-wide concern, not a per-workload one.
+> **Labelling a namespace for both modes.** `istio-injection=enabled` and `istio.io/dataplane-mode=ambient` on one namespace is a contradiction. Pick one mode per namespace.
+>
+> **Expecting L7 behaviour from ztunnel.** HTTP routing and L7 authorization need a waypoint. Without one, the configuration is accepted and silently does nothing.
+>
+> **Assuming `istio-cni` replaces your cluster CNI.** It chains onto the existing plugin. Where a cluster's CNI does not tolerate chaining, pods end up unable to reach anything — check `istio-cni-node` logs before blaming Istio configuration.
+>
+> **Migrating a namespace from sidecar to ambient without a restart.** Removing the injection label and adding the ambient label enrolls it immediately, but the existing pods keep their now-redundant sidecars until they are recreated.
+>
+> **Sizing ztunnel like a sidecar.** One ztunnel serves every enrolled pod on its node. Its limits are a node-wide concern, not a per-workload one.
 
 ## Operational considerations
 

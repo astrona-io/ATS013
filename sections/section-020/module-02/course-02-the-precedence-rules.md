@@ -19,24 +19,19 @@ The two `istio.io/rev` rows are the same label key on two different objects, and
 
 For a pod being created, evaluate in this order:
 
-```text
- 1. Does the pod template carry sidecar.istio.io/inject: "false"?
-       yes ──► NOT injected.  Stop.  (beats everything)
-       no  ──► continue
-
- 2. Does the pod template carry sidecar.istio.io/inject: "true"?
-       yes ──► injected, regardless of namespace labels.  Continue to 4.
-       no  ──► continue
-
- 3. Does the namespace carry istio-injection=enabled, or istio.io/rev=<x>?
-       neither ──► NOT injected.  Stop.
-       either  ──► injected.  Continue to 4.
-
- 4. WHICH control plane?
-       pod template istio.io/rev         ──► that revision      (highest)
-       else namespace istio-injection    ──► default revision
-       else namespace istio.io/rev       ──► that revision
+```mermaid
+flowchart TD
+    S["a pod is being admitted"] --> Q1{"pod template has<br/>sidecar.istio.io/inject: false"}
+    Q1 -->|"yes"| N1["NOT injected, stop<br/>this beats everything"]
+    Q1 -->|"no"| Q2{"pod template has<br/>sidecar.istio.io/inject: true"}
+    Q2 -->|"yes"| Y["injected, whatever the namespace says"]
+    Q2 -->|"no"| Q3{"namespace has istio-injection=enabled<br/>or istio.io/rev"}
+    Q3 -->|"neither"| N2["NOT injected, stop"]
+    Q3 -->|"either"| Y
+    Y --> W["WHICH control plane:<br/>pod istio.io/rev, else namespace istio-injection,<br/>else namespace istio.io/rev"]
 ```
+
+Two questions, in this order: *whether* to inject, and only then *which* revision. Most confusion comes from answering the second while the first has already said no.
 
 Two consequences worth stating as rules in their own right:
 
@@ -150,14 +145,20 @@ The pod-template form of `istio.io/rev` pins a single workload to a revision reg
 This playground runs a single default control plane, so there is no second revision here to pin anything to. Section 030's canary module provides that environment and works through the labels against two live control planes.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **`sidecar.istio.io/inject` on the Deployment's `metadata.labels`.** It must be on `spec.template.metadata.labels`. In the wrong place it applies cleanly and does nothing.
 >
-> - **`sidecar.istio.io/inject` on the Deployment's `metadata.labels`.** It must be on `spec.template.metadata.labels`. In the wrong place it applies cleanly and does nothing.
-> - **Unquoted `true` / `false`.** Label values are strings; a YAML boolean is rejected by the API server.
-> - **Changing a namespace label and not restarting.** Injection is decided at pod creation. Without `kubectl rollout restart` the change has no visible effect.
-> - **Both `istio-injection` and `istio.io/rev` on one namespace.** `istio-injection` wins silently and the workload attaches to the default control plane, not the revision you named.
-> - **Removing a workload from the mesh under STRICT mTLS.** An un-injected pod has no workload certificate. If a `PeerAuthentication` requires STRICT mutual TLS, meshed callers will start refusing its connections — opting out is a policy decision, not just a resource saving.
-> - **Assuming container count is the universal check.** It works in sidecar mode only; section 040's ambient pods stay at one container while fully meshed.
+> **Unquoted `true` / `false`.** Label values are strings; a YAML boolean is rejected by the API server.
+>
+> **Changing a namespace label and not restarting.** Injection is decided at pod creation. Without `kubectl rollout restart` the change has no visible effect.
+>
+> **Both `istio-injection` and `istio.io/rev` on one namespace.** `istio-injection` wins silently and the workload attaches to the default control plane, not the revision you named.
+>
+> **Removing a workload from the mesh under STRICT mTLS.** An un-injected pod has no workload certificate. If a `PeerAuthentication` requires STRICT mutual TLS, meshed callers will start refusing its connections — opting out is a policy decision, not just a resource saving.
+>
+> **Assuming container count is the universal check.** It works in sidecar mode only; section 040's ambient pods stay at one container while fully meshed.
 
 > *Pod label beats namespace in both directions, `istio-injection` beats `istio.io/rev` on the same namespace, and the pod label only counts if it is on the template.*
 

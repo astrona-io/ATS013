@@ -14,20 +14,16 @@ istioctl install --set profile=demo -y
 
 Four things happen, and the first three never touch the cluster:
 
-```text
- 1. LOAD      built-in profile `demo`  ──►  an IstioOperator document
-                (compiled into the istioctl binary, not fetched)
-                         │
- 2. OVERLAY   --set flags and -f files applied on top
-                (later sources win over earlier ones)
-                         │
- 3. RENDER    the merged document is expanded into plain
-                Kubernetes manifests — Deployments, Services,
-                ConfigMaps, CRDs, webhook configurations
-                         │
- 4. APPLY     manifests are sent to the API server, then istioctl
-                waits for the components to report ready
+```mermaid
+flowchart TD
+    L["1. LOAD<br/>the built-in profile, compiled into the istioctl binary"] --> O["2. OVERLAY<br/>-f files and --set flags merged on top"]
+    O --> R["3. RENDER<br/>expand into plain Kubernetes manifests:<br/>Deployments, Services, ConfigMaps, CRDs, webhooks"]
+    R --> A["4. APPLY<br/>send to the API server, then wait for ready"]
+    L -.->|"on your machine"| R
+    A -.->|"the only stage the cluster sees"| A2["the cluster"]
 ```
+
+Stages 1 to 3 happen entirely on your laptop. Only stage 4 touches the cluster — which is why you can stop after stage 3 and read exactly what is about to be applied.
 
 The general rule: **`istioctl install` is client-side templating plus an apply.** The `IstioOperator` document is an *input format*, not an object that lives in the cluster doing work.
 
@@ -73,7 +69,14 @@ Stage 2 merges sources, and the merge is last-wins on a per-field basis. In incr
 2. Any `-f <file>` documents, in the order given.
 3. Any `--set key=value` flags, in the order given.
 
-So `istioctl install -f mine.yaml --set meshConfig.accessLogFile=/dev/stdout` uses your file and then overrides that one key. Reversing them on the command line does not change anything — `--set` always outranks `-f`, regardless of position.
+```mermaid
+flowchart LR
+    P["the profile<br/>lowest priority"] --> F["-f files<br/>in the order given"]
+    F --> S["--set flags<br/>highest priority, always"]
+    S --> M["the merged IstioOperator document"]
+```
+
+So `istioctl install -f mine.yaml --set meshConfig.accessLogFile=/dev/stdout` uses your file and then overrides that one key. Reversing them on the command line does not change anything — `--set` always outranks `-f`, regardless of position on the line.
 
 The trap is not the ordering itself; it is that a `--set` override leaves no trace. Stage 1 and 2 happen on your machine, and the merged document is not stored anywhere. Six months later, the cluster shows the *result* and nothing shows the *inputs*. That is the mechanical reason the rest of this course keeps insisting the installation lives in a committed file.
 
@@ -129,6 +132,21 @@ The apply stage is not fire-and-forget. `istioctl install` blocks until the comp
 - In a script, the command returning is a genuine readiness signal. You do not need to add your own `kubectl wait` after it.
 
 `-y` skips the interactive confirmation prompt. In an automated context that is required; at a terminal, reading the prompt once is a free check that you are pointed at the cluster you meant.
+
+## Common pitfalls
+
+> [!WARNING]
+> **Expecting something in the cluster to reconcile your `IstioOperator`.** The in-cluster operator is gone. The document is an input format; nothing watches it, and a hand-edit of an installed object survives until the next `istioctl install`.
+>
+> **Assuming command-line order decides the overlay.** `--set` outranks `-f` wherever it appears. Only same-kind sources are ordered among themselves.
+>
+> **Letting a `--set` be the only record of a decision.** Stages 1 and 2 leave no trace anywhere; the cluster shows the result and never the inputs. Put the installation in a committed file.
+>
+> **Reaching for `istioctl install --dry-run -o yaml`.** The `-o yaml` flag was removed. `istioctl manifest generate` is what hands you the objects.
+>
+> **Reading `x precheck` as a check on your YAML.** It audits the *cluster* — Kubernetes version, leftover CRDs, stale webhooks — and says nothing about whether your configuration is what you meant.
+>
+> **Treating a slow install as Istio misbehaving.** Stage 4 blocks on readiness. A hang is nearly always a pod that cannot schedule or cannot pull an image; `kubectl -n istio-system get pods` names it while the command is still waiting.
 
 > *`istioctl install` renders a complete desired state on your machine and applies it — nothing in the cluster remembers what you typed.*
 

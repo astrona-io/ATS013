@@ -6,21 +6,16 @@ Of the four layers, `meshConfig` is the one whose live value you can read back d
 
 ## The path a setting travels
 
-```text
-  your IstioOperator file
-        │  spec.meshConfig
-        ▼
-  istioctl install  ──renders──►  ConfigMap "istio" in istio-system
-        │                          key: mesh   (the whole meshConfig, as YAML)
-        ▼
-  istiod reads the ConfigMap at startup, and watches it for changes
-        │
-        │  recomputes each proxy's configuration
-        ▼
-  xDS push to every connected proxy   ──►   Envoy applies it
-                                             (LDS/CDS/RDS, per Part 3 of
-                                              the section 010 istioctl module)
+```mermaid
+flowchart TD
+    F["your IstioOperator file<br/>spec.meshConfig"] --> I["istioctl install renders it"]
+    I --> C["ConfigMap istio in istio-system<br/>key mesh: the whole meshConfig as YAML"]
+    C --> D["istiod reads it at startup<br/>and watches it for changes"]
+    D --> X["xDS push to every connected proxy"]
+    X --> E["Envoy applies it"]
 ```
+
+Four hops, and only the first is a file you own. A setting that is correct in the file and absent from the ConfigMap failed at hop two; one present in the ConfigMap but not in effect failed at hop four.
 
 Four stages, and a different check at each one:
 
@@ -148,6 +143,17 @@ Two mechanisms produce that state, and both are worth recognising:
 That second case is not a bug to fix; it is the layering working. But it does mean "the ConfigMap says X and this workload does Y" has a normal explanation, and the next place to look is the runtime resources scoped to that workload.
 
 > *`meshConfig` reaches the cluster as a ConfigMap, reaches proxies as an xDS push, and can be overridden per-workload by a runtime resource — check those three stages in that order.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Editing the `istio` ConfigMap by hand.** It works until the next `istioctl install` renders it from your document and overwrites the edit.
+>
+> **Expecting every `meshConfig` change to need a restart.** `istiod` watches the ConfigMap and re-pushes; the restart is the exception, not the rule.
+>
+> **Reading the ConfigMap as proof of enforcement.** It is the control plane's input. Whether a proxy acts on it is a separate question, and real traffic is what answers it.
+>
+> **Assuming a typo'd key is rejected.** An unknown field can be carried into the ConfigMap and ignored by everything downstream.
 
 ## Reference
 

@@ -123,15 +123,22 @@ It is also why in-place remains reasonable for a patch bump (1.30.4 → 1.30.5, 
 > For an in-place upgrade, "roll back" means "install the previous version with the previous configuration". If that configuration exists only in the cluster you are about to change, you do not have a rollback plan — you have a hope. Export it first: the `IstioOperator` file if you have one, or the reconstruction described in Part 1 if you do not.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **Skipping a minor version.** 1.28 → 1.30 in one step breaks the supported skew window for every running proxy. One minor at a time, restarting the data plane between steps.
 >
-> - **Skipping a minor version.** 1.28 → 1.30 in one step breaks the supported skew window for every running proxy. One minor at a time, restarting the data plane between steps.
-> - **Running a bare `istioctl install` during the upgrade.** It reconciles to the default profile and silently discards customisation. Pass the same `-f` file or `--set` flags you installed with.
-> - **Pre-checking with the old binary.** `x precheck` must be run with the target version, or it checks compatibility with the version you already have.
-> - **Stopping after the control plane.** The mesh keeps working in skew, so the omission is not obvious. `istioctl version` and `proxy-status` are the checks that catch it.
-> - **Forgetting gateways.** They are Envoy workloads with no namespace label driving them. Restart them explicitly.
-> - **Assuming a rollback is symmetric.** Reinstalling the old control plane leaves every pod running new proxies until you restart them all again.
-> - **Treating a quiet mesh as a healthy one.** Certificate renewal failures surface hours later, not immediately.
+> **Running a bare `istioctl install` during the upgrade.** It reconciles to the default profile and silently discards customisation. Pass the same `-f` file or `--set` flags you installed with.
+>
+> **Pre-checking with the old binary.** `x precheck` must be run with the target version, or it checks compatibility with the version you already have.
+>
+> **Stopping after the control plane.** The mesh keeps working in skew, so the omission is not obvious. `istioctl version` and `proxy-status` are the checks that catch it.
+>
+> **Forgetting gateways.** They are Envoy workloads with no namespace label driving them. Restart them explicitly.
+>
+> **Assuming a rollback is symmetric.** Reinstalling the old control plane leaves every pod running new proxies until you restart them all again.
+>
+> **Treating a quiet mesh as a healthy one.** Certificate renewal failures surface hours later, not immediately.
 
 ## Operational considerations
 

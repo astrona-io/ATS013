@@ -182,14 +182,20 @@ Putting the three parts together, an Istio Helm upgrade is:
 Steps 4 and 6 are the ones that catch the two failure modes this module is about, and they are the two people leave out.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **Upgrading `istiod` without upgrading `base`.** It often appears to work and then fails on a field the older CRDs do not accept, possibly much later.
 >
-> - **Upgrading `istiod` without upgrading `base`.** It often appears to work and then fails on a field the older CRDs do not accept, possibly much later.
-> - **Stopping at the control plane.** `helm upgrade` finishing is not the upgrade finishing. Until the workloads are restarted, the data plane is on the old version.
-> - **Forgetting the gateways.** They are separate releases *and* separate workloads: they need both the `helm upgrade` and the `rollout restart`.
-> - **Skipping a minor version.** The supported skew window is one minor version. Go 1.28 → 1.29 → 1.30, restarting the data plane between steps, not 1.28 → 1.30.
-> - **Treating `helm rollback` as a full undo.** It restores one release's objects, not the pods created from them and not sibling releases.
-> - **Omitting `--wait` in a pipeline.** Helm returns as soon as the API server accepts the manifests, and the next command runs against a control plane that is not ready.
+> **Stopping at the control plane.** `helm upgrade` finishing is not the upgrade finishing. Until the workloads are restarted, the data plane is on the old version.
+>
+> **Forgetting the gateways.** They are separate releases *and* separate workloads: they need both the `helm upgrade` and the `rollout restart`.
+>
+> **Skipping a minor version.** The supported skew window is one minor version. Go 1.28 → 1.29 → 1.30, restarting the data plane between steps, not 1.28 → 1.30.
+>
+> **Treating `helm rollback` as a full undo.** It restores one release's objects, not the pods created from them and not sibling releases.
+>
+> **Omitting `--wait` in a pipeline.** Helm returns as soon as the API server accepts the manifests, and the next command runs against a control plane that is not ready.
 
 ## Operational considerations
 

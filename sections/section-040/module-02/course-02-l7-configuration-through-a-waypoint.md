@@ -141,15 +141,22 @@ The security consequence deserves stating plainly: if an `AuthorizationPolicy` w
 > Recreate it with `istioctl waypoint apply -n ambient-l7 --enroll-namespace` if you want to keep exploring.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **An `HTTPRoute` in a namespace with no waypoint.** Accepted, statused, and completely inert. Check `istioctl ztunnel-config workload` for a non-`None` `WAYPOINT` before debugging the route.
 >
-> - **An `HTTPRoute` in a namespace with no waypoint.** Accepted, statused, and completely inert. Check `istioctl ztunnel-config workload` for a non-`None` `WAYPOINT` before debugging the route.
-> - **Missing Gateway API CRDs.** `istioctl waypoint apply` fails with an unknown-kind error that looks like an Istio problem. Install the CRDs separately.
-> - **Creating a waypoint without enrolling anything.** Without `--enroll-namespace` or a Service label, the proxy runs and receives no traffic.
-> - **Reading route status as proof of effect.** `Accepted` means well-formed and bound, not enforced.
-> - **Expecting a waypoint to cover traffic that is not in the mesh.** Both ends still need to be meshed for ztunnel to capture the connection. A client outside the mesh reaches the Service directly, bypassing the waypoint entirely.
-> - **Assuming deleting a waypoint is safe because traffic still flows.** It is, at L4. Any L7 authorization rule silently stops being enforced.
-> - **Mixing `VirtualService` and `HTTPRoute` for the same Service.** Istio still accepts `VirtualService` for waypoints, but using both produces behaviour nobody can predict from reading either one.
+> **Missing Gateway API CRDs.** `istioctl waypoint apply` fails with an unknown-kind error that looks like an Istio problem. Install the CRDs separately.
+>
+> **Creating a waypoint without enrolling anything.** Without `--enroll-namespace` or a Service label, the proxy runs and receives no traffic.
+>
+> **Reading route status as proof of effect.** `Accepted` means well-formed and bound, not enforced.
+>
+> **Expecting a waypoint to cover traffic that is not in the mesh.** Both ends still need to be meshed for ztunnel to capture the connection. A client outside the mesh reaches the Service directly, bypassing the waypoint entirely.
+>
+> **Assuming deleting a waypoint is safe because traffic still flows.** It is, at L4. Any L7 authorization rule silently stops being enforced.
+>
+> **Mixing `VirtualService` and `HTTPRoute` for the same Service.** Istio still accepts `VirtualService` for waypoints, but using both produces behaviour nobody can predict from reading either one.
 
 ## Operational considerations
 

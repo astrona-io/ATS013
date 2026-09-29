@@ -147,15 +147,22 @@ Install `istio-custom.yaml`, then install `--set profile=demo` with no file. The
 The rule follows directly: **one file per control plane, passed on every install, kept in version control.** `--set` is fine for a one-off experiment on a throwaway cluster and a liability anywhere else, because the state it produces exists only in a shell history.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **Expecting an install to merge with the previous one.** It reconciles instead — anything you omit reverts. This is behind most "who turned off our access logging?" incidents.
 >
-> - **Expecting an install to merge with the previous one.** It reconciles instead — anything you omit reverts. This is behind most "who turned off our access logging?" incidents.
-> - **A wrong `name` in a component list.** Lists are matched by `name`; an unmatched name silently adds a second entry and leaves the original running. `istioctl manifest generate -f` shows the original still there.
-> - **Indentation errors under `components`.** Misplaced keys become unknown fields and are ignored. `istioctl validate -f` and `manifest generate -f` catch them; a successful install does not.
-> - **Editing the `istio` ConfigMap directly.** It works, `istiod` picks it up, and the next install reverts it. Change the document instead.
-> - **Using `spec.values` where a structured field exists.** Both may work today; `values` is a chart-internals passthrough with weaker guarantees. Prefer `components` and `meshConfig`.
-> - **Assuming a `meshConfig` change is instant everywhere.** `istiod` picks it up quickly, proxies get it on the next push. Persistent `STALE` in `proxy-status` is the signal that something is wrong.
-> - **Sizing confusion.** `components.pilot.k8s.resources` sizes one Deployment. `values.global.proxy.resources` sizes every injected sidecar, which is a very different bill.
+> **A wrong `name` in a component list.** Lists are matched by `name`; an unmatched name silently adds a second entry and leaves the original running. `istioctl manifest generate -f` shows the original still there.
+>
+> **Indentation errors under `components`.** Misplaced keys become unknown fields and are ignored. `istioctl validate -f` and `manifest generate -f` catch them; a successful install does not.
+>
+> **Editing the `istio` ConfigMap directly.** It works, `istiod` picks it up, and the next install reverts it. Change the document instead.
+>
+> **Using `spec.values` where a structured field exists.** Both may work today; `values` is a chart-internals passthrough with weaker guarantees. Prefer `components` and `meshConfig`.
+>
+> **Assuming a `meshConfig` change is instant everywhere.** `istiod` picks it up quickly, proxies get it on the next push. Persistent `STALE` in `proxy-status` is the signal that something is wrong.
+>
+> **Sizing confusion.** `components.pilot.k8s.resources` sizes one Deployment. `values.global.proxy.resources` sizes every injected sidecar, which is a very different bill.
 
 ## Operational considerations
 

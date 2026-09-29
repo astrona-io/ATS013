@@ -63,6 +63,15 @@ There is no longer a command that lists the available profile names. They are do
 
 ## The control plane: one pod, three jobs
 
+```mermaid
+flowchart TD
+    I["istiod, one Deployment"] --> C["certificate authority<br/>issues and rotates workload identities"]
+    I --> W["injection webhook backend<br/>answers the API server's admission call"]
+    I --> X["xDS server<br/>pushes configuration to every proxy"]
+```
+
+One pod, three unrelated jobs — which is why "istiod is down" breaks new pods, certificate rotation and configuration pushes all at once, while existing proxies keep serving on what they already hold.
+
 Installing `demo` produces three kinds of running workload and two kinds of cluster-scoped definition. Start with the one that matters most.
 
 **`istiod`** is a Deployment in the `istio-system` namespace, normally one pod. That single process does three separate jobs that are worth naming individually, because different failures point at different ones:
@@ -144,6 +153,19 @@ A full `manifest generate` is precise but long. When the question is only "is th
 Knowing that mapping is what lets you answer a task like "install Istio without an egress gateway" without looking anything up: the component list you saw in `profile diff` is the field you set.
 
 > *A profile is a starting document you can print, diff and override — and every object in `istio-system` traces back to one line in it.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Treating a profile as a setting rather than a document.** A profile is a complete `IstioOperator`; choosing one replaces a whole set of defaults, it does not flip one switch.
+>
+> **Mistyping a profile name and expecting a helpful error.** The failure names the profile it could not load, not the field you meant.
+>
+> **Assuming `demo` is a smaller `default`.** It is not a subset — it turns on extra components and looser settings suitable for exploration, not production.
+>
+> **Reading a gateway as something special.** It is the same Envoy binary with no application beside it, reached through an ordinary Service.
+>
+> **Expecting removed `istioctl manifest` subcommands to still exist.** Several were removed; `manifest generate` is the one that survives and the one to reach for.
 
 ## Reference
 

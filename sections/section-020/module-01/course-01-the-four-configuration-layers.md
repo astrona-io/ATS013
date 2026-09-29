@@ -45,6 +45,16 @@ The practical form of both rules: use `values` only for settings with no `compon
 
 ## How the layers merge
 
+```mermaid
+flowchart TD
+    P["profile<br/>the base document"] --> O["your -f overlays, in order"]
+    O --> F["--set flags"]
+    F --> M["one merged IstioOperator"]
+    M --> R["rendered manifests"]
+```
+
+Later sources win field by field, not document by document — so an overlay that sets one key leaves every other key from the profile intact.
+
 Part 1 of the section 010 istioctl module described the overlay order for *sources* — profile, then `-f` files, then `--set` flags. Within a single document, the layers are not a priority stack at all: they configure disjoint things and are all applied. `profile` is the only one that behaves like a base to be overridden.
 
 Merging is **per field, not per block**. Setting `components.pilot.k8s.resources.requests.cpu` does not discard the rest of `components.pilot` from the profile; it replaces that one leaf. The exception is lists, and that exception has teeth — Part 3 covers it.
@@ -113,6 +123,17 @@ Second, install-time settings are **mesh-wide by construction**. `meshConfig` ap
 > Absence is meaningful here: the stock `demo` profile sets neither `accessLogFile` nor `outboundTrafficPolicy`, so the built-in defaults apply. Those two keys appearing later is how you will know your own document took effect. The CPU requests come from the profile's `components.*.k8s.resources` blocks — a `components` layer setting, visible on an ordinary Deployment.
 
 > *`components` decides what exists and how big; `meshConfig` decides how it behaves; `values` is the escape hatch — and none of them is the right place for something a runtime resource can express.*
+
+## Common pitfalls
+
+> [!WARNING]
+> **Setting a runtime concern at install time.** Gateways, routing and policy are objects you apply to a running mesh, not installation fields.
+>
+> **Expecting a merge to replace a whole block.** The merge is per field, so a partial overlay leaves the rest of the profile in place.
+>
+> **Putting a value in the wrong layer.** `meshConfig` is mesh-wide; component settings are per component. Both are accepted, only one takes effect.
+>
+> **Losing the overlay.** The merged document exists only during the render, so the file you passed is the only record of what you chose.
 
 ## Reference
 

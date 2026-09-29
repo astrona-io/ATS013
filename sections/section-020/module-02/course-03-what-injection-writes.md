@@ -22,24 +22,15 @@ The init container is the piece that makes the whole model work, so it is worth 
 - **Outbound** traffic leaving the pod is redirected to port **15001** on localhost, where Envoy is listening.
 - **Inbound** traffic arriving at the pod is redirected to port **15006**, Envoy's inbound listener.
 
-```text
-   app container                    istio-proxy (Envoy)
-        │                                  │
-        │ connect to notification-service:80
-        ▼
-   [ iptables OUTPUT redirect ] ──────────► :15001  outbound listener
-                                             │  applies routing, mTLS,
-                                             │  retries, telemetry
-                                             ▼
-                                        out of the pod
-   ─────────────────────────────────────────────────────────────
-                                        into the pod
-                                             │
-   [ iptables PREROUTING redirect ] ◄────────┘
-        │                                   :15006  inbound listener
-        ▼                                     │  terminates mTLS,
-   app container :80  ◄───────────────────────┘  applies authz
+```mermaid
+flowchart LR
+    A["app container<br/>connects to notification-service:80"] --> T["iptables OUTPUT redirect<br/>installed by istio-init"]
+    T --> P["istio-proxy on :15001<br/>outbound listener"]
+    P --> N["applies routing, mTLS, retries, telemetry"]
+    N --> U["the upstream, over a connection the proxy opened"]
 ```
+
+The application is not configured for any of this. The redirect is what makes the proxy unavoidable, and it is the only reason an unmodified application gets mesh behaviour at all.
 
 That is the entire "no application changes required" claim, made concrete. The application opens a connection to `notification-service:80` exactly as it would without a mesh. The kernel redirects it. Envoy picks it up, decides where it really goes, encrypts it, and sends it on. Nothing in the application's code or configuration changed, and nothing in it can tell the difference.
 
@@ -133,13 +124,18 @@ When `istio-cni` is installed, injection still adds the `istio-proxy` container 
 This matters here for two reasons. First, if you inspect a pod on a CNI-enabled cluster and find no `istio-init`, the pod is not broken. Second, ambient mode in section 040 *requires* the CNI plugin — it is how enrollment can take effect without touching the pod at all.
 
 > [!WARNING]
-> **Common pitfalls**
+## Common pitfalls
+
+> [!WARNING]
+> **Assuming a missing `istio-init` means injection failed.** On a CNI-enabled cluster it is expected. Check for the `istio-proxy` container instead.
 >
-> - **Assuming a missing `istio-init` means injection failed.** On a CNI-enabled cluster it is expected. Check for the `istio-proxy` container instead.
-> - **Excluding ports or IP ranges without recording why.** Excluded traffic silently leaves the mesh: no mTLS, no authorization, no telemetry, while the workload still looks meshed.
-> - **Applications that connect at startup.** An injected pod has one more container to pull and start, and an app that opens connections immediately can race the proxy. `meshConfig.defaultConfig.holdApplicationUntilProxyReady: true` fixes it at the cost of slower starts — an install-time setting, covered in [the customisation module](../module-01/course-01-the-four-configuration-layers.md).
-> - **Expecting `istioctl kube-inject` output to be version-neutral.** It renders against the live cluster's configuration, so output from one cluster is not portable to another running a different version.
-> - **Forgetting gateways are not injected.** An ingress or egress gateway is a standalone Envoy Deployment from the profile or gateway chart. Injection labels on its namespace do not apply to it.
+> **Excluding ports or IP ranges without recording why.** Excluded traffic silently leaves the mesh: no mTLS, no authorization, no telemetry, while the workload still looks meshed.
+>
+> **Applications that connect at startup.** An injected pod has one more container to pull and start, and an app that opens connections immediately can race the proxy. `meshConfig.defaultConfig.holdApplicationUntilProxyReady: true` fixes it at the cost of slower starts — an install-time setting, covered in [the customisation module](../module-01/course-01-the-four-configuration-layers.md).
+>
+> **Expecting `istioctl kube-inject` output to be version-neutral.** It renders against the live cluster's configuration, so output from one cluster is not portable to another running a different version.
+>
+> **Forgetting gateways are not injected.** An ingress or egress gateway is a standalone Envoy Deployment from the profile or gateway chart. Injection labels on its namespace do not apply to it.
 
 ## Operational considerations
 
