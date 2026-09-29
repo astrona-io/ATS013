@@ -154,3 +154,19 @@ The grader checks that there is exactly **one** `istiod` Deployment and no revis
 *   **Restarting the application namespace but not the gateway.** It is a proxy too, it lives in `istio-system`, and the grader checks its image specifically.
 *   **Forgetting `tester`.** `rollout restart deployment` with no name covers it; naming only `notification-service-v1` leaves a stale proxy the grader will find.
 *   **Skipping a minor version.** Not possible in this lab, but the reason matters: the supported skew window is one minor version, and it applies per workload.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [istioctl installation](https://istio.io/v1.30/docs/setup/install/istioctl/) — `istioctl install`, `--set`, and what the command actually applies
+- [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the charts, their values, and install ordering
+- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [In-place upgrades](https://istio.io/v1.30/docs/setup/upgrade/in-place/) — when in-place is safe and what it replaces
+- [Supported releases and skew](https://istio.io/v1.30/docs/releases/supported-releases/) — how far the data plane may lag the control plane
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+- [Installing gateways](https://istio.io/v1.30/docs/setup/additional-setup/gateway/) — deploying gateways separately from the control plane

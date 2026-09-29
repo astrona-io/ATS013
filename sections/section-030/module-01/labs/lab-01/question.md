@@ -17,3 +17,16 @@ Upgrade the mesh to **1.30.5**:
 5.  Finish the upgrade. `helm upgrade` completing is not the upgrade completing — the data plane keeps running the proxy image it was injected with. When you are done there must be **no version skew**: the control plane, the application's sidecar and the ingress gateway must all be on 1.30.5.
 
 Leave `notification-service` in place — do not delete and recreate the Deployment.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the charts, their values, and install ordering
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Supported releases and skew](https://istio.io/v1.30/docs/releases/supported-releases/) — how far the data plane may lag the control plane
+- [Global mesh options](https://istio.io/v1.30/docs/reference/config/istio.mesh.v1alpha1/) — every mesh-wide setting and its default
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+- [Installing gateways](https://istio.io/v1.30/docs/setup/additional-setup/gateway/) — deploying gateways separately from the control plane

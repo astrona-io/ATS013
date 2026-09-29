@@ -189,3 +189,17 @@ Two commands, no namespace edits, and the workload is back on the old control pl
 *   **Using a dotted revision name.** `1.30.5` is not a valid DNS label.
 *   **Installing the revision with the old binary.** `istioctl install --set revision=1-30-5` with the 1.29.8 binary creates a revision named `1-30-5` running **1.29.8**. The name is just a string; the version comes from the binary.
 *   **Uninstalling the old control plane to "finish".** The task requires it still running. Retiring it comes after every workload has moved — and it is the capstone's job.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [istioctl installation](https://istio.io/v1.30/docs/setup/install/istioctl/) — `istioctl install`, `--set`, and what the command actually applies
+- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag

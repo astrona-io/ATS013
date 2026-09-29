@@ -20,3 +20,18 @@ Migrate the whole mesh to 1.30.5 using a **canary** upgrade, and finish the job:
 7.  Leave all four Deployments in place with their original names and replica counts.
 
 The order in requirement 4 before requirement 5 is the point of the exercise: a pod whose control plane has been removed keeps serving on its last configuration but receives no updates and cannot renew its certificate.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [istioctl installation](https://istio.io/v1.30/docs/setup/install/istioctl/) — `istioctl install`, `--set`, and what the command actually applies
+- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+- [Uninstalling Istio](https://istio.io/v1.30/docs/setup/install/istioctl/#uninstall-istio) — removing a control plane or one revision cleanly

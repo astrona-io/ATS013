@@ -228,3 +228,19 @@ The grader checks the ambient label and the absence of `istio-injection`, compar
 *   **Pointing `parentRefs` at a `Gateway`.** In a mesh the route attaches to the Service.
 *   **Deleting `lab-baseline` while tidying.** It is the grader's record of what was running before you started.
 *   **Testing `DELETE` immediately after applying the policy.** The waypoint receives configuration over xDS; give it a few seconds. The grader retries for the same reason.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Ambient mode overview](https://istio.io/v1.30/docs/ambient/overview/) — what ambient replaces and what it keeps
+- [ztunnel architecture](https://istio.io/v1.30/docs/ambient/architecture/data-plane/) — the node proxy and what it does and does not do
+- [Waypoint proxies](https://istio.io/v1.30/docs/ambient/usage/waypoint/) — where L7 policy runs in ambient
+- [HBONE](https://istio.io/v1.30/docs/ambient/architecture/hbone/) — the tunnel ambient uses between nodes
+- [Istio CNI plugin](https://istio.io/v1.30/docs/setup/additional-setup/cni/) — replacing the init container's iptables work
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag

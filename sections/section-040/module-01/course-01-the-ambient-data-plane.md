@@ -128,6 +128,6 @@ Two absences are worth naming, because both come up as questions.
 ## Reference
 
 - [Ambient mode overview](https://istio.io/v1.30/docs/ambient/overview/) — the architecture and its motivation.
-- [ztunnel](https://istio.io/v1.30/docs/ambient/architecture/ztunnel/) — what the node proxy does and does not do.
+- [ztunnel](https://istio.io/v1.30/docs/ambient/architecture/data-plane/) — what the node proxy does and does not do.
 - [HBONE](https://istio.io/v1.30/docs/ambient/architecture/hbone/) — the tunnelling protocol and port 15008.
 - [Istio CNI plugin](https://istio.io/v1.30/docs/setup/additional-setup/cni/) — chaining, requirements, and troubleshooting when pods lose connectivity.

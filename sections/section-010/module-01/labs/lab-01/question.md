@@ -11,3 +11,18 @@ The cluster is clean — there is no `istio-system` namespace, no `networking.is
 5.  Get the **existing** `notification-service` workload into the mesh. Labelling the namespace is not enough — the pod was admitted before the webhook applied to it, so it must be recreated. When you are finished its pod must have exactly two containers, `notification-service` and `istio-proxy`, and it must be `Ready`.
 6.  Leave the `mesh-demo` Service and Deployment otherwise unchanged — do not rename them, and do not add a second Deployment.
 7.  Confirm with `istioctl` that the control plane version and the data plane version match, and that the workload's proxy reports `SYNCED`.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [istioctl installation](https://istio.io/v1.30/docs/setup/install/istioctl/) — `istioctl install`, `--set`, and what the command actually applies
+- [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the charts, their values, and install ordering
+- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+- [Installing gateways](https://istio.io/v1.30/docs/setup/additional-setup/gateway/) — deploying gateways separately from the control plane

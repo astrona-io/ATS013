@@ -168,3 +168,18 @@ The grader checks that `istiod-1-30-5` is the only control plane, that the unrev
 *   **Forgetting `tester`.** It does nothing visible, so it is easy to skip — and it is a meshed pod the grader checks.
 *   **Installing the revision with the 1.29.8 binary.** You get a revision named `1-30-5` running 1.29.8.
 *   **Installing the canary with a full profile.** Two sets of gateways contend for the same names. `minimal` is a canary control plane.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [istioctl installation](https://istio.io/v1.30/docs/setup/install/istioctl/) — `istioctl install`, `--set`, and what the command actually applies
+- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+- [Uninstalling Istio](https://istio.io/v1.30/docs/setup/install/istioctl/#uninstall-istio) — removing a control plane or one revision cleanly

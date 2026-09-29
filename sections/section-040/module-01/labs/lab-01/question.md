@@ -11,3 +11,17 @@ Namespace `ambient-demo` is **not enrolled** and runs two workloads, `notificati
 3.  Do **not** inject sidecars. `ambient-demo` must carry no `istio-injection` label, and every pod must still have exactly one container. In ambient mode a meshed pod is never modified, which is also why counting containers cannot tell you whether a workload is in the mesh.
 4.  Confirm the enrollment took effect by checking what **ztunnel** knows — both workloads must be reported with the `HBONE` protocol.
 5.  Leave the `lab-baseline` ConfigMap in place and leave both Deployments and the Service unchanged.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Ambient mode overview](https://istio.io/v1.30/docs/ambient/overview/) — what ambient replaces and what it keeps
+- [ztunnel architecture](https://istio.io/v1.30/docs/ambient/architecture/data-plane/) — the node proxy and what it does and does not do
+- [HBONE](https://istio.io/v1.30/docs/ambient/architecture/hbone/) — the tunnel ambient uses between nodes
+- [Istio CNI plugin](https://istio.io/v1.30/docs/setup/additional-setup/cni/) — replacing the init container's iptables work
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag

@@ -1,6 +1,6 @@
 # Solution Walkthrough
 
-Follow these steps to write an `IstioOperator` that deviates from `demo` in three layers and prove each change landed.
+Follow these steps to write an [`IstioOperator`](https://istio.io/v1.30/docs/reference/config/istio.operator.v1alpha1/) that deviates from `demo` in three layers and prove each change landed.
 
 ---
 
@@ -168,3 +168,16 @@ The grader checks that no egress gateway Deployment exists anywhere, that `istio
 *   **Applying with `--set` only.** It passes, and it leaves no artifact — so the next person has no idea what the cluster is supposed to look like, and the next install reverts it.
 *   **Expecting external traffic to keep working.** `REGISTRY_ONLY` is deny-by-default for outbound. On a real cluster, inventory your outbound dependencies before enabling it.
 *   **Assuming `istioctl validate` is enough.** It checks the schema, not whether your override matched anything. `profile dump -f` is the check that catches an unmatched list name.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [istioctl installation](https://istio.io/v1.30/docs/setup/install/istioctl/) — `istioctl install`, `--set`, and what the command actually applies
+- [IstioOperator API](https://istio.io/v1.30/docs/reference/config/istio.operator.v1alpha1/) — every field the install API accepts
+- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
+- [Global mesh options](https://istio.io/v1.30/docs/reference/config/istio.mesh.v1alpha1/) — every mesh-wide setting and its default
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+- [Installing gateways](https://istio.io/v1.30/docs/setup/additional-setup/gateway/) — deploying gateways separately from the control plane

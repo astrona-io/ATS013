@@ -153,3 +153,17 @@ The grader checks that both ambient DaemonSets are ready, that `ambient-demo` ca
 *   **Using `istio.io/dataplane-mode=enabled`.** The value is `ambient`.
 *   **Deleting the `lab-baseline` ConfigMap while tidying up.** It is the grader's record; without it the check cannot run.
 *   **Expecting L7 behaviour.** ztunnel is L4 only. An `AuthorizationPolicy` matching on an HTTP method here would be accepted and silently do nothing — which is exactly what Module 2 is about.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Ambient mode overview](https://istio.io/v1.30/docs/ambient/overview/) — what ambient replaces and what it keeps
+- [ztunnel architecture](https://istio.io/v1.30/docs/ambient/architecture/data-plane/) — the node proxy and what it does and does not do
+- [HBONE](https://istio.io/v1.30/docs/ambient/architecture/hbone/) — the tunnel ambient uses between nodes
+- [Istio CNI plugin](https://istio.io/v1.30/docs/setup/additional-setup/cni/) — replacing the init container's iptables work
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag

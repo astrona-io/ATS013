@@ -215,3 +215,16 @@ The grader checks every release is `deployed` at revision 2 or higher, that `ist
 *   **Forgetting the gateway.** It needs both the `helm upgrade` *and* the `rollout restart`. The grader checks its image specifically.
 *   **Reinstalling with `istioctl` because it is fewer steps.** The Helm release records stop matching the cluster, and the grader reports the release was never upgraded.
 *   **Recovering the values file and not committing it.** The cluster being the only copy is the root cause; reconstruction alone just resets the trap.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the charts, their values, and install ordering
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Supported releases and skew](https://istio.io/v1.30/docs/releases/supported-releases/) — how far the data plane may lag the control plane
+- [Global mesh options](https://istio.io/v1.30/docs/reference/config/istio.mesh.v1alpha1/) — every mesh-wide setting and its default
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+- [Installing gateways](https://istio.io/v1.30/docs/setup/additional-setup/gateway/) — deploying gateways separately from the control plane

@@ -188,3 +188,18 @@ The grader checks that `istiod` and **both** gateways are ready, that the CRDs a
 *   **Deleting and recreating the Deployment instead of restarting it.** It produces an injected pod, but the task says to leave the workload otherwise unchanged and the grader counts Deployments.
 *   **Assuming `istioctl version` failing means Istio is broken.** If `istioctl` is not found, the PATH export did not survive a new shell — run `export PATH="$HOME/.local/bin:$PATH"`.
 *   **Running a second `istioctl install` with different flags to "add" something.** `istioctl install` reconciles the cluster to the document you pass; components the new document omits are removed. Installing `minimal` on top of `demo` deletes both gateways.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [istioctl installation](https://istio.io/v1.30/docs/setup/install/istioctl/) — `istioctl install`, `--set`, and what the command actually applies
+- [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the charts, their values, and install ordering
+- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+- [Installing gateways](https://istio.io/v1.30/docs/setup/additional-setup/gateway/) — deploying gateways separately from the control plane

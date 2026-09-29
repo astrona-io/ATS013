@@ -168,6 +168,6 @@ The failure mode matters more than the list. Applying an `AuthorizationPolicy` t
 ## Reference
 
 - [Ambient data plane modes](https://istio.io/v1.30/docs/ambient/usage/add-workloads/) — the enrollment labels, at namespace and pod scope.
-- [ztunnel architecture](https://istio.io/v1.30/docs/ambient/architecture/ztunnel/) — what the node proxy enforces and what it delegates.
+- [ztunnel architecture](https://istio.io/v1.30/docs/ambient/architecture/data-plane/) — what the node proxy enforces and what it delegates.
 - [L4 authorization in ambient](https://istio.io/v1.30/docs/ambient/usage/l4-policy/) — which `AuthorizationPolicy` fields work without a waypoint.
 - [SPIFFE identity format](https://spiffe.io/docs/latest/spiffe-about/spiffe-concepts/) — reading the identities in ztunnel's logs.

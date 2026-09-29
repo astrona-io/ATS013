@@ -203,3 +203,16 @@ The grader checks that `inject-demo` carries `istio-injection=enabled` and not `
 *   **Restarting before setting the overrides.** `logging-agent` gets a sidecar, then loses it on the second restart. The end state is right but you did twice the work — and on a real cluster that is a real disruption.
 *   **Deleting and recreating a Deployment.** The grader counts three Deployments by name; recreating one under a different name fails.
 *   **Adding `istio.io/rev` "to be explicit".** With `istio-injection` also present, `istio-injection` wins and the revision label is silently ignored. The grader rejects both being set.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the charts, their values, and install ordering
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag

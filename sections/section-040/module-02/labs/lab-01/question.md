@@ -13,3 +13,17 @@ Namespace `ambient-l7` is **already enrolled** in ambient mode and runs `notific
 5.  Leave both Deployments and the Service unchanged, and leave the namespace enrolled in ambient mode.
 
 If you apply the `HTTPRoute` before the waypoint exists, it will be accepted, report `Accepted`, and do nothing at all. That silent no-op is worth seeing once on purpose.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [Ambient mode overview](https://istio.io/v1.30/docs/ambient/overview/) — what ambient replaces and what it keeps
+- [ztunnel architecture](https://istio.io/v1.30/docs/ambient/architecture/data-plane/) — the node proxy and what it does and does not do
+- [Waypoint proxies](https://istio.io/v1.30/docs/ambient/usage/waypoint/) — where L7 policy runs in ambient
+- [HBONE](https://istio.io/v1.30/docs/ambient/architecture/hbone/) — the tunnel ambient uses between nodes
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag

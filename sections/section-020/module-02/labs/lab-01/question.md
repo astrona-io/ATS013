@@ -20,3 +20,16 @@ Two details the grader is strict about, because both are silent failures in the 
 
 *   The `sidecar.istio.io/inject` labels must be on the **pod template** (`spec.template.metadata.labels`). The webhook is registered against Pods and never sees your Deployment, so a label on the Deployment's own `metadata.labels` applies cleanly and does nothing.
 *   Label values are strings. `"true"` and `"false"` must be quoted — an unquoted YAML boolean is rejected by the API server.
+
+---
+
+## Reference
+
+The official documentation for everything this task touches — open these rather than trying to recall field names:
+
+- [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the charts, their values, and install ordering
+- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
+- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
+- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
+- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
+- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
