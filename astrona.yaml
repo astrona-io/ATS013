@@ -52,6 +52,7 @@ modules:
       - type: lab
         title: "Install Istio With istioctl Lab"
         path: sections/section-010/module-01/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Module 2: Install Istio With Helm"
@@ -75,6 +76,7 @@ modules:
       - type: lab
         title: "Install Istio With Helm Lab"
         path: sections/section-010/module-02/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Section 010 Knowledge Check: Installing Istio With istioctl Or Helm"
@@ -89,6 +91,7 @@ modules:
       - type: lab
         title: "Install And Onboard A Mesh Capstone Lab"
         path: sections/section-010/capstone/labs/lab-01
+        difficulty: advanced
 
   - id: module-020
     title: "Section 020: Customizing Your Istio Installation"
@@ -124,6 +127,7 @@ modules:
       - type: lab
         title: "Customize An Istio Installation Lab"
         path: sections/section-020/module-01/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Module 2: Control Sidecar Injection"
@@ -147,6 +151,7 @@ modules:
       - type: lab
         title: "Control Sidecar Injection Lab"
         path: sections/section-020/module-02/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Section 020 Knowledge Check: Customizing Your Istio Installation"
@@ -161,6 +166,7 @@ modules:
       - type: lab
         title: "Shape The Install, Then Choose Who Joins Capstone Lab"
         path: sections/section-020/capstone/labs/lab-01
+        difficulty: advanced
 
   - id: module-030
     title: "Section 030: Upgrading Istio (Canary, In-Place)"
@@ -196,6 +202,7 @@ modules:
       - type: lab
         title: "Upgrade And Reconfigure Istio With Helm Lab"
         path: sections/section-030/module-01/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Module 2: Canary Upgrade With Revisions And Revision Tags"
@@ -216,6 +223,7 @@ modules:
       - type: lab
         title: "Canary Upgrade With Revisions And Tags Lab"
         path: sections/section-030/module-02/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Module 3: In-Place Upgrade Of The Control Plane"
@@ -236,6 +244,7 @@ modules:
       - type: lab
         title: "In-Place Upgrade Lab"
         path: sections/section-030/module-03/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)"
@@ -250,6 +259,7 @@ modules:
       - type: lab
         title: "A Complete Canary Migration Capstone Lab"
         path: sections/section-030/capstone/labs/lab-01
+        difficulty: advanced
 
   - id: module-040
     title: "Section 040: Installing Istio In Sidecar Or Ambient Mode"
@@ -282,6 +292,7 @@ modules:
       - type: lab
         title: "Install Istio In Ambient Mode Lab"
         path: sections/section-040/module-01/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Module 2: Add A Waypoint Proxy For L7 In Ambient Mode"
@@ -302,6 +313,7 @@ modules:
       - type: lab
         title: "Waypoint Proxy For L7 Lab"
         path: sections/section-040/module-02/labs/lab-01
+        difficulty: intermediate
 
       - type: reading
         title: "Section 040 Knowledge Check: Installing Istio In Sidecar Or Ambient Mode"
@@ -316,6 +328,7 @@ modules:
       - type: lab
         title: "An Ambient Mesh With Selective L7 Capstone Lab"
         path: sections/section-040/capstone/labs/lab-01
+        difficulty: advanced
 
   - id: final-exam
     title: "Final Domain Exam Simulator"
