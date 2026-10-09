@@ -1,6 +1,6 @@
 # Solution Walkthrough
 
-Mission debrief, astronaut. You write one `IstioOperator` file that changes the `demo` blueprint in three layers, check it before you build, apply it, and prove each change landed where its layer puts it.
+Follow these steps to write one `IstioOperator` file that changes the `demo` profile in three places, check it before you apply it, apply it, and prove that each change landed where its layer puts it.
 
 ---
 
@@ -22,7 +22,7 @@ istiod                 1/1     1            1           3m
 (neither key is present)
 ```
 
-The missing keys mean something. The stock `demo` profile sets neither `accessLogFile` nor `outboundTrafficPolicy`, so the built-in defaults apply. When those two keys appear later, you know your document took effect.
+The missing keys mean something. The built-in `demo` profile sets neither `accessLogFile` nor `outboundTrafficPolicy`, so the built-in defaults apply. When those two keys appear later, you know your document took effect.
 
 ---
 
@@ -50,9 +50,9 @@ spec:
       mode: REGISTRY_ONLY
 ```
 
-Three requirements, two layers:
+The document keeps `profile: demo` and changes two more layers:
 
-*   **`spec.components`** decides *what is deployed and how big*. `egressGateways` removes a Deployment, and `pilot.k8s.resources` changes a field on a pod template. `pilot` is the old name of the component that became `istiod`, and `k8s:` is the fixed sub-key for Kubernetes settings.
+*   **`spec.components`** decides *what is deployed and how big*. `egressGateways` removes a Deployment, and `pilot.k8s.resources` changes a field on a pod template. `pilot` is the old name of the component that became `istiod`, Istio's control plane, and `k8s:` is the fixed sub-key for Kubernetes settings.
 *   **`spec.meshConfig`** decides *how the deployed things behave*. It ends up word for word in the `istio` ConfigMap.
 
 Keeping `profile: demo` is what keeps the ingress gateway. The document is a change *to* `demo`, not a replacement for it.
@@ -61,7 +61,7 @@ Keeping `profile: demo` is what keeps the ingress gateway. The document is a cha
 
 ## Step 3: Check before you apply
 
-`components.egressGateways` is a **list**, and Istio matches its entries against the profile's entries by `name`. A typo does not cause an error. It defines a *new*, disabled gateway and leaves the original running.
+`components.egressGateways` is a **list**, and `istioctl` matches its entries against the profile's entries by `name`. A typo does not cause an error. It defines a *new*, disabled gateway and leaves the original running.
 
 Validate the file, and count the egress gateway objects in the rendered result:
 
@@ -94,7 +94,7 @@ istioctl install -f istio-custom.yaml -y
 ✔ Installation complete
 ```
 
-Read the summary. "Egress gateways installed" is gone, and "Ingress gateways installed" is still there. That is `istioctl install` removing a component your new document turns off, while `profile: demo` keeps the other one.
+Read the summary. "Egress gateways installed" is gone, and "Ingress gateways installed" is still there. `istioctl install` removed the component your new document turns off, and `profile: demo` kept the other one.
 
 ---
 
@@ -120,9 +120,9 @@ outboundTrafficPolicy:
   mode: REGISTRY_ONLY
 ```
 
-Three layers, three different places: a Deployment disappeared, a field on a pod spec changed, and two keys appeared in a ConfigMap.
+Each change landed in a different place: a Deployment disappeared, a field on a pod spec changed, and two keys appeared in a ConfigMap.
 
-Confirm the mesh still works:
+Confirm that the workload still has its sidecar proxy, the `istio-proxy` container that Istio adds to each pod in the mesh:
 
 ```sh
 kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
@@ -148,7 +148,7 @@ kubectl -n mesh-demo exec deploy/notification-service -c notification-service --
 exit=1
 ```
 
-The sidecar refuses the external host. `REGISTRY_ONLY` blocks every destination that is not in the mesh registry: not a Kubernetes Service, and not added with a `ServiceEntry`. That is the setting working, not the mesh breaking.
+The sidecar proxy refuses the external host. `REGISTRY_ONLY` blocks every destination that is not in the mesh registry, the list of services Istio knows about: a host that is not a Kubernetes Service and was not added with a `ServiceEntry` is refused. That is the setting working, not the mesh breaking.
 
 ---
 
@@ -162,7 +162,7 @@ The grader checks that no egress gateway Deployment exists anywhere, that `istio
 
 ---
 
-## Common Mistakes
+## Common mistakes
 
 *   **Switching to `minimal` to drop the egress gateway.** It drops the ingress gateway too, and the grader checks for it. Change one component of `demo` instead.
 *   **A typo in the component `name`.** `istio-egress-gateway` matches nothing in the profile, so Istio adds a second, disabled entry and leaves the original running. `istioctl manifest generate -f` still shows the original egress gateway objects.

@@ -241,8 +241,8 @@ modules:
           - name: "Global mesh options"
             url: https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
       - type: reading
-        title: "Wrap-Up: Mission Debrief"
-        path: sections/section-020/module-01/course-04-wrap-up.md
+        title: "Summary"
+        path: sections/section-020/module-01/course-04-summary.md
 
       - type: reading
         title: "Control Sidecar Injection"

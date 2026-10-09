@@ -1,8 +1,8 @@
 # Customize An Istio Installation
 
-Astronaut, a stock profile gets mission control running. It almost never gets it running the way your solar system needs. Maybe you do not want the departure gate (the egress gateway). Maybe you do want a flight log (access logs). Maybe the computer power reserved for mission control is wrong for your launch pads.
+A built-in profile gives you a working Istio control plane, but almost never the exact one a cluster needs. You may not want the egress gateway. You may want Envoy access logs on every proxy. The CPU that `istiod` requests may be wrong for your nodes. This module shows how to change those things with the same `istioctl install` command, by passing it a file instead of only a profile name.
 
-Changing those things is not a new skill. You use the same `istioctl install` command, but you hand it a blueprint file instead of just a profile name. That blueprint is an `IstioOperator` document. It has four places where a setting can live, and they behave differently. Pick the wrong place, and a change applies cleanly and does nothing at all.
+That file is an `IstioOperator` document: a YAML description of the whole Istio installation you want. It has four places where a setting can live, and each place takes effect on a different object. If you put a setting in the wrong place, the install succeeds and the setting does nothing at all.
 
 ## Learning objectives
 
@@ -17,33 +17,29 @@ After this module you can:
 
 ## Before you start
 
-Every mission starts with a pre-flight check, astronaut. Make sure you have the knowledge this module expects, and know what is waiting in your playground.
+This module expects some Kubernetes knowledge and a basic idea of how Istio is installed.
 
 ### What you should already know
 
 - **Kubernetes basics.** Namespaces, Deployments, ConfigMaps and reading a pod spec with `kubectl`.
-- **Installing Istio with `istioctl`.** You know what `istiod` (mission control), a gateway and the sidecar injection webhook are. You also know that `istioctl install` makes the cluster match the document you pass, and removes Istio objects that the document no longer describes.
+- **Installing Istio with `istioctl`.** You know that `istiod` is Istio's control plane, that a gateway is a standalone Envoy proxy at the edge of the mesh, and that a sidecar injection webhook adds a proxy to new pods. You also know that `istioctl install` makes the cluster match the document you pass, and removes Istio objects that the document no longer describes.
 
 ### What is in your playground
 
-Your playground is a small training solar system: one `kind` cluster with **`istioctl` 1.30.5** on your path. **Istio 1.30.5 is already installed with the stock `demo` profile**: `istiod`, an ingress gateway and an egress gateway in `istio-system`, with no changes of any kind.
+The playground is one single-node `kind` cluster with **`istioctl` 1.30.5** on your PATH. **Istio 1.30.5 is already installed with the built-in `demo` profile**: `istiod`, an ingress gateway and an egress gateway run in `istio-system`, with no changes of any kind.
 
-That untouched starting point is the point. Every difference you see later is one you caused. All commands run from your normal shell, with `kubectl` already pointed at the cluster.
+That unchanged starting point matters. Every difference you see later is one you caused. You run every command from your normal shell, and `kubectl` already points at the cluster.
 
-Launch your playground now, and keep it running next to you while you read the parts:
+Start your playground now, and keep it running while you read the parts:
 
 <!-- astrona:playground -->
 
 ## The parts of this module
 
-Work through the parts in this order. The mission comes right after the part it practises.
+Read the parts in this order:
 
-1. [The Four Configuration Layers](./course-01-the-four-configuration-layers.md): `profile`, `components`, `meshConfig` and `values`, what each one owns, how they merge, and the line between installation settings and runtime resources.
-2. [meshConfig: From File To ConfigMap To Proxy](./course-02-meshconfig-from-file-to-proxy.md): the full path a mesh-wide setting travels, why the `istio` ConfigMap is your fastest debugging tool, and watching `REGISTRY_ONLY` change real traffic.
-3. [Writing, Validating And Re-applying The Document](./course-03-writing-validating-reapplying.md): building the `IstioOperator` file, the list rule that hides typos, comparing with a baseline, and what a second install does to what you left out.
-   - Mission: [Customize An Istio Installation](./labs/lab-01/question.md)
-4. [Wrap-Up: Mission Debrief](./course-04-wrap-up.md)
+1. **The Four Configuration Layers:** what `profile`, `components`, `meshConfig` and `values` each own, how they merge, and where the line runs between installation settings and runtime resources.
+2. **meshConfig: From File To ConfigMap To Proxy:** the path a mesh-wide setting takes, why the `istio` ConfigMap is the fastest place to check it, and how `REGISTRY_ONLY` changes real traffic.
+3. **Writing, Validating And Re-applying The Document:** how to build the `IstioOperator` file, the list rule that hides typos, how to compare with the built-in profile, and what a second install does to settings you left out. The graded lab "Customize An Istio Installation" follows this part.
 
-## Why this matters
-
-On the exam, and on a real cluster, "install Istio" almost always comes with conditions: drop this gateway, log to standard output, block unknown destinations. Knowing which layer owns a setting, and where to look to prove it arrived, turns those conditions into a few minutes of work instead of a guessing game.
+A summary closes the module.

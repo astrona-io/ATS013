@@ -1,10 +1,10 @@
 ---
-estimated_duration: 3m
+estimated_duration: 25m
 ---
 
 # Customize An Istio Installation
 
-Welcome to your mission, astronaut. Mission control is already running on the stock `demo` blueprint. Your job is to write an `IstioOperator` file that changes it in three layers at once (one gateway removed, `istiod` resized, two mesh-wide settings switched on) and to prove each change landed where its layer puts it, without breaking the workload already in the mesh.
+Istio 1.30.5 already runs with the built-in `demo` profile, and the `mesh-demo` namespace runs one workload with a sidecar proxy. The learner writes an `IstioOperator` file that changes the installation in three layers at once (the egress gateway removed, `istiod` resized, two mesh-wide `meshConfig` settings turned on), and proves that each change landed where its layer puts it, without breaking the workload in the mesh.
 
 ## Launching the Lab
 
