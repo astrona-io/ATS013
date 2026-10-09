@@ -1,76 +1,64 @@
 # Section 010: Installing Istio With istioctl Or Helm
 
-Every other thing Istio does sits on top of one control plane process. This section is about getting that process onto a cluster — twice, by the two methods the ICA curriculum names, so that neither one is the only tool you have.
+Welcome aboard, astronaut. Everything Istio does sits on top of one control plane process, `istiod`. Think of it as mission control for your fleet: it sends every ship's communications officer (the sidecar proxy) their orders. This section is about building mission control in your solar system (your cluster), twice, with the two methods the exam names, so that neither one is the only tool you have.
 
-The two modules install the same control plane and are configured through the same value tree. What differs is ownership: `istioctl` renders a document and reconciles the cluster to it, while Helm manages three separate releases whose order is a dependency, not a convention. A cluster should be managed by one or the other, never both, and knowing why is most of the point.
+The two modules install the same control plane, configured through the same tree of values. What differs is who owns the result. `istioctl`, your launch console, draws a complete blueprint and makes the cluster match it. Helm assembles three separate kits (releases) whose order is a dependency, not a habit. A cluster is managed by one or the other, never both, and knowing why is most of the point.
 
-**Curriculum item covered:** Installing Istio with istioctl or Helm
+**Exam topic covered:** Installing Istio with istioctl or Helm
 
 ---
 
 ## What You Will Master
 
-- What `istioctl install` actually does — client-side rendering plus an apply, with no in-cluster operator — and what a second run does to settings you left out.
-- The built-in profiles (`default`, `demo`, `minimal`, `ambient`), and reading a profile's real definition by rendering it with `istioctl manifest generate`.
-- The three kinds of object an install creates: the `istiod` Deployment, the admission webhooks, and optional gateways.
-- Enabling sidecar injection for a namespace, and why labelling it changes nothing until pods are recreated.
-- Diagnosing client / control-plane / data-plane version mismatch with `istioctl version` and `istioctl proxy-status`.
-- The Istio Helm charts — `base`, `istiod`, `gateway`, plus `cni` and `ztunnel` for ambient — and why the install order is fixed.
+- What `istioctl install` really does: drawing the objects on your machine plus an apply, with no operator in the cluster, and what a second run does to settings you left out.
+- The built-in profiles (`default`, `demo`, `minimal`, `ambient`), and reading a profile's real contents by printing it with `istioctl manifest generate`.
+- The three kinds of object an install creates: the `istiod` Deployment, the admission webhooks, and optional gateways (the spaceport gates).
+- Switching on sidecar injection for a namespace, and why labelling it changes nothing until the pods are created again.
+- Finding a version mismatch between the client, the control plane and the data plane with `istioctl version` and `istioctl proxy-status`.
+- The Istio Helm charts (`base`, `istiod`, `gateway`, plus `cni` and `ztunnel` for ambient mode) and why the install order is fixed.
 - Supplying mesh settings from a Helm values file, and reading back what a release applied with `helm get values` and the live `istio` ConfigMap.
 
 ---
 
-## The Learning Path
+## Modules In This Section
 
-### 1. Install Istio With istioctl
-*   **Module Reader:** **[Module 1: Install Istio With istioctl](./module-01/course.md)**
-    1. [The Render-And-Apply Pipeline](./module-01/course-01-render-and-apply-pipeline.md)
-    2. [Profiles And The Objects They Produce](./module-01/course-02-profiles-and-installed-objects.md)
-    3. [Injection And The Version Triad](./module-01/course-03-injection-and-version-alignment.md)
-    4. [Reconciliation And Clean Removal](./module-01/course-04-reconciliation-and-removal.md)
-*   **Hands-on Playground:** `sections/section-010/module-01/playground` — a clean kind cluster with `istioctl` 1.30.5 and no Istio installed.
-    ```bash
-    astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-010/module-01/playground
-    ```
-*   **Practice Lab Sandbox:** **`sections/section-010/module-01/labs/lab-01`**
-*   **Lab Run Command:**
-    ```bash
-    astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-010/module-01/labs/lab-01
-    ```
-*   **Hands-on Objective:** Install a demo-profile control plane from nothing, confirm the CRDs and injection webhook it created, then get an already-running workload into the mesh and prove control plane and data plane agree on a version.
+Work through the modules in this order. Each part teaches one idea. A mission (a graded lab) comes right after the part it practises, and the last page of each module is a wrap-up. Each module has its own playground: launch it from the module's first page.
 
-### 2. Install Istio With Helm
-*   **Module Reader:** **[Module 2: Install Istio With Helm](./module-02/course.md)**
-    1. [The Chart Model And Its Ordering](./module-02/course-01-chart-model-and-ordering.md)
-    2. [Installing The Three Releases](./module-02/course-02-installing-the-releases.md)
-    3. [Release State, Verification And Cleanup](./module-02/course-03-release-state-and-verification.md)
-*   **Hands-on Playground:** `sections/section-010/module-02/playground` — a clean kind cluster with `helm` 3, `istioctl` 1.30.5, and the `istio` chart repository added.
-    ```bash
-    astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-010/module-02/playground
-    ```
-*   **Practice Lab Sandbox:** **`sections/section-010/module-02/labs/lab-01`**
-*   **Lab Run Command:**
-    ```bash
-    astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-010/module-02/labs/lab-01
-    ```
-*   **Hands-on Objective:** Install the same control plane as three pinned Helm releases in the correct order, put the ingress gateway in its own namespace under its own release name, drive mesh settings from a values file, and prove the injection webhook the chart created actually works.
+### [Install Istio With istioctl](module-01/course.md)
 
-### 3. Section Capstone Challenge
-*   **Comprehensive Challenge:** **`sections/section-010/capstone/labs/lab-01` (Install And Onboard A Mesh)**
-*   **Lab Run Command:**
-    ```bash
-    astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-010/capstone/labs/lab-01
-    ```
-*   **Hands-on Objective:** Deliver a full platform specification on a clean cluster — three pinned Helm releases, a NodePort ingress gateway under a given release name in its own namespace, mesh-wide and sidecar-default settings from one values file, one namespace fully meshed with the configured proxy resources, and one namespace deliberately left out of the mesh.
+4 parts and 1 mission:
+
+1. [The Render-And-Apply Pipeline](module-01/course-01-render-and-apply-pipeline.md)
+2. [Profiles And The Objects They Produce](module-01/course-02-profiles-and-installed-objects.md)
+3. [Injection And The Version Triad](module-01/course-03-injection-and-version-alignment.md)
+4. [Reconciliation And Clean Removal](module-01/course-04-reconciliation-and-removal.md)
+   - Mission: [Install Istio With istioctl Lab](module-01/labs/lab-01/question.md)
+5. [Wrap-Up: Mission Debrief](module-01/course-05-wrap-up.md)
+
+### [Install Istio With Helm](module-02/course.md)
+
+3 parts and 1 mission:
+
+1. [The Chart Model And Its Ordering](module-02/course-01-chart-model-and-ordering.md)
+2. [Installing The Three Releases](module-02/course-02-installing-the-releases.md)
+3. [Release State, Verification And Cleanup](module-02/course-03-release-state-and-verification.md)
+   - Mission: [Install Istio With Helm Lab](module-02/labs/lab-01/question.md)
+4. [Wrap-Up: Mission Debrief](module-02/course-04-wrap-up.md)
 
 ---
 
-## Ready for Assessment?
+## Knowledge Check
 
-Test your theoretical knowledge and diagnostic reasoning before tackling the practical lab missions:
-
-*   **[Take the Section 010 Knowledge Check Quiz](./quiz.md)**
+Test what you know before the section's final mission: [Section 010 Knowledge Check](quiz.md).
 
 ---
 
-Each playground is ungraded: it spins up, prepares the environment, and waits. There is no task and no `astrona submit`. Tear one down with `astrona destroy <name>` when you are finished — the name is printed in each module's playground callout.
+## Section Capstone: Install And Onboard A Mesh
+
+The final mission of this section. You get a clean cluster and a platform specification: three pinned Helm releases, a `NodePort` ingress gateway under a given release name in its own namespace, mesh-wide and sidecar default settings from one values file, one namespace fully in the mesh, and one namespace left out on purpose.
+
+- Mission: [Install And Onboard A Mesh Capstone Lab](capstone/labs/lab-01/question.md)
+
+```bash
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-010/capstone/labs/lab-01
+```

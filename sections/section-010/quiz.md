@@ -1,6 +1,6 @@
 # Section 010 Knowledge Check: Installing Istio With istioctl Or Helm
 
-Test your understanding of what `istioctl install` really does, how profiles are defined, the Helm chart model and its ordering, injection timing, and the version relationships that decide whether a change takes effect.
+Astronaut, test what you know before you fly the missions. These questions check what `istioctl install` really does, how profiles are defined, the Helm chart model and its order, when injection happens, and how the three Istio versions decide whether a change takes effect.
 
 ---
 
@@ -195,7 +195,7 @@ After an upgrade, `istioctl version` reports `control plane version: 1.30.5` and
 
 ---
 
-## Ready for the Labs?
+## Ready for the Missions?
 
 *   **[Module 1 Lab: Install Istio With istioctl](./module-01/labs/lab-01)**
 *   **[Module 2 Lab: Install Istio With Helm](./module-02/labs/lab-01)**

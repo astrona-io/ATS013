@@ -1,11 +1,29 @@
-# Section 010 Capstone: Install And Onboard A Mesh
+---
+estimated_duration: 3m
+---
 
-This is the Section 010 integration challenge. It combines everything from both modules — the chart model and its ordering, values files, gateway release naming and placement, injection timing, and the version triad — into one platform specification you have to deliver on a clean cluster.
+# Install And Onboard A Mesh
+
+This is the integration mission for the whole section, astronaut. It combines everything about installing Istio: the chart model and its order, values files, gateway release names and placement, injection timing and the three versions. You deliver one platform specification on a clean cluster.
 
 There is no step-by-step guide until you have tried it. Work from the specification.
 
 ## Launching the Lab
-Run the following command in your terminal to boot the kind Kubernetes cluster:
+
+Run this command to start the cluster:
+
 ```bash
-astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-010/capstone/labs/lab-01
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-010/capstone/labs/lab-01
+```
+
+When you think you have finished, send it for grading:
+
+```bash
+astrona submit -c sections/section-010/capstone/labs/lab-01
+```
+
+When you are done, remove the lab:
+
+```bash
+astrona destroy ats-013-capstone-010
 ```

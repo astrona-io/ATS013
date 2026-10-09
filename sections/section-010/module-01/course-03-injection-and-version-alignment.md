@@ -1,175 +1,193 @@
-# Part 3 — Injection And The Version Triad
+# Injection And The Version Triad
 
-> Prerequisite: [Part 2 — Profiles And The Objects They Produce](./course-02-profiles-and-installed-objects.md). Next: [Part 4 — Reconciliation And Clean Removal](./course-04-reconciliation-and-removal.md).
+An installed control plane does nothing to your apps on its own. Astronaut, mission control is built, but no ship has a communications officer on board yet. This part covers the two things that close that gap: how a proxy gets into a pod when the pod is created, and the versions you must keep in line once proxies exist.
 
-An installed control plane does nothing to your applications. This part covers the two things that close that gap: the admission-time mechanism that puts a proxy into a pod, and the version relationships you have to keep aligned once proxies exist. They are together in one part because they share a failure mode — in both cases the mesh looks fine and your change quietly does not apply.
+They share one part because they share a failure: in both cases the mesh looks fine, and your change quietly does not apply.
 
 ## The admission path, step by step
 
-Trace one `kubectl apply` of a Deployment in an injection-enabled namespace:
+Sidecar injection is putting a communications officer (the Envoy proxy) on board each ship as it launches. It happens at one exact moment, inside the API server. This section follows one pod through that moment, then gives the two rules that come out of it.
+
+### Follow one pod
+
+Picture one `kubectl apply` of a Deployment in a namespace with injection switched on:
 
 ```mermaid
-flowchart TD
-    A["kubectl apply, a Deployment"] --> B["the Deployment controller creates a Pod object"]
-    B --> C["API server: authentication, then authorization,<br/>then MUTATING ADMISSION"]
-    C --> D{"does the namespaceSelector match"}
-    D -->|"no"| E["store the pod unchanged<br/>no proxy, ever"]
-    D -->|"yes"| F["POST to istiod's injection webhook"]
-    F --> G["istiod returns a JSON patch:<br/>add istio-init and istio-proxy"]
-    G --> H["the patched pod is stored, then scheduled"]
+flowchart TB
+    A["kubectl apply"] -->|"controller creates"| B["Pod object"]
+    B -->|"mutating admission"| C["API server"]
+    C -->|"namespace does not match"| E["Stored unchanged"]
+    C -->|"namespace matches"| F["istiod webhook"]
+    F -->|"JSON patch"| G["Pod with istio-proxy"]
+    G -->|"then"| H["Scheduled"]
 ```
 
-The decision happens once, inside the API server, before the pod is ever scheduled. Nothing revisits it afterwards — which is the whole reason a namespace label does not change pods that already exist.
+The diagram shows the path. The Deployment controller creates a Pod object. The API server checks who you are and what you may do, then runs mutating admission. If the namespace matches the webhook's selector, the API server sends the pod to `istiod`, which answers with a JSON patch that adds `istio-init` and `istio-proxy`. If it does not match, the pod is stored with no proxy, for good.
 
+The decision happens once, inside the API server, before the pod is scheduled. Nothing looks at it again. That is the whole reason a namespace label does not change pods that already exist.
 
-Two structural facts fall out of that diagram, and between them they explain most injection questions.
+### The two rules
 
-**First: the webhook is called for pods, selected by namespace.** The `namespaceSelector` on the webhook configuration is a label selector evaluated against the *namespace object*, not the pod. That is the mechanical reason the namespace label exists and why it is the first thing to check.
+Two facts come out of that path, and they explain most injection questions.
 
-**Second: this happens once, when the pod is created.** There is no controller watching for namespaces that became eligible later. A pod admitted without a sidecar will never grow one — admission cannot retroactively rewrite an object that is already stored. The only way to change a pod's injection status is to replace the pod.
+**First: the webhook is called for pods, chosen by namespace.** The `namespaceSelector` on the webhook configuration is a label selector checked against the *namespace object*, not the pod. That is why the namespace label exists, and why it is the first thing to check.
 
-> [!TIP]
-> **Try it — read the selector the webhook enforces**
->
-> ```sh
-> kubectl get mutatingwebhookconfiguration istio-sidecar-injector \
->   -o jsonpath='{range .webhooks[*]}{.name}{"\n  rules: "}{.rules[0].resources}{"\n  ns-selector: "}{.namespaceSelector}{"\n\n"}{end}'
-> ```
->
-> Expect something like:
->
-> ```text
-> namespace.sidecar-injector.istio.io
->   rules: ["pods"]
->   ns-selector: {"matchExpressions":[{"key":"istio-injection","operator":"In","values":["enabled"]},...]}
->
-> object.sidecar-injector.istio.io
->   rules: ["pods"]
->   ns-selector: {...}
-> ```
->
-> `rules: ["pods"]` confirms the webhook fires on pods and nothing else — not Deployments, not ReplicaSets. The `ns-selector` is the contract the namespace has to satisfy. There are two webhook entries because one handles the namespace-level decision and the other handles pod-level overrides, which section 020's injection module takes apart in detail.
+**Second: this happens once, when the pod is created.** No controller watches for namespaces that become eligible later. A pod admitted without a sidecar never grows one: admission cannot rewrite an object that is already stored. The only way to change a pod's injection is to replace the pod.
+
+### See it in your playground
+
+Read the selector the webhook enforces. This needs Istio installed with the `demo` profile:
+
+<!-- astrona:playground:renew -->
+
+```sh
+kubectl get mutatingwebhookconfiguration istio-sidecar-injector \
+  -o jsonpath='{range .webhooks[*]}{.name}{"\n  rules: "}{.rules[0].resources}{"\n  ns-selector: "}{.namespaceSelector}{"\n\n"}{end}'
+```
+
+Expect something like:
+
+```text
+namespace.sidecar-injector.istio.io
+  rules: ["pods"]
+  ns-selector: {"matchExpressions":[{"key":"istio-injection","operator":"In","values":["enabled"]},...]}
+
+object.sidecar-injector.istio.io
+  rules: ["pods"]
+  ns-selector: {...}
+```
+
+`rules: ["pods"]` confirms that the webhook fires on pods and nothing else: not Deployments, not ReplicaSets. The `ns-selector` is the rule the namespace must meet. There are two webhook entries. One handles the decision for the whole namespace, and the other handles overrides set on a single pod.
 
 ## Labelling, and the restart that completes it
 
-The label that satisfies the default webhook is `istio-injection=enabled` on the namespace. Adding it changes the *future*; it does nothing to what is already running.
+The label that matches the default webhook is `istio-injection=enabled` on the namespace. It is a planet-wide order: every new ship launched here gets a communications officer. Adding it changes the *future*. It does nothing to ships already flying.
 
-> [!TIP]
-> **Try it — label first, then create**
->
-> ```sh
-> kubectl label namespace default istio-injection=enabled
-> kubectl run tester --image=nginx
-> kubectl wait --for=condition=Ready pod/tester --timeout=120s
-> kubectl get pod tester -o jsonpath='{.spec.containers[*].name}{"\n"}'
-> ```
->
-> Expect something like:
->
-> ```text
-> namespace/default labeled
-> pod/tester created
-> pod/tester condition met
-> nginx istio-proxy
-> ```
->
-> Two container names for a pod you defined with one. The second was written into the spec between your `kubectl run` and the API server storing the object — it appears in no manifest you wrote.
+### See it in your playground
 
-Now do it in the other order, because the rule is much stickier once you have watched it fail. Create a pod in a namespace with no label, then add the label, then look again: still one container, and it will stay that way until the pod is deleted and recreated. `kubectl rollout restart deployment <name>` is the normal way to force that for a real workload, since it replaces pods gradually rather than all at once.
+Label the namespace first, then create a pod:
+
+```sh
+kubectl label namespace default istio-injection=enabled
+kubectl run tester --image=nginx
+kubectl wait --for=condition=Ready pod/tester --timeout=120s
+kubectl get pod tester -o jsonpath='{.spec.containers[*].name}{"\n"}'
+```
+
+Expect something like:
+
+```text
+namespace/default labeled
+pod/tester created
+pod/tester condition met
+nginx istio-proxy
+```
+
+You defined a pod with one container, and it has two container names. The webhook wrote the second one into the spec between your `kubectl run` and the moment the API server stored the object. It appears in no file you wrote.
+
+### Now the other order
+
+Try it the other way round, because the rule sticks once you have watched it fail. Create a pod in a namespace with no label, then add the label, then look again. The pod still has one container, and it stays that way until the pod is deleted and created again.
+
+For a real workload, `kubectl rollout restart deployment <name>` is the normal way to do that. It relaunches the ships: it replaces the pods a few at a time, not all at once, and each new pod passes through the webhook.
 
 ## Three versions, and why they drift
 
-Once proxies exist there are three Istio versions in play, and a mismatch between them produces the most misleading failure in the product: configuration you applied correctly appears to do nothing.
+Once proxies exist, three Istio versions are in play. A mismatch between them causes the most misleading failure in the product: configuration you applied correctly seems to do nothing. Picture your launch console, mission control and the communications officers all running different software versions.
 
-- **Client** — the `istioctl` binary in your hand. Affects what you can render and what diagnostics you get; affects the cluster only when you run `install`.
-- **Control plane** — the image `istiod` is running. Decides what configuration is computed and what API fields are understood.
-- **Data plane** — the proxy image inside each injected pod. Decides what the proxy can actually do with the configuration it receives.
+### The three versions
 
-They drift for a structural reason, not carelessness: upgrading the control plane replaces one Deployment, while upgrading the data plane means replacing every meshed pod in the cluster. Those are different-sized operations, so they happen at different times. Istio supports that gap across **one minor version** — a 1.30 control plane may serve 1.29 proxies, and makes no promise about 1.28 ones. Section 030 works through the consequences.
+- **Client:** the `istioctl` binary in your hand. It decides what you can print and which checks you get. It changes the cluster only when you run `install`.
+- **Control plane:** the image `istiod` runs. It decides what configuration is worked out and which fields are understood.
+- **Data plane:** the proxy image inside each injected pod. It decides what the proxy can actually do with the configuration it receives.
+
+### Why they drift
+
+They drift for a reason built into the system, not through carelessness. Upgrading the control plane replaces one Deployment. Upgrading the data plane means replacing every meshed pod in the cluster. Those jobs differ in size, so they happen at different times.
+
+Istio supports that gap across **one minor version**: a 1.30 control plane may serve 1.29 proxies, and makes no promise about 1.28 proxies.
 
 ## Reading `proxy-status`
 
-`istioctl version` reports all three versions at once, which makes it the first command to run when something behaves strangely. `istioctl proxy-status` goes further: it lists every proxy the control plane knows about and whether each has acknowledged the latest configuration.
+`istioctl version` reports all three versions at once, so it is the first command to run when something behaves strangely. `istioctl proxy-status` goes further, like a roll call: it lists every proxy the control plane knows about, and whether each one has accepted the latest configuration. This section explains its columns, its values, and then shows it on your cluster.
 
-Read it by its columns. `CDS`, `LDS`, `EDS` and `RDS` are Envoy's xDS resource types:
+### The columns
 
-| Column | Expands to | Carries |
+`CDS`, `LDS`, `EDS` and `RDS` are the xDS types: the four kinds of orders mission control sends.
+
+| Column | Stands for | Carries |
 | --- | --- | --- |
-| `CDS` | **C**luster **D**iscovery **S**ervice | Upstream groups a proxy can send to |
-| `LDS` | **L**istener **D**iscovery **S**ervice | Ports and filter chains the proxy accepts on |
-| `EDS` | **E**ndpoint **D**iscovery **S**ervice | The actual pod IPs behind each cluster |
-| `RDS` | **R**oute **D**iscovery **S**ervice | HTTP routing rules |
+| `CDS` | Cluster Discovery Service | The groups of destinations a proxy can send to |
+| `LDS` | Listener Discovery Service | The ports and filter chains the proxy accepts on |
+| `EDS` | Endpoint Discovery Service | The actual pod IP addresses behind each cluster |
+| `RDS` | Route Discovery Service | The HTTP routing rules |
 
-The values mean:
+### The values
 
-- **`SYNCED`** — the proxy acknowledged the current version of that resource type. This is the healthy state.
-- **`STALE`** — `istiod` sent an update and is still waiting for the acknowledgement. A few seconds is normal after a change; a persistent `STALE` means the proxy is not accepting what it is being sent.
-- **`NOT SENT`** — there is nothing of that type to send. Common and harmless: a gateway with no `Gateway` resource attached has no routes, so `RDS` reads `NOT SENT`.
+- **`SYNCED`:** the proxy accepted the current version of that kind of order. This is the healthy state.
+- **`STALE`:** `istiod` sent an update and is still waiting for the proxy to confirm it. A few seconds is normal after a change. A `STALE` that stays means the proxy is not accepting what it receives.
+- **`NOT SENT`:** there is nothing of that kind to send. It is common and harmless. For example, a gateway with no `Gateway` resource attached has no routes, so `RDS` reads `NOT SENT`.
 
-The last column, `ISTIOD`, names the control plane pod each proxy is connected to. On a single-control-plane cluster it is uninteresting. During a canary upgrade it is the authoritative answer to "which control plane is serving this workload?", and section 030's canary module leans on it heavily.
+The last column, `ISTIOD`, names the control plane pod each proxy is connected to. On a cluster with one control plane it is not very interesting. During an upgrade with two control planes side by side, it is the true answer to "which mission control is serving this workload?".
 
-> [!TIP]
-> **Try it — confirm the whole mesh agrees**
->
-> ```sh
-> istioctl version
-> istioctl proxy-status
-> ```
->
-> Expect something like:
->
-> ```text
-> client version: 1.30.5
-> control plane version: 1.30.5
-> data plane version: 1.30.5 (3 proxies)
->
-> NAME                                   CLUSTER      CDS      LDS      EDS      RDS        ECDS       ISTIOD
-> tester.default                         Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED     NOT SENT   istiod-...
-> istio-ingressgateway-...istio-system   Kubernetes   SYNCED   SYNCED   SYNCED   NOT SENT   NOT SENT   istiod-...
-> ```
->
-> `data plane version: 1.30.5 (3 proxies)` is the line that matters, and note that the gateways are counted as proxies — they are, as Part 2 showed. When this line splits into two versions, you are mid-upgrade and have not restarted everything yet.
+### See it in your playground
 
-## When "applied but not working" is which layer
+Confirm that the whole mesh agrees on one version:
 
-Putting the two halves of this part together gives a diagnostic order that is worth internalising, because it goes from cheapest to most expensive:
-
-```mermaid
-flowchart TD
-    S["something is applied and not working"] --> L1{"is the workload in the mesh at all"}
-    L1 -->|"no"| F1["injection problem:<br/>the namespace label, or a pod that predates it"]
-    L1 -->|"yes"| L2{"did the configuration reach the control plane"}
-    L2 -->|"no"| F2["rejected or malformed: istioctl analyze"]
-    L2 -->|"yes"| L3{"did the control plane push it"}
-    L3 -->|"no"| F3["a stuck push: proxy-status"]
-    L3 -->|"yes"| L4["the version triad:<br/>a new control plane can send what an old proxy ignores"]
+```sh
+istioctl version
+istioctl proxy-status
 ```
 
-1. **Is the workload in the mesh at all?** Container count, or `proxy-status` listing it. If not, it is an injection problem — check the namespace label, then check whether the pod predates it.
-2. **Did the configuration reach the control plane?** `istioctl analyze` and the relevant object's `kubectl get`. A rejected or malformed object never gets further.
-3. **Did the control plane push it?** `proxy-status` columns. Persistent `STALE` points here.
-4. **Can the proxy act on it?** The version triad. A 1.30 control plane can send a proxy configuration that a 1.28 proxy silently ignores.
+Expect something like:
 
-Most real incidents stop at step 1 or 2. Step 4 is rare and is almost always the tail of an upgrade nobody finished.
+```text
+client version: 1.30.5
+control plane version: 1.30.5
+data plane version: 1.30.5 (3 proxies)
+
+NAME                                   CLUSTER      CDS      LDS      EDS      RDS        ECDS       ISTIOD
+tester.default                         Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED     NOT SENT   istiod-...
+istio-ingressgateway-...istio-system   Kubernetes   SYNCED   SYNCED   SYNCED   NOT SENT   NOT SENT   istiod-...
+```
+
+`data plane version: 1.30.5 (3 proxies)` is the line that matters. The gateways count as proxies, because they are proxies. When this line splits into two versions, an upgrade is in progress and not every pod has been restarted yet.
+
+## When "applied but not working" points at which layer
+
+Put the two halves of this part together and you get an order for checking a problem. It runs from the cheapest check to the most expensive.
+
+```mermaid
+flowchart TB
+    S["Applied, not working"] --> L1{"Workload in the mesh?"}
+    L1 -->|"no"| F1["Injection problem"]
+    L1 -->|"yes"| L2{"Accepted by istiod?"}
+    L2 -->|"no"| F2["istioctl analyze"]
+    L2 -->|"yes"| L3{"Pushed to the proxy?"}
+    L3 -->|"no"| F3["proxy-status"]
+    L3 -->|"yes"| L4["Version triad"]
+```
+
+The diagram shows four questions in order, and what to look at when the answer is no:
+
+1. **Is the workload in the mesh at all?** Check the container count, or whether `proxy-status` lists it. If not, it is an injection problem. Check the namespace label, then check whether the pod is older than the label.
+2. **Did the configuration reach the control plane?** Use `istioctl analyze` and `kubectl get` on the object. A rejected or badly formed object never gets further.
+3. **Did the control plane push it?** Read the `proxy-status` columns. A `STALE` that stays points here.
+4. **Can the proxy act on it?** Check the three versions. A 1.30 control plane can send configuration that a 1.28 proxy quietly ignores.
+
+Most real incidents stop at step 1 or 2. Step 4 is rare, and it is almost always the tail end of an upgrade nobody finished.
+
+Injection is decided once, when a pod is created. Versions drift because the control plane is one Deployment and the data plane is every pod.
 
 ## Common pitfalls
 
 > [!WARNING]
-> **Labelling a namespace and expecting running pods to change.** Injection is an admission-time decision. Label first, then `kubectl rollout restart deployment -n <namespace>`.
+> **Labelling a namespace and expecting running pods to change.** Injection is decided when the pod is created. Label first, then run `kubectl rollout restart deployment -n <namespace>`.
 >
-> **Reading the container count as health.** It tells you a proxy was injected, not that it holds useful configuration.
+> **Reading the container count as health.** It tells you a proxy was injected, not that the proxy holds useful configuration.
 >
-> **Forgetting there are three versions, not one.** `istioctl`, the control plane and each sidecar can all differ, and only the data plane lags silently.
+> **Forgetting there are three versions, not one.** `istioctl`, the control plane and each sidecar can all differ, and only the data plane falls behind without telling you.
 >
-> **Letting the data plane trail by more than one minor version.** That is the supported skew; beyond it, a proxy may quietly ignore configuration the control plane sends.
+> **Letting the data plane trail by more than one minor version.** One minor version is the supported gap. Beyond it, a proxy may quietly ignore configuration the control plane sends.
 >
-> **Starting a diagnosis at the proxy.** The ordered list above is cheapest-first for a reason: most incidents stop at injection or at a rejected object.
-
-> *Injection is decided once, at pod creation; versions drift because the control plane is one Deployment and the data plane is every pod.*
-
-## Reference
-
-- [Installing the sidecar](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the full injection decision, including the pod-level overrides section 020 covers.
-- [Kubernetes dynamic admission control](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) — how mutating webhooks work in general, which is all Istio is using.
-- [Istio's xDS and proxy-status](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — reading `proxy-status` and `proxy-config` output.
-- [Supported version skew](https://istio.io/v1.30/docs/releases/supported-releases/) — the one-minor-version rule stated by the project.
+> **Starting a diagnosis at the proxy.** The checking order runs cheapest first for a reason: most incidents stop at injection or at a rejected object.
