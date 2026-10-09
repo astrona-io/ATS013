@@ -24,19 +24,21 @@ The output looks like this:
 
 ```text
 NAME                   READY   UP-TO-DATE   AVAILABLE   AGE
-istio-egressgateway    1/1     1            1           8m
-istio-ingressgateway   1/1     1            1           8m
-istiod                 1/1     1            1           8m
-
-✔ Istio core installed
-✔ Istiod installed
+istio-egressgateway    1/1     1            1           2m1s
+istio-ingressgateway   1/1     1            1           2m1s
+istiod                 1/1     1            1           2m13s
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
 ✔ Installation complete
-
-NAME     READY   UP-TO-DATE   AVAILABLE   AGE
-istiod   1/1     1            1           8m
+NAME                   READY   UP-TO-DATE   AVAILABLE   AGE
+istio-egressgateway    0/1     0            0           2m8s
+istio-ingressgateway   0/1     0            0           2m8s
+istiod                 1/1     1            1           2m20s
 ```
 
-Two Deployments are gone, and the only sign in the summary was a *missing* line, "Ingress gateways installed". Look at the `AGE` of `istiod`: it did not reset. `istioctl` updated the object it already owned instead of creating it again.
+The install summary also prints progress lines and a logo; they are left out here. The summary has no "Egress gateways installed" or "Ingress gateways installed" line, and that *missing* line is the only sign of what comes next. Right after the install, the two gateway Deployments show `0/1`: `istioctl` has deleted them, and Kubernetes is still removing their pods. Run `kubectl -n istio-system get deploy` again a few seconds later, and only `istiod` is left.
+
+Look at the `AGE` of `istiod`: it did not reset. `istioctl` updated the object it already owned instead of creating it again.
 
 ## How istioctl knows what to prune
 
@@ -70,8 +72,11 @@ The output looks like this:
 
 ```text
 "install.operator.istio.io/owning-resource":"unknown"
-"operator.istio.io/component":"Pilot"
+"install.operator.istio.io/owning-resource-namespace":"istio-system"
 "istio.io/rev":"default"
+"operator.istio.io/component":"Pilot"
+"operator.istio.io/managed":"Reconcile"
+"operator.istio.io/version":"1.30.5"
 ```
 
 `Pilot` is the older name of the control plane component, and `istio.io/rev: default` is the label that keeps pruning inside one revision. The exact label values change between versions. What matters is that they exist: they are what lets `istioctl` manage an object.
@@ -107,24 +112,28 @@ istioctl uninstall --purge -y
 kubectl delete namespace istio-system --ignore-not-found
 kubectl api-resources --api-group=networking.istio.io
 kubectl get ns default --show-labels
-kubectl get pod tester -o jsonpath='{.spec.containers[*].name}{"\n"}'
+kubectl get pod tester -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}{"\n"}'
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: the uninstall prints one `Removed` line for every object it deletes):
 
 ```text
 All Istio resources will be pruned from the cluster
+
+  Removed apps/v1, Kind=Deployment/istiod.istio-system.
+  Removed /v1, Kind=Service/istiod.istio-system.
 ...
+  Removed apiextensions.k8s.io/v1, Kind=CustomResourceDefinition/workloadgroups.networking.istio.io..
+
+✔ Uninstall complete
 namespace "istio-system" deleted
-error: unable to retrieve the complete list of server APIs: networking.istio.io/v1: the server could not find the requested resource
-
-NAME      STATUS   AGE   LABELS
-default   Active   41m   istio-injection=enabled,kubernetes.io/metadata.name=default
-
-nginx istio-proxy
+NAME   SHORTNAMES   APIVERSION   NAMESPACED   KIND
+NAME      STATUS   AGE     LABELS
+default   Active   3m55s   istio-injection=enabled,kubernetes.io/metadata.name=default
+istio-init istio-proxy tester
 ```
 
-The CRDs really are gone: you get the same error as on a cluster that never had Istio. But the `default` namespace still has its label, and the `tester` pod still has a sidecar with no control plane to connect to. Finish the cleanup with `kubectl label namespace default istio-injection-` and `kubectl delete pod tester`.
+The CRDs really are gone: `kubectl api-resources` prints only its header, the same as on a cluster that never had Istio. But the `default` namespace still has its label, and the `tester` pod still has its `istio-init` and `istio-proxy` init containers, with no control plane to connect to. Finish the cleanup with `kubectl label namespace default istio-injection-` and `kubectl delete pod tester`.
 
 ## Making the install repeatable
 

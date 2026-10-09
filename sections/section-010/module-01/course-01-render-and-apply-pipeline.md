@@ -122,11 +122,12 @@ The output looks like this:
 
 ```text
 Error from server (NotFound): namespaces "istio-system" not found
-error: unable to retrieve the complete list of server APIs: networking.istio.io/v1: the server could not find the requested resource
+NAME   SHORTNAMES   APIVERSION   NAMESPACED   KIND
 ✔ No issues found when checking the cluster. Istio is safe to install or upgrade!
+  To get started, check out https://istio.io/latest/docs/setup/getting-started/.
 ```
 
-The first two errors are the true starting state: there is no `istio-system` namespace, and there is no `networking.istio.io` API group because the CRDs are not installed. A passing precheck is a statement about the *cluster*: nothing is in the way.
+The first two results are the true starting state. There is no `istio-system` namespace, and `kubectl api-resources` prints only its header line: the API server knows no resource in the `networking.istio.io` API group, because the CRDs are not installed. A passing precheck is a statement about the *cluster*: nothing is in the way.
 
 On a cluster with history, a clean pass is rare, and the warnings are the useful part. They tell you what will break *after* you upgrade, while the old version still runs and you can still change course.
 

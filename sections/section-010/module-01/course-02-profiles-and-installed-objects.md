@@ -97,20 +97,27 @@ kubectl get crd | grep -c istio.io
 kubectl get mutatingwebhookconfigurations,validatingwebhookconfigurations | grep istio
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/istio-egressgateway    1/1     1            1           62s
-deployment.apps/istio-ingressgateway   1/1     1            1           62s
-deployment.apps/istiod                 1/1     1            1           75s
+deployment.apps/istio-egressgateway    1/1     1            1           8s
+deployment.apps/istio-ingressgateway   1/1     1            1           8s
+deployment.apps/istiod                 1/1     1            1           20s
 
+NAME                                  TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                                                                      AGE
+service/istio-egressgateway           ClusterIP      10.96.72.90    <none>        80/TCP,443/TCP                                                               8s
+service/istio-ingressgateway          LoadBalancer   10.96.43.134   <pending>     15021:32719/TCP,80:30818/TCP,443:32620/TCP,31400:32428/TCP,15443:30706/TCP   8s
+service/istiod                        ClusterIP      10.96.1.40     <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP                                        20s
+service/istiod-revision-tag-default   ClusterIP      10.96.157.94   <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP                                        0s
 15
-mutatingwebhookconfiguration.admissionregistration.k8s.io/istio-sidecar-injector       ...
-validatingwebhookconfiguration.admissionregistration.k8s.io/istio-validator-istio-system  ...
+mutatingwebhookconfiguration.admissionregistration.k8s.io/istio-revision-tag-default   4          0s
+mutatingwebhookconfiguration.admissionregistration.k8s.io/istio-sidecar-injector       4          20s
+validatingwebhookconfiguration.admissionregistration.k8s.io/istio-validator-istio-system   1          20s
+validatingwebhookconfiguration.admissionregistration.k8s.io/istiod-default-validator       1          0s
 ```
 
-You see three Deployments, a two-digit number of CRDs and two webhooks, all from one command, and all ordinary Kubernetes objects. The CRD count changes between versions; the kinds of object do not.
+You see three Deployments, their Services, a two-digit number of CRDs and four webhook configurations, all from one command, and all ordinary Kubernetes objects. The two webhook configurations named after `default` belong to the default revision tag: `istioctl install` creates the tag `default`, and the tag gets its own copy of the webhooks and its own `istiod-revision-tag-default` Service, which points at the same `istiod` pods. The CRD count changes between versions; the kinds of object do not.
 
 ## Confirm that a gateway is just a proxy
 
@@ -128,11 +135,12 @@ The output looks like this:
 
 ```text
 istio-proxy
-docker.io/istio/proxyv2:1.30.5
-status-port     15021
-http2           80
-https           443
-tcp             31400
+registry.istio.io/release/proxyv2:1.30.5
+status-port	15021
+http2	80
+https	443
+tcp	31400
+tls	15443
 ```
 
 The pod has one container, named `istio-proxy`, running the `proxyv2` image: the same image an injected sidecar runs. Port `15021` is the health-check port that every Istio proxy opens. Ports `80` and `443` are the ports this gateway serves to clients outside the mesh.

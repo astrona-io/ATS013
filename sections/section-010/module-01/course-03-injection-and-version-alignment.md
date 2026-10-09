@@ -22,40 +22,48 @@ The Deployment controller creates a Pod object. The API server checks who sent i
 
 Two rules come out of that path, and they explain most injection questions. **First, the webhook is called for pods, chosen by namespace.** The `namespaceSelector` on the webhook configuration is a label selector that the API server checks against the *namespace object*, not the pod. That is why the namespace label exists, and why it is the first thing to check. **Second, this happens once, when the pod is created.** No controller watches for namespaces that become eligible later. Admission cannot rewrite an object that is already stored, so a pod admitted without a sidecar never gets one. The only way to change a pod's injection is to replace the pod.
 
-You can read the selector the webhook uses. This needs Istio installed with the `demo` profile:
+You can read the selector the webhook uses. This needs Istio installed with the `demo` profile. `istioctl install` creates two mutating webhook configurations with the same entries: `istio-sidecar-injector` and `istio-revision-tag-default`. While the revision tag `default` exists, the entries in `istio-sidecar-injector` carry a selector that never matches (`istio.io/deactivated: never-match`), and the copies in `istio-revision-tag-default` do the work. So read that one:
 
 <!-- astrona:playground:renew -->
 
 ```sh
-kubectl get mutatingwebhookconfiguration istio-sidecar-injector \
+kubectl get mutatingwebhookconfiguration istio-revision-tag-default \
   -o jsonpath='{range .webhooks[*]}{.name}{"\n  rules: "}{.rules[0].resources}{"\n  ns-selector: "}{.namespaceSelector}{"\n\n"}{end}'
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
+rev.namespace.sidecar-injector.istio.io
+  rules: ["pods"]
+  ns-selector: {"matchExpressions":[{"key":"istio.io/rev","operator":"In","values":["default"]},{"key":"istio-injection","operator":"DoesNotExist"}]}
+
+rev.object.sidecar-injector.istio.io
+  rules: ["pods"]
+  ns-selector: {"matchExpressions":[{"key":"istio.io/rev","operator":"DoesNotExist"},{"key":"istio-injection","operator":"DoesNotExist"}]}
+
 namespace.sidecar-injector.istio.io
   rules: ["pods"]
-  ns-selector: {"matchExpressions":[{"key":"istio-injection","operator":"In","values":["enabled"]},...]}
+  ns-selector: {"matchExpressions":[{"key":"istio-injection","operator":"In","values":["enabled"]}]}
 
 object.sidecar-injector.istio.io
   rules: ["pods"]
-  ns-selector: {...}
+  ns-selector: {"matchExpressions":[{"key":"istio-injection","operator":"DoesNotExist"},{"key":"istio.io/rev","operator":"DoesNotExist"}]}
 ```
 
-`rules: ["pods"]` confirms that the API server calls the webhook for pods and nothing else: not Deployments, not ReplicaSets. The `ns-selector` is the rule the namespace must meet. There are two webhook entries. One handles the decision for the whole namespace, and the other handles overrides set on a single pod.
+`rules: ["pods"]` confirms that the API server calls the webhook for pods and nothing else: not Deployments, not ReplicaSets. The `ns-selector` is the rule the namespace must meet. There are four webhook entries. The two `namespace` entries decide for a whole namespace, by the `istio-injection=enabled` label or the `istio.io/rev=default` label. The two `object` entries handle a label set on a single pod, in a namespace that has neither label.
 
 ## Labelling, and the restart that completes it
 
 The selector above tells you which label to set. The label that matches the default webhook is `istio-injection=enabled` on the namespace. It affects every pod created in that namespace *after* you set it. It does nothing to pods that already run.
 
-Label the `default` namespace first, then create a pod in it and list its containers:
+Label the `default` namespace first, then create a pod in it and list its init containers and its containers:
 
 ```sh
 kubectl label namespace default istio-injection=enabled
 kubectl run tester --image=nginx
 kubectl wait --for=condition=Ready pod/tester --timeout=120s
-kubectl get pod tester -o jsonpath='{.spec.containers[*].name}{"\n"}'
+kubectl get pod tester -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}{"\n"}'
 ```
 
 The output looks like this:
@@ -64,10 +72,12 @@ The output looks like this:
 namespace/default labeled
 pod/tester created
 pod/tester condition met
-nginx istio-proxy
+istio-init istio-proxy tester
 ```
 
-You defined a pod with one container, and it has two container names. The webhook added the second one to the spec after `kubectl run` sent the pod and before the API server stored it. It appears in no file you wrote.
+You defined a pod with one container, named `tester` after the pod, and it now has three names. The webhook added `istio-init` and `istio-proxy` to the spec after `kubectl run` sent the pod and before the API server stored it. They appear in no file you wrote.
+
+Both added names are in `.spec.initContainers`, not in `.spec.containers`. `istio-init` is a normal init container: it sets up the traffic redirection rules and exits. `istio-proxy` is a **native sidecar**: an init container with `restartPolicy: Always`, so Kubernetes starts it before the application container and keeps it running beside it. Istio 1.30 injects the proxy this way on Kubernetes versions that support native sidecars, as `kind` does. A command that reads only `.spec.containers` prints `tester` and hides the proxy, so always read both lists.
 
 The other order shows the second rule. If you create a pod in a namespace with no label, then add the label, the pod still has one container, and it keeps one container until it is deleted and created again. For a real workload, `kubectl rollout restart deployment <name>` is the normal way to do that. The Deployment controller replaces the pods a few at a time, not all at once, and each new pod passes through the webhook.
 
@@ -83,41 +93,56 @@ They drift for a reason built into the system. Upgrading the control plane repla
 
 ## Reading istioctl version and proxy-status
 
-Two commands show whether the three versions agree. `istioctl version` reports all three at once, so it is the first command to run when something behaves strangely. `istioctl proxy-status` goes further: it lists every proxy `istiod` knows about, and whether each one has accepted the latest configuration.
+Two commands show whether the three versions agree. `istioctl version` reports all three at once, so it is the first command to run when something behaves strangely. `istioctl proxy-status` goes further: it lists every proxy `istiod` knows about, which `istiod` pod serves it, and which configuration types it receives.
 
-The columns `CDS`, `LDS`, `EDS` and `RDS` are the four main xDS types that `istiod` sends:
-
-| Column | Stands for | Carries |
-| --- | --- | --- |
-| `CDS` | Cluster Discovery Service | The groups of destinations (Envoy clusters) a proxy can send to |
-| `LDS` | Listener Discovery Service | The ports and filter chains the proxy accepts traffic on |
-| `EDS` | Endpoint Discovery Service | The pod IP addresses behind each cluster |
-| `RDS` | Route Discovery Service | The HTTP routing rules |
-
-Each column holds one of three values. `SYNCED` means the proxy accepted the current version of that type; this is the healthy state. `STALE` means `istiod` sent an update and is still waiting for the proxy to confirm it. A few seconds is normal after a change, but a `STALE` that stays means the proxy is not accepting what it receives. `NOT SENT` means there is nothing of that type to send. It is common and harmless: for example, a gateway with no `Gateway` resource attached has no routes, so its `RDS` reads `NOT SENT`.
-
-The `ISTIOD` column names the `istiod` pod each proxy is connected to. On a cluster with one control plane it adds little. During an upgrade with two control planes side by side, it answers the question "which control plane serves this workload?".
-
-Now confirm that the whole mesh runs one version:
+Confirm that the whole mesh runs one version:
 
 ```sh
 istioctl version
 istioctl proxy-status
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 client version: 1.30.5
 control plane version: 1.30.5
 data plane version: 1.30.5 (3 proxies)
-
-NAME                                   CLUSTER      CDS      LDS      EDS      RDS        ECDS       ISTIOD
-tester.default                         Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED     NOT SENT   istiod-...
-istio-ingressgateway-...istio-system   Kubernetes   SYNCED   SYNCED   SYNCED   NOT SENT   NOT SENT   istiod-...
+NAME                                                   CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+istio-egressgateway-b7dd4655b-xh58k.istio-system       Kubernetes     istiod-7dc9684c55-qkp9r     1.30.5      3 (CDS,LDS,EDS)
+istio-ingressgateway-7f54444996-ml6cm.istio-system     Kubernetes     istiod-7dc9684c55-qkp9r     1.30.5      3 (CDS,LDS,EDS)
+tester.default                                         Kubernetes     istiod-7dc9684c55-qkp9r     1.30.5      4 (CDS,LDS,EDS,RDS)
 ```
 
 `data plane version: 1.30.5 (3 proxies)` is the line that matters. The two gateways count as proxies, because they are proxies, and `tester` is the third. When this line shows two versions, an upgrade is in progress and not every pod has been restarted yet.
+
+`proxy-status` has one row per proxy. The `ISTIOD` column names the `istiod` pod the proxy is connected to. On a cluster with one control plane it adds little. During an upgrade with two control planes side by side, it answers the question "which control plane serves this workload?". The `VERSION` column is the proxy's own version, so it shows a proxy that trails the control plane.
+
+`SUBSCRIBED TYPES` lists the xDS types the proxy asked `istiod` for. These are the four main ones:
+
+| Type | Stands for | Carries |
+| --- | --- | --- |
+| `CDS` | Cluster Discovery Service | The groups of destinations (Envoy clusters) a proxy can send to |
+| `LDS` | Listener Discovery Service | The ports and filter chains the proxy accepts traffic on |
+| `EDS` | Endpoint Discovery Service | The pod IP addresses behind each cluster |
+| `RDS` | Route Discovery Service | The HTTP routing rules |
+
+The gateways do not ask for `RDS`: no `Gateway` resource is attached to them, so they have no HTTP routes to receive. To see the sync state of each type, add `-v 1`:
+
+```sh
+istioctl proxy-status -v 1
+```
+
+The output looks like this:
+
+```text
+NAME                                                   CLUSTER        CDS              ECDS        EDS              LDS              RDS              ISTIOD                      VERSION
+istio-egressgateway-b7dd4655b-xh58k.istio-system       Kubernetes     SYNCED (27m)     IGNORED     SYNCED (27m)     SYNCED (27m)     IGNORED          istiod-7dc9684c55-qkp9r     1.30.5
+istio-ingressgateway-7f54444996-ml6cm.istio-system     Kubernetes     SYNCED (27m)     IGNORED     SYNCED (27m)     SYNCED (27m)     IGNORED          istiod-7dc9684c55-qkp9r     1.30.5
+tester.default                                         Kubernetes     SYNCED (26m)     IGNORED     SYNCED (26m)     SYNCED (26m)     SYNCED (26m)     istiod-7dc9684c55-qkp9r     1.30.5
+```
+
+`SYNCED` means the proxy accepted the current version of that type; this is the healthy state. `IGNORED` means the proxy did not subscribe to that type, like the gateways' `RDS`. Two other values can appear. `STALE` means `istiod` sent an update and is still waiting for the proxy to confirm it; a few seconds is normal after a change, but a `STALE` that stays means the proxy is not accepting what it receives. `NOT SENT` means `istiod` has sent nothing of that type, usually because it has nothing to send.
 
 ## Where "applied but not working" points
 

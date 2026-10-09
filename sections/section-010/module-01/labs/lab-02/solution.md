@@ -6,18 +6,29 @@ Follow these steps to remove Istio from the cluster completely, clear what the u
 
 ## Step 1: Look at the starting state
 
-Before you remove anything, see what is there. List the containers of each pod in `mesh-demo`:
+Before you remove anything, see what is there. List the init containers and the containers of each pod in `mesh-demo`:
 
 ```sh
-kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
-Each of the two pods lists two containers: its application container (`notification-service` or `tester`) and `istio-proxy`. The `istio-proxy` container is the sidecar proxy: an Envoy container that the injection webhook added to the pod when the pod was created.
+```text
+POD                                     INIT                     CONTAINERS
+notification-service-76f869bb97-grckj   istio-init,istio-proxy   notification-service
+tester-b9794959f-7jfd9                  istio-init,istio-proxy   tester
+```
+
+Each of the two pods lists its application container (`notification-service` or `tester`) and two init containers that the injection webhook added when the pod was created. `istio-proxy` is the sidecar proxy: an Envoy container that handles all inbound and outbound traffic of the pod. It runs as a native sidecar, an init container with `restartPolicy: Always`, so it is listed under `INIT`. `istio-init` sets up the traffic redirection and exits.
 
 Then check the namespace label:
 
 ```sh
 kubectl get ns mesh-demo --show-labels
+```
+
+```text
+NAME        STATUS   AGE   LABELS
+mesh-demo   Active   9s    istio-injection=enabled,kubernetes.io/metadata.name=mesh-demo
 ```
 
 The `LABELS` column contains `istio-injection=enabled`. This label tells the injection webhook to add a sidecar to every new pod in the namespace.
@@ -32,10 +43,16 @@ istioctl uninstall --purge -y
 
 ```text
 All Istio resources will be pruned from the cluster
+
+  Removed apps/v1, Kind=Deployment/istio-egressgateway.istio-system.
+  Removed apps/v1, Kind=Deployment/istio-ingressgateway.istio-system.
 ...
+  Removed apiextensions.k8s.io/v1, Kind=CustomResourceDefinition/workloadgroups.networking.istio.io..
+
+✔ Uninstall complete
 ```
 
-(The output is shortened.) `--purge` removes every revision, that is every named control plane installation, together with all cluster-wide Istio resources, CRDs (Custom Resource Definitions) and webhook configurations included. `-y` skips the confirmation question.
+(The output is shortened: the uninstall prints one `Removed` line for every object it deletes.) `--purge` removes every revision, that is every named control plane installation, together with all cluster-wide Istio resources, CRDs (Custom Resource Definitions) and webhook configurations included. `-y` skips the confirmation question.
 
 The other mode, `istioctl uninstall --revision default`, removes only one control plane and the objects labelled for it. It leaves the CRDs in place, because other revisions might still need them. For a fully clean cluster you need `--purge`. The grader checks the CRDs, so an uninstall without `--purge` fails.
 
@@ -46,10 +63,10 @@ kubectl api-resources --api-group=networking.istio.io
 ```
 
 ```text
-error: unable to retrieve the complete list of server APIs: networking.istio.io/v1: the server could not find the requested resource
+NAME   SHORTNAMES   APIVERSION   NAMESPACED   KIND
 ```
 
-This is the same error a cluster that never had Istio gives: the API server no longer knows the `networking.istio.io` group.
+Only the header line is left. This is the same result a cluster that never had Istio gives: the API server no longer knows any resource in the `networking.istio.io` group. If the list still shows one or two resources right after the uninstall, the API server is still removing the CRDs; wait a few seconds and run the command again.
 
 ---
 
@@ -77,7 +94,11 @@ The `istio-injection=enabled` label sits on your own namespace object, which Ist
 kubectl label namespace mesh-demo istio-injection-
 ```
 
-`kubectl` answers that `mesh-demo` is unlabeled. Do not set the label to `disabled` instead: the task asks for the label to be removed, and the grader fails on any value.
+```text
+namespace/mesh-demo unlabeled
+```
+
+Do not set the label to `disabled` instead: the task asks for the label to be removed, and the grader fails on any value.
 
 ---
 
@@ -86,7 +107,13 @@ kubectl label namespace mesh-demo istio-injection-
 Check the pods again:
 
 ```sh
-kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
+```
+
+```text
+POD                                     INIT                     CONTAINERS
+notification-service-76f869bb97-grckj   istio-init,istio-proxy   notification-service
+tester-b9794959f-7jfd9                  istio-init,istio-proxy   tester
 ```
 
 Both pods still list `istio-proxy`. The webhook added the sidecar when each pod was created, and the container is part of the stored pod spec. The uninstall does not change pods that already run. These proxies now run with no control plane: they get no configuration updates and no new certificates.
@@ -99,17 +126,41 @@ kubectl -n mesh-demo rollout status deployment notification-service --timeout=18
 kubectl -n mesh-demo rollout status deployment tester --timeout=180s
 ```
 
-`kubectl` reports that both Deployments were restarted and that each one rolled out successfully.
+```text
+deployment.apps/notification-service restarted
+deployment.apps/tester restarted
+Waiting for deployment "notification-service" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "notification-service" rollout to finish: 1 old replicas are pending termination...
+deployment "notification-service" successfully rolled out
+Waiting for deployment "tester" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "tester" rollout to finish: 1 old replicas are pending termination...
+deployment "tester" successfully rolled out
+```
 
 Do not delete the Deployments or the namespace to get rid of the sidecars. The task says to keep them, and the grader checks that both Deployments and the Service still exist.
 
 List the containers one more time:
 
 ```sh
-kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
-Each pod now lists only its application container. If an old pod with `istio-proxy` still shows as `Terminating`, wait a few seconds and run the command again.
+```text
+POD                                     INIT                     CONTAINERS
+notification-service-5449659c66-b95b5   <none>                   notification-service
+tester-69975dbf66-kxvf5                 <none>                   tester
+tester-b9794959f-7jfd9                  istio-init,istio-proxy   tester
+```
+
+The new pods list only their application container and no init containers. The old `tester` pod is still listed: it is shutting down, and the `curl` image's `sleep` command does not stop on the termination signal, so Kubernetes waits the full grace period of 30 seconds. Wait half a minute and run the command again:
+
+```text
+POD                                     INIT     CONTAINERS
+notification-service-5449659c66-b95b5   <none>   notification-service
+tester-69975dbf66-kxvf5                 <none>   tester
+```
+
+The grader fails while the old pod still exists, so wait for this output before you submit.
 
 ---
 
@@ -121,7 +172,11 @@ Send a request from the `tester` pod to the `notification-service` Service and p
 kubectl -n mesh-demo exec deploy/tester -- curl -s -o /dev/null -w '%{http_code}\n' http://notification-service
 ```
 
-The command prints `200`. The request now goes straight from the `tester` container to the `notification-service` pod, with no sidecar proxy on either side.
+```text
+200
+```
+
+The request now goes straight from the `tester` container to the `notification-service` pod, with no sidecar proxy on either side.
 
 ---
 
