@@ -1,12 +1,12 @@
 ---
-estimated_duration: 3m
+estimated_duration: 30m
 ---
 
 # Upgrade And Reconfigure Istio With Helm
 
-Welcome to an upgrade mission, astronaut. Istio 1.29.8 runs as three Helm releases, and `istiod` was installed with a values file that no longer exists on disk. The only record of those settings is inside the release.
+Istio 1.29.8 runs as three Helm releases, and `istiod` was installed with a values file that no longer exists on disk. The only record of those settings is inside the release.
 
-Your job is to recover that configuration, upgrade all three releases to 1.30.5 without losing any of it, make one change to the mesh settings on the way, and finish the upgrade by restarting the data plane so no proxy is left on the old version.
+The learner must recover that configuration, upgrade all three releases to 1.30.5 without losing any of it, make one change to the mesh settings on the way, and finish the upgrade by restarting the data plane so no proxy is left on the old version.
 
 ## Launching the Lab
 

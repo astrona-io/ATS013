@@ -1,6 +1,6 @@
 # Solution Walkthrough
 
-Mission debrief, astronaut. The settings were never lost: Helm kept them in its release history. The work is to get them back into a file, pass that file on the upgrade, and then relaunch the ships so their communications officers run the new version too.
+Follow these steps to recover the values of the `istiod` release, upgrade the three Helm releases to 1.30.5 with those values, and restart the data plane. The settings were never lost: Helm kept them in its release history. The work is to get them back into a file, pass that file on the upgrade, and then restart the workloads so their sidecar proxies run the new version too.
 
 ---
 
@@ -73,13 +73,17 @@ grep -A2 outboundTrafficPolicy istiod-values.yaml
 
 ## Step 3: Know the trap you are avoiding
 
-This is the trap the whole mission is built around. A default `helm upgrade` starts from the chart's defaults:
+This is the trap the whole lab is built around. A default `helm upgrade` starts from the chart's defaults:
 
-```text
-  DEFAULT  chart defaults ──► this run's -f ──► this run's --set ──► new release
-                 ▲
-                 └── the previous revision's values are NOT in this picture
+```mermaid
+flowchart LR
+    C["Chart defaults"] -->|"then"| F["This run's -f"]
+    F -->|"then"| S["This run's --set"]
+    S -->|"build"| N["New release"]
+    P["Previous revision's values"] -.->|"not used"| N
 ```
+
+The diagram shows that the values of the previous revision never reach the new release.
 
 `helm upgrade istiod istio/istiod -n istio-system --version 1.30.5` with no `-f` would report `STATUS: deployed` and quietly reset access logging, autoscaling and every resource request to the chart defaults. `--reuse-values` is the other option, but it merges instead of replacing: a `-f` file that *removes* a key does not remove it. One complete file, passed every time, avoids both.
 
@@ -96,7 +100,7 @@ If the computed values block is empty or misses keys you expect, stop.
 
 ## Step 4: Upgrade in order
 
-Upgrade `base`, then `istiod`, then the gateway: the same order as the install. `base` holds the Custom Resource Definitions (CRDs), the forms that teach the cluster Istio's object kinds. A newer `istiod` may set fields that only the newer CRDs accept, so `base` goes first.
+Upgrade `base`, then `istiod`, then the gateway: the same order as the install. `base` holds the CRDs (Custom Resource Definitions), which add Istio's object kinds to the Kubernetes API. A newer `istiod` may set fields that only the newer CRDs accept, so `base` goes first.
 
 ```sh
 helm upgrade istio-base istio/base -n istio-system --version 1.30.5 --wait
@@ -148,7 +152,7 @@ control plane version: 1.30.5
 data plane version: 1.29.8 (2 proxies)
 ```
 
-A new mission control is giving orders to communications officers on old software. This is **version skew**. Istio supports it across one minor version, which is what makes a rolling upgrade possible. It is a window to pass through, not a place to stay.
+The control plane runs 1.30.5, and the sidecar proxies still run 1.29.8. This is **version skew**. Istio supports it across one minor version, which is what makes a rolling upgrade possible. It is a window to pass through, not a place to stay.
 
 The reason is simple: the injection webhook fixes a sidecar's image when the pod is created. Upgrading `istiod` replaces one Deployment. It cannot rewrite the stored spec of every pod in the cluster.
 
@@ -156,7 +160,7 @@ The reason is simple: the injection webhook fixes a sidecar's image when the pod
 
 ## Step 6: Restart the data plane
 
-Relaunch the application and the gateway so each gets a new proxy, and wait for both:
+Restart the application and the gateway so each gets a new proxy, and wait for both:
 
 ```sh
 kubectl -n default rollout restart deployment notification-service
@@ -206,7 +210,7 @@ Three settings from an install nobody wrote down, all intact after a version cha
 
 ## Step 8: Submit
 
-Send the mission for grading:
+Send the lab for grading:
 
 ```sh
 astrona submit

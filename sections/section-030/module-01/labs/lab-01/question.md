@@ -2,8 +2,6 @@
 
 Solve this question on: `terminal`
 
-Astronaut, mission control needs a newer kit, and nobody kept the order form.
-
 Istio **1.29.8** is installed as three Helm releases: `istio-base` and `istiod` in `istio-system`, and `istio-ingressgateway` in `istio-ingress`. One workload with a sidecar, `notification-service`, runs in the `default` namespace.
 
 `istiod` was installed with a **values file that is not the default and is no longer on disk**. Access logging is on, autoscaling of the control plane is off, and there are fixed resource requests for both the control plane and every sidecar. The only record is inside the release.

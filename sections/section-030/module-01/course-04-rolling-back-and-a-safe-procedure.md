@@ -1,26 +1,18 @@
 # Rolling Back And A Safe Procedure
 
-Every upgrade needs a way back. This part shows what `helm rollback` really restores, and what it leaves alone. It ends with an upgrade procedure you can write down and follow under pressure.
-
-In space terms, `helm rollback` rebuilds a kit from an older page of its logbook. The logbook is the release history: one Secret per revision, kept in the release's namespace.
+Every upgrade needs a way back. When an upgrade drops a setting or breaks the mesh, `helm rollback` is the fastest fix Helm offers, but it restores less than most people think. This part shows what `helm rollback` really restores and what it leaves alone. It ends with an upgrade procedure you can write down and follow under pressure.
 
 ## What `helm rollback` restores
 
-Start with what the command does, then with the three things it does not do.
+`helm rollback <release> <revision> -n <ns>` reads an earlier revision from the release history, which is one Secret per revision in the release's namespace. It applies the manifests of that revision again, and records the result as a **new** revision. It restores the release's Kubernetes objects and the values that produced them. So for `istiod`, both the control plane image and the `meshConfig` (the mesh-wide settings in the `istio` ConfigMap) go back.
 
-### What it does
+That is the whole job of the command, and three things fall outside it:
 
-`helm rollback <release> <revision> -n <ns>` applies the manifests of an earlier revision again, and records the result as a **new** revision. It restores the release's Kubernetes objects and the values that produced them. So for `istiod`, both the control plane image and the `meshConfig` (the fleet's standing orders) go back.
-
-### What it does not do
-
-- **It does not restart application pods.** Their sidecars keep running whatever image they were injected with. After you roll the control plane back, you may need another rollout restart to bring the data plane with it. That is the same step as in the upgrade, in the other direction.
+- **It does not restart application pods.** Their sidecar proxies keep running whatever image and resource requests they were injected with. After you roll the control plane back, you may need another `kubectl rollout restart` to bring the data plane with it. That is the same step as in the upgrade, in the other direction.
 - **It does not touch other releases.** Roll `istiod` back to 1.29.8 while `istio-base` stays at 1.30.5, and you get a mix nobody tested. A rollback of one release is not a rollback of the install.
 - **It does not undo anything outside the release.** That includes the CRDs installed by `base`, and objects you created by hand.
 
-### See a mesh setting revert through a rollback
-
-This step assumes the playground's `istiod` release is on chart 1.30.5 with `REGISTRY_ONLY` set, so revision 1 is the original 1.29.8 install. If you have not upgraded yet, run these first:
+You can see all of this on your playground. This step assumes the playground's `istiod` release is on chart 1.30.5 with `REGISTRY_ONLY` set, so revision 1 is the original 1.29.8 install. If you have not upgraded yet, run these commands first:
 
 <!-- astrona:playground:renew -->
 
@@ -41,7 +33,7 @@ kubectl -n istio-system get deploy istiod -o jsonpath='{.spec.template.spec.cont
 helm ls -n istio-system
 ```
 
-Expect something like:
+The output looks like this (shortened):
 
 ```text
 Rollback was a success! Happy Helming!
@@ -60,7 +52,7 @@ The mesh setting is back to its revision 1 value, and the control plane image we
 
 ## A procedure worth writing down
 
-Put the pieces together, and an Istio upgrade with Helm is six steps:
+The rollback shows how much depends on the steps around a Helm command. Put the pieces together, and an Istio upgrade with Helm is six steps:
 
 1. **Check that the values file matches reality.** Compare `helm get values` with your saved file. If they differ, find out why before anything else.
 2. **Do a dry run and read the computed values.** `helm upgrade ... -f <file> --dry-run --debug` prints them without touching the cluster.
@@ -73,62 +65,54 @@ Steps 4 and 6 catch the two failures that matter most: lost settings and old pro
 
 ## Before an upgrade in a real cluster
 
-A playground forgives everything. A production cluster does not, so plan for these four things before you start.
+A playground lets you start over. A production cluster does not, so plan for four more things before you start.
 
-### Count the restarts
+First, count the restarts. Finishing the upgrade means replacing every pod in the mesh. Check each `PodDisruptionBudget`, the Kubernetes object that limits how many pods of an application may be down at once. Decide whether the restarts need a maintenance window or can run in the background, and restart the least important namespaces first. Then a problem shows up while most of the mesh still runs the old proxy.
 
-Finishing the upgrade means replacing every pod in the mesh. Check each `PodDisruptionBudget` (the rule that limits how many pods of an app may be down at once). Decide whether this is a maintenance window or a background task. Restart the least important namespaces first, so a problem shows up while most of the mesh still runs the old proxy.
+Second, protect the release history. Rollback and value recovery both depend on the release Secrets. Back up the namespace, and save the values file in version control so the cluster is not the only copy.
 
-### Protect the release history
+Third, watch certificates, not just pods. `istiod` is also the certificate authority of the mesh: it signs the certificates that sidecar proxies use for mutual TLS (mTLS, where both sides of a connection prove who they are). A workload that cannot get a fresh certificate keeps working until its current one expires. Then it fails in a way that looks unrelated to the upgrade, so a quiet mesh right after the upgrade does not prove a healthy one.
 
-Rollback and value recovery both live in the release Secrets. Back up the namespace, and save the values file in version control so the cluster is not the only copy.
+Fourth, remember that a Helm rollback is not an Istio rollback. Reverting the control plane leaves the data plane where it was, and moving the workloads back means a second full round of restarts. A canary upgrade avoids this: it runs a second `istiod` next to the old one, so going back is a change of namespace label.
 
-### Watch certificates, not just pods
-
-`istiod` is also the certificate authority: mission control's badge office. A workload that cannot get a fresh certificate keeps working until its current one expires. Then it fails in a way that looks unrelated to the upgrade. A quiet mesh right after the upgrade does not prove a healthy one.
-
-### A Helm rollback is not an Istio rollback
-
-Reverting the control plane leaves the data plane where it was. Moving the workloads back means a second full round of restarts. A canary upgrade avoids this: the old mission control keeps running, so going back is a label change.
-
-Rollback only takes back what one release owns.
+You now know that `helm rollback` applies an older revision of one release as a new revision, and that it does not restart pods, touch the other releases or undo anything outside the release. You also have a six-step procedure whose checks catch lost settings and old proxies. The open question for a real cluster is how to plan the restarts, the history and the certificates around those steps.
 
 ## Common pitfalls
 
 > [!WARNING]
-> **Treating `helm rollback` as a full undo.** It restores one release's objects. It does not restore the pods created from them, and it does not touch the sibling releases.
+> **Treating `helm rollback` as a full undo.** It restores one release's objects. It does not restore the pods created from them, and it does not touch the other releases.
 >
-> **Rolling back `istiod` and forgetting the data plane.** The sidecars keep the image they were injected with. Restart the workloads if they must follow the control plane back.
+> **Rolling back `istiod` and forgetting the data plane.** The sidecars keep the image and resource requests they were injected with. Restart the workloads if they must follow the control plane back.
 >
 > **Rolling back one release and calling the install reverted.** Check `helm ls -A`: `istio-base` and the gateway keep their own versions.
 >
 > **Skipping the dry run.** Reading the computed values takes seconds and catches a missing `-f` before it does damage.
 
-## Your mission: Upgrade And Reconfigure Istio With Helm
+## Your mission: Roll Back A Helm Release Of istiod Lab
 
-You can now recover a release's values, upgrade the three releases in order, and finish the job by restarting the data plane. Now prove it in a graded mission: upgrade a Helm-installed Istio from 1.29.8 to 1.30.5 without losing a single setting, change one mesh option on the way, and leave no version skew behind.
+You can now read a release history, roll one release back to a good revision, and bring the data plane in line afterwards. The lab asks you to undo a `helm upgrade` of `istiod` that dropped every setting from the install, by rolling the release back, and to restart the workload so its sidecar proxy gets the original resource requests again.
 
-The mission runs in its own training solar system, so first pause your playground. Nothing in it is lost:
+The lab runs on its own cluster, so first pause your playground. Nothing in it is lost:
 
 ```sh
 astrona stop ats-013-playground-030-01
 ```
 
-Then start the mission:
+Then start the lab. The task is on the next page; solve it on your own first:
 
 ```sh
-astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-030/module-01/labs/lab-01
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-030/module-01/labs/lab-02
 ```
 
-Read the task in [`question.md`](./labs/lab-01/question.md) and solve it on your own first. When you think you are done, send it for grading:
+When you think you are done, send it for grading:
 
 ```sh
-astrona submit -c sections/section-030/module-01/labs/lab-01
+astrona submit -c sections/section-030/module-01/labs/lab-02
 ```
 
-When the mission is done, remove it and wake your playground up again:
+When the lab is done, remove it and start your playground again:
 
 ```sh
-astrona destroy ats-013-lab-030-01
+astrona destroy ats-013-lab-030-01-02
 astrona start ats-013-playground-030-01
 ```

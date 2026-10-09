@@ -1,28 +1,22 @@
 # Upgrading In Order And Finishing The Job
 
-With a complete values file in hand, the upgrade itself is three commands in a fixed order. Then comes a fourth step that most people skip, because the mesh keeps working without it. This part covers the order and the step that really finishes the job.
+With a complete values file in hand, the upgrade itself is three commands in a fixed order. Then comes a fourth step that most people skip, because the mesh keeps working without it. This part covers the order of the three Helm releases, and the restart that really finishes an Istio upgrade.
 
 The values file used here is `istiod-values.yaml`, rebuilt from revision 1 of the `istiod` release with `helm get values istiod -n istio-system --revision 1 | tail -n +2 > istiod-values.yaml`. If it is not in your working folder, run that command first.
 
 ## The order, and why it holds
 
-The order is `base`, then `istiod`, then each gateway. It is the same order as the install, for a related but different reason.
+The upgrade order is `base`, then `istiod`, then each gateway. It is the same order as the install, for a related but different reason.
 
-### Why `base` comes first
+At install time the rule is absolute. The `istio/base` chart installs the CRDs (Custom Resource Definitions), which add Istio's object kinds, such as `VirtualService`, to the Kubernetes API. The `istiod` chart creates objects of those kinds, so it cannot go first.
 
-At install time the rule was absolute. `istiod`'s objects are of kinds that `base` defines (the Custom Resource Definitions, or CRDs: the new forms the cluster's registry office learns to accept). So `istiod` could not go first.
+At upgrade time the CRDs already exist, so a wrong order often *seems* to work. The rule is now about the schema of those CRDs. A newer `istiod` may set fields on Istio objects that only the newer CRDs accept. If you upgrade `istiod` first, it may write or check configuration that the old CRDs reject. Sometimes that fails at once. Sometimes it fails only when someone next applies a certain object, which makes the wrong order worse than a clean failure.
 
-At upgrade time the CRDs already exist, so a wrong order often *seems* to work. The rule is now about the schema. A newer `istiod` may set fields on Istio objects that only the newer CRDs accept. Upgrade `istiod` first, and it may write or check configuration that the old CRDs reject. Sometimes that fails at once. Sometimes it fails only when someone next applies a certain object.
-
-That "sometimes later" makes the wrong order worse than a clean failure. Keep the order.
-
-### Which release gets which values file
-
-Only `istiod` takes `-f istiod-values.yaml`. `base` and the gateway were installed without a values file, so chart defaults are the right desired state for them. That is a fact about this install, not a general rule. Whatever file a release was installed with is the file you upgrade it with.
+The order also says which release gets which values file. Only `istiod` takes `-f istiod-values.yaml`. In this playground, `base` and the gateway were installed without a values file, so chart defaults are the right desired state for them. That is a fact about this install, not a general rule: whatever file a release was installed with is the file you upgrade it with.
 
 ## Make the change in the file
 
-The upgrade should also switch the mesh-wide outbound traffic policy from `ALLOW_ANY` to `REGISTRY_ONLY`. Make that change by editing the file, not by adding a `--set`. That keeps the file complete.
+The upgrade should also switch the mesh-wide outbound traffic policy from `ALLOW_ANY` to `REGISTRY_ONLY`. With `REGISTRY_ONLY`, the sidecar proxies only send traffic to hosts that `istiod` knows about. Make that change by editing the values file, not by adding a `--set` flag, so that the file stays complete.
 
 <!-- astrona:playground:renew -->
 
@@ -36,11 +30,7 @@ sed -i.bak 's/mode: ALLOW_ANY/mode: REGISTRY_ONLY/' istiod-values.yaml && rm -f 
 
 ## Upgrade all three releases
 
-Now run the three upgrades in order, and check that the settings survived.
-
-### See it in your playground
-
-Upgrade `base`, `istiod` and the gateway, then read the releases and the mesh settings:
+The file now holds every old setting plus the one change. Upgrade `base`, `istiod` and the gateway in that order, then read the releases and the mesh settings:
 
 ```sh
 helm upgrade istio-base istio/base -n istio-system --version 1.30.5 --wait
@@ -50,7 +40,7 @@ helm ls -A
 kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}' | grep -A2 -E 'accessLogFile|outboundTrafficPolicy'
 ```
 
-Expect something like:
+The output looks like this (shortened):
 
 ```text
 NAME                    NAMESPACE       REVISION  STATUS    CHART           APP VERSION
@@ -63,26 +53,17 @@ outboundTrafficPolicy:
   mode: REGISTRY_ONLY
 ```
 
-The new chart version is everywhere, the settings are intact, and the one change you wanted is there. `istiod` shows a higher revision than the others because each earlier experiment with it in this playground added a revision. The history records what happened, not what you meant.
+The new chart version is on all three releases, the old settings are intact, and the one change you wanted is there. `istiod` shows a higher revision than the others because each earlier experiment with it in this playground added a revision. The history records what happened, not what you meant.
 
 ## The data plane has not moved
 
-Upgrading `istiod` replaces mission control's pod. It does not touch your application pods.
+Helm says `deployed` for all three releases, but the upgrade is not finished. Upgrading `istiod` replaces the control plane pod. It does not touch your application pods.
 
-### Why the sidecars stay old
+Each application pod still runs the sidecar image it was **injected with**. The injection webhook is a mutating admission webhook that `istiod` serves: when a pod is created, the Kubernetes API server calls it, and `istiod` adds the `istio-proxy` container with the proxy image of the current version. That image is written into the stored pod spec, and a control plane upgrade never rewrites a stored pod spec.
 
-Each application pod still runs the sidecar image it was **injected with**. The injection webhook (the dock inspector who puts a communications officer on each new ship) wrote that image into the pod when the pod was created. A control plane upgrade never rewrites a stored pod spec.
+The result is **version skew**: the control plane runs a newer version than the proxies it sends configuration to. Istio supports a skew of one minor version. That is what makes a rolling upgrade possible, because in a large mesh there is no single moment when every proxy changes together. Two commands make the skew visible. `istioctl version` splits `data plane version` into groups when proxies disagree, and `istioctl proxy-status` lists every proxy, so you can see *which* ones are behind.
 
-That state is **version skew**: a new mission control giving orders to communications officers on old software. Istio supports a skew of one minor version. That is exactly what makes a rolling upgrade possible: in a large mesh there is no single moment when every proxy changes together.
-
-Two commands make it visible:
-
-- `istioctl version` splits `data plane version` into groups when proxies disagree.
-- `istioctl proxy-status` lists every proxy, so you can see *which* ones are behind.
-
-### See the gap between control plane and proxies
-
-Read the versions, then the image of the application's sidecar:
+Read the versions, then the image of the application's sidecar proxy:
 
 ```sh
 istioctl version
@@ -90,7 +71,7 @@ kubectl -n default get pod -l app=notification-service \
   -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].image}{"\n"}'
 ```
 
-Expect something like:
+The output looks like this:
 
 ```text
 client version: 1.29.8
@@ -100,17 +81,15 @@ data plane version: 1.29.8 (2 proxies)
 docker.io/istio/proxyv2:1.29.8
 ```
 
-Three answers on one screen. Your `istioctl` binary is old, the control plane is new, and the proxies are still old. Only the third is a real problem, and only a restart fixes it. The first is cosmetic: `istioctl` is a client, and an old client talking to a new control plane just gives slightly less useful diagnostics.
+The screen gives three answers. Your `istioctl` binary is old, the control plane is new, and the proxies are still old. Only the third is a real problem, and only a restart fixes it. The first does not matter much: `istioctl` is a client, and an old client talking to a new control plane just gives slightly less useful diagnostics.
 
 ## Finishing the upgrade
 
-A proxy gets a new image the only way any container does: Kubernetes replaces the pod. `kubectl rollout restart deployment` asks the Deployment controller to do that, a few pods at a time. In space terms, you relaunch the ships so each one gets a fresh communications officer.
+A proxy gets a new image the only way any container does: Kubernetes replaces the pod. `kubectl rollout restart deployment` asks the Deployment controller to do that, a few pods at a time. Each new pod passes through the injection webhook again and gets the new proxy image.
 
-Gateways count too. An ingress gateway is an Envoy workload, and the control plane upgrade does not restart it. It is also the one whose old version is most visible from outside the cluster.
+Gateways count too. An ingress gateway is an Envoy workload with its own Deployment, and the control plane upgrade does not restart it. It is also the workload whose old version is most visible from outside the cluster.
 
-### See the data plane come across
-
-Restart the application and the gateway, wait, and read the versions again:
+Restart the application and the gateway, wait for the application, and read the versions again:
 
 ```sh
 kubectl -n default rollout restart deployment
@@ -119,7 +98,7 @@ kubectl -n default rollout status deployment notification-service --timeout=180s
 istioctl version
 ```
 
-Expect something like:
+The output looks like this (shortened):
 
 ```text
 client version: 1.29.8
@@ -129,17 +108,15 @@ data plane version: 1.30.5 (2 proxies)
 
 A single `data plane version` that matches the control plane means the upgrade is complete. If two versions are still listed, something was not restarted. `istioctl proxy-status` names the workloads, and the answer is usually a Deployment in a namespace nobody remembered was in the mesh.
 
-### Find the planets you forgot
-
-This command lists every namespace with the injection label:
+To find those namespaces before they surprise you, list every namespace with the injection label:
 
 ```sh
 kubectl get ns -l istio-injection=enabled
 ```
 
-Every namespace in that list needs a restart. A workload that joined the mesh through a pod-level label instead of a namespace label does not show up here. `istioctl proxy-status` stays the full list.
+Every namespace in that list needs a restart. A workload that joined the mesh through a label on the pod instead of the namespace does not show up here, so `istioctl proxy-status` stays the full list.
 
-The upgrade is not finished when Helm says `deployed`. It is finished when `istioctl version` reports one data plane version.
+You now know that the three releases go `base`, `istiod`, gateway, each with the values file it was installed with, and that `helm upgrade` leaves every running sidecar on its old image. `istioctl version` shows the skew, and `kubectl rollout restart` on every meshed namespace and on the gateway closes it. The open question is how to go back when an upgrade goes wrong, and what `helm rollback` leaves behind.
 
 ## Common pitfalls
 
@@ -153,3 +130,32 @@ The upgrade is not finished when Helm says `deployed`. It is finished when `isti
 > **Skipping a minor version.** The supported skew is one minor version. Go 1.28 to 1.29 to 1.30, restarting the data plane between steps, not 1.28 straight to 1.30.
 >
 > **Leaving out `--wait` in a pipeline.** Helm returns as soon as the API server accepts the manifests, and the next command runs against a control plane that is not ready yet.
+
+## Your mission: Upgrade And Reconfigure Istio With Helm Lab
+
+You can now recover a release's values, upgrade the three releases in order, and finish the job by restarting the data plane. The lab asks you to upgrade a Helm-installed Istio from 1.29.8 to 1.30.5 without losing a single setting, change one mesh option on the way, and leave no version skew behind.
+
+The lab runs on its own cluster, so first pause your playground. Nothing in it is lost:
+
+```sh
+astrona stop ats-013-playground-030-01
+```
+
+Then start the lab. The task is on the next page; solve it on your own first:
+
+```sh
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-030/module-01/labs/lab-01
+```
+
+When you think you are done, send it for grading:
+
+```sh
+astrona submit -c sections/section-030/module-01/labs/lab-01
+```
+
+When the lab is done, remove it and start your playground again:
+
+```sh
+astrona destroy ats-013-lab-030-01
+astrona start ats-013-playground-030-01
+```

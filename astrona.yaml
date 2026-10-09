@@ -376,9 +376,6 @@ modules:
         title: "Upgrading In Order And Finishing The Job"
         path: sections/section-030/module-01/course-03-upgrading-in-order-and-finishing.md
       - type: reading
-        title: "Rolling Back And A Safe Procedure"
-        path: sections/section-030/module-01/course-04-rolling-back-and-a-safe-procedure.md
-      - type: reading
         title: Question
         path: sections/section-030/module-01/labs/lab-01/question.md
       - type: lab
@@ -401,8 +398,31 @@ modules:
           - name: "helm upgrade"
             url: https://helm.sh/docs/helm/helm_upgrade/
       - type: reading
-        title: "Wrap-Up: Mission Debrief"
-        path: sections/section-030/module-01/course-05-wrap-up.md
+        title: "Rolling Back And A Safe Procedure"
+        path: sections/section-030/module-01/course-04-rolling-back-and-a-safe-procedure.md
+      - type: reading
+        title: Question
+        path: sections/section-030/module-01/labs/lab-02/question.md
+      - type: lab
+        title: "Roll Back A Helm Release Of istiod Lab"
+        path: sections/section-030/module-01/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: helm-upgrade
+        task_kind: troubleshooting
+        tags: [helm-rollback, helm-release, helm-istiod, helm-get-values, access-logging, proxy-resources, rollout-restart]
+        learning_goals:
+          - Find the last good revision of a Helm release from its history and values
+          - Roll istiod back with helm rollback and prove the original mesh settings are live again
+          - Restart the workload so its sidecar proxy follows the rolled-back control plane
+        resources:
+          - name: "Upgrade with Helm"
+            url: https://istio.io/latest/docs/setup/upgrade/helm/
+          - name: "helm rollback"
+            url: https://helm.sh/docs/helm/helm_rollback/
+      - type: reading
+        title: "Summary"
+        path: sections/section-030/module-01/course-05-summary.md
 
       - type: reading
         title: "Canary Upgrade With Revisions And Revision Tags"
