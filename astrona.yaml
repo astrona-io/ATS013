@@ -277,8 +277,28 @@ modules:
         title: "What Injection Writes Into The Pod"
         path: sections/section-020/module-02/course-03-what-injection-writes.md
       - type: reading
-        title: "Wrap-Up: Mission Debrief"
-        path: sections/section-020/module-02/course-04-wrap-up.md
+        title: Question
+        path: sections/section-020/module-02/labs/lab-02/question.md
+      - type: lab
+        title: "Exclude A Port From Sidecar Traffic Capture Lab"
+        path: sections/section-020/module-02/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 15m
+        topic: sidecar-injection
+        task_kind: build
+        tags: [sidecar-injection, pod-injection, injection-webhook, proxy-status]
+        learning_goals:
+          - Exclude one outbound port from traffic capture with an annotation on the pod template
+          - Keep the workload in the mesh instead of turning injection off for it
+          - Prove the exclusion from the istio-init arguments of the new pod
+        resources:
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+          - name: "Resource annotations"
+            url: https://istio.io/latest/docs/reference/config/annotations/
+      - type: reading
+        title: "Summary"
+        path: sections/section-020/module-02/course-04-summary.md
 
       - type: reading
         title: "Section 020 Knowledge Check: Customizing Your Istio Installation"

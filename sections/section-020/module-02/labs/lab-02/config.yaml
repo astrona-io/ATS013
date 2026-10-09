@@ -1,0 +1,33 @@
+metadata:
+  name: "ats-013-lab-020-02-02"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-istio-default"
+      description: "Installs istioctl 1.30.5 and a default-profile control plane"
+      type: "file"
+      source: "bootstrap/01-install-istio.sh"
+    - name: "lab-020-02-02-setup"
+      description: "Creates the injected inject-demo namespace with notification-service running behind a sidecar, with no traffic capture exclusions"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+testing:
+  init:
+    - name: "solution"
+      description: "Reference solution applied by `astrona test` in CI"
+      type: "file"
+      source: "solution/apply.sh"
+
+validation:
+  scripts:
+    - name: "verify-port-exclusion"
+      description: "Confirms notification-service keeps its istio-proxy sidecar, that outbound port 5432 and nothing else is excluded through the pod template annotation, and that the running pod's istio-init rules carry the exclusion"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

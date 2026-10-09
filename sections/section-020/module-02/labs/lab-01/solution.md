@@ -1,6 +1,6 @@
 # Solution Walkthrough
 
-Mission debrief, astronaut. You opt the namespace in, set both pod template overrides, restart what still needs it, and prove that each of the three workloads ended up where it should.
+Follow these steps to opt the namespace in, set both pod template overrides, restart what still needs it, and prove that each of the three workloads ended up where it should.
 
 ---
 
@@ -149,7 +149,7 @@ logging-agent template: false
 batch-job template: true
 ```
 
-Then ask mission control which workloads it is serving:
+Then ask `istiod`, the control plane, which workloads it is serving:
 
 ```sh
 istioctl proxy-status | grep inject-demo
@@ -160,7 +160,7 @@ batch-job-...inject-demo              Kubernetes   SYNCED   SYNCED   SYNCED   SY
 notification-service-...inject-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-...
 ```
 
-Two entries, not three. Counting containers tells you what the pod spec says. `proxy-status` tells you which workloads the control plane is actually serving. A workload in one list but not the other is a real problem.
+Two entries, not three. Counting containers tells you what the pod spec says. `istioctl proxy-status` lists every proxy that is connected to `istiod` and receiving configuration from it. A workload in one list but not the other is a real problem.
 
 ---
 
@@ -201,7 +201,7 @@ The grader checks that `inject-demo` carries `istio-injection=enabled` and not `
 
 ---
 
-## Common Mistakes
+## Common mistakes
 
 *   **Putting the label on the Deployment's `metadata.labels`.** The manifest applies, nothing fails, and injection is unchanged. The grader spots this case and tells you to move it.
 *   **Unquoted `true` or `false`.** A YAML boolean is not a valid label value; the API server rejects it.

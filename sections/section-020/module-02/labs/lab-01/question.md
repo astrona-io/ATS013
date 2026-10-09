@@ -2,9 +2,9 @@
 
 Solve this question on: `terminal`
 
-Astronaut, one planet, three ships, and three different answers to "who gets a communications officer?".
+One namespace holds three workloads, and each one needs a different answer to "does this pod get a sidecar proxy?".
 
-Istio 1.30.5 is installed with the `default` profile. The namespace `inject-demo` carries **no injection label** and runs three Deployments, each with one container:
+Istio 1.30.5 is installed with the `default` profile. Sidecar injection is the step that adds the `istio-proxy` container, the Envoy sidecar proxy, to a pod when the pod is created. The namespace `inject-demo` carries **no injection label** and runs three Deployments, each with one container:
 
 *   `notification-service`: an nginx web server that belongs in the mesh.
 *   `logging-agent`: a log shipper that must stay **out** of the mesh.

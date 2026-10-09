@@ -4,7 +4,7 @@ estimated_duration: 3m
 
 # Control Sidecar Injection
 
-Welcome to your mission, astronaut. One planet, `inject-demo`, holds three ships with three different needs. Your job is to opt the namespace in, pull one workload out of the mesh, force another one in, and put every label on the one object the injection webhook actually reads.
+The namespace `inject-demo` holds three workloads with three different needs. The learner opts the namespace into sidecar injection, pulls one workload out of the mesh, forces another one in, and puts every label on the pod template, the one object the injection webhook actually reads.
 
 ## Launching the Lab
 
