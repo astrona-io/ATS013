@@ -4,7 +4,7 @@ estimated_duration: 40m
 
 # An Ambient Mesh With Selective L7
 
-This is the capstone mission for the whole section, astronaut. It combines restart-free ambient enrollment with a waypoint proxy for HTTP-aware rules. The whole exercise turns on one question: which layer enforces each requirement, ztunnel at layer 4 or the waypoint at layer 7?
+This is the capstone lab for the whole section. It combines restart-free ambient enrollment with a waypoint proxy for HTTP-aware rules. The whole exercise turns on one question: which layer enforces each requirement, ztunnel at layer 4 or the waypoint at layer 7?
 
 There is no step-by-step guide until you have tried it. Work from the specification in `question.md`.
 

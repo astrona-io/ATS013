@@ -1,6 +1,6 @@
 # Solution Walkthrough
 
-Read this only after you have tried the specification yourself, astronaut. It is an integration mission: the value is in working out the order on your own.
+Read this only after you have tried the specification yourself. It is an integration lab: the value is in working out the order on your own.
 
 ---
 
@@ -50,7 +50,7 @@ global:
 
 The three top-level keys have three different audiences:
 
-*   **`meshConfig`** is mesh-wide behaviour, the fleet's standing orders. The chart writes it into the `istio` ConfigMap under the `mesh` key.
+*   **`meshConfig`** is mesh-wide behaviour. The chart writes it into the `istio` ConfigMap under the `mesh` key.
 *   **`pilot`** is the control plane workload itself. `pilot` is the old name of the component that became `istiod`. With `autoscaleEnabled: false`, the chart creates no HorizontalPodAutoscaler.
 *   **`global.proxy`** is the standard kit for **every injected sidecar**. Its cost multiplies: `10m` CPU here is `10m` for each meshed pod, not `10m` in total.
 

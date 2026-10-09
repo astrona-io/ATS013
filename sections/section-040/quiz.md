@@ -196,8 +196,6 @@ When is a **service** waypoint (`--for service`) a better choice than a namespac
 
 ---
 
-## Ready for the Labs?
+## What comes next
 
-*   **[Module 1 Lab: Install Istio In Ambient Mode](./module-01/labs/lab-01)**
-*   **[Module 2 Lab: Waypoint Proxy For L7](./module-02/labs/lab-01)**
-*   **[Section 040 Capstone: An Ambient Mesh With Selective L7](./capstone/labs/lab-01)**
+The section capstone lab comes next. It combines the skills of the whole section in one task on a live cluster.

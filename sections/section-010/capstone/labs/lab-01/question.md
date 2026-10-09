@@ -2,7 +2,7 @@
 
 Solve this question on: `terminal`
 
-Astronaut, you have been handed a clean solar system and a platform specification. `helm` 3 and `istioctl` 1.30.5 are on your PATH, and the `istio` chart repository is registered. Two namespaces already exist, each with one running workload: `payments/checkout-api` and `legacy/batch-runner`. Neither is in the mesh, and neither namespace has a label.
+You have been handed a clean cluster and a platform specification. `helm` 3 and `istioctl` 1.30.5 are on your PATH, and the `istio` chart repository is registered. Two namespaces already exist, each with one running workload: `payments/checkout-api` and `legacy/batch-runner`. Neither is in the mesh, and neither namespace has a label.
 
 Deliver the following. **Install with Helm.** The grader reads Helm's release records, and a cluster owned by both Helm and `istioctl` is a mistake, not a shortcut.
 

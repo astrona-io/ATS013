@@ -2,9 +2,9 @@
 
 Solve this question on: `terminal`
 
-Astronaut, Istio 1.30.5 is installed with the **`ambient`** profile, and the **Gateway API CRDs** are present. `istioctl` 1.30.5 is on your PATH.
+Istio 1.30.5 is installed with the **`ambient`** profile, and the **Gateway API CRDs** are present. `istioctl` 1.30.5 is on your PATH.
 
-The planet (namespace) `ambient-shop` is **not enrolled** in the mesh. It runs three workloads, each with one container:
+The namespace `ambient-shop` is **not enrolled** in the mesh. It runs three workloads, each with one container:
 
 *   `catalog-api`: an nginx service, behind the `catalog-api` Service.
 *   `storefront`: a client.

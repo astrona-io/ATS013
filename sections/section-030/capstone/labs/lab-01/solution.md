@@ -1,8 +1,8 @@
 # Solution Walkthrough
 
-Mission debrief, astronaut. Read this only after you have tried the task on your own.
+Read this only after you have tried the task on your own.
 
-You built a second mission control, gave it the call sign `prod`, pointed two planets at the call sign, relaunched every ship, and only then closed the old mission control.
+You installed a second control plane revision, pointed the revision tag `prod` at it, pointed two namespaces at the tag, restarted every workload, and only then removed the old control plane.
 
 ---
 
@@ -18,7 +18,7 @@ There are five operations, and one rule about their order carries the whole poin
   5. retire the default revision      ← only after 4
 ```
 
-Steps 1 to 3 change nothing for running pods. Step 4 is where workloads really move. Doing step 5 before step 4 leaves pods connected to a control plane that no longer exists. They keep serving on their last orders, but get no updates and cannot renew their workload certificate (their ID badge) when it expires. The failure arrives hours later and looks unrelated.
+Steps 1 to 3 change nothing for running pods. Step 4 is where workloads really move. Doing step 5 before step 4 leaves pods connected to a control plane that no longer exists. They keep serving with their last configuration, but get no updates and cannot renew their workload certificate when it expires. The failure arrives hours later and looks unrelated.
 
 ---
 
@@ -165,7 +165,7 @@ One control plane is left, with the canary's webhook and the tag's webhook, and 
 
 ## Step 7: Submit
 
-Send the mission for grading:
+Send the lab for grading:
 
 ```sh
 astrona submit

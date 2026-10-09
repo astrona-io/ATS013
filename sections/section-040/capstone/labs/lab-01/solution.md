@@ -1,12 +1,12 @@
 # Solution Walkthrough
 
-Mission debrief, astronaut. Read this only after you have tried the specification yourself.
+Read this only after you have tried the specification yourself.
 
 ---
 
 ## Step 1: Sort the Requirements by Layer
 
-The specification really asks one question three times: **which layer enforces this?** ztunnel, the relay tower on each node, checks the envelope (layer 4). The waypoint, the checkpoint station, reads the letter (layer 7).
+The specification really asks one question three times: **which layer enforces this?** ztunnel, the proxy on each node, checks the connection: who is talking, on which port (layer 4). The waypoint proxy reads the HTTP request: method, path and headers (layer 7).
 
 | Requirement | Enforced by | Needs a waypoint? |
 | --- | --- | --- |

@@ -2,7 +2,7 @@
 
 Solve this question on: `terminal`
 
-Astronaut, this mission puts both skills together: reshape mission control, then decide ship by ship who joins the fleet's signal network.
+This lab puts both skills together: change the control plane configuration, then decide pod by pod which workloads join the mesh.
 
 Istio 1.30.5 is installed from the **stock `demo` profile**, with no changes. `istioctl` 1.30.5 is on your path. Three workloads are running, none of them meshed, in two namespaces without injection labels:
 

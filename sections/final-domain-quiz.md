@@ -117,7 +117,7 @@ A namespace carries `istio-injection=enabled`. You add `sidecar.istio.io/inject:
 
 **Correct Answer: B**
 
-A label on the Deployment is never copied to the pod unless it is in the template. The manifest applies cleanly and achieves nothing, which is what makes this the most expensive mistake in section 020. (Note *C* is wrong in general: the pod-template label beats the namespace in both directions.)
+A label on the Deployment is never copied to the pod unless it is in the template. The manifest applies cleanly and achieves nothing, which is what makes this the most expensive injection mistake. (Note *C* is wrong in general: the pod-template label beats the namespace in both directions.)
 </details>
 
 ---
@@ -268,9 +268,9 @@ Question-to-section mapping:
 
 | Questions | Section |
 | --- | --- |
-| 1, 2, 3, 4 | [010 — Installing Istio With istioctl Or Helm](./section-010/README.md) |
-| 5, 6, 7, 8 | [020 — Customizing Your Istio Installation](./section-020/README.md) |
-| 9, 10, 11, 12 | [030 — Upgrading Istio (Canary, In-Place)](./section-030/README.md) |
-| 13, 14, 15 | [040 — Installing Istio In Sidecar Or Ambient Mode](./section-040/README.md) |
+| 1, 2, 3, 4 | Installing Istio With istioctl Or Helm |
+| 5, 6, 7, 8 | Customizing Your Istio Installation |
+| 9, 10, 11, 12 | Upgrading Istio (Canary, In-Place) |
+| 13, 14, 15 | Installing Istio In Sidecar Or Ambient Mode |
 
 Questions 7 and 8 both turn on the same idea — *which object does the webhook actually read?* — and questions 14 and 15 both turn on *which layer enforces this?*. If you missed either pair, that concept is worth a re-read rather than the individual questions.

@@ -174,6 +174,6 @@ Which command would have caught an indentation error that put `meshConfig` under
 
 ---
 
-## Ready for the Capstone?
+## What comes next
 
-*   **[Section 020 Capstone: Shape The Install, Then Choose Who Joins](./capstone/labs/lab-01/question.md)**
+The section capstone lab comes next. It combines the skills of the whole section in one task on a live cluster.

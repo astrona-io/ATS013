@@ -1,6 +1,6 @@
 # Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)
 
-Astronaut, check your flight log before the missions. These questions test how Helm handles values on an upgrade, revisions and revision tags, version skew, and the order of steps that decides whether an upgrade leaves your workloads stranded.
+Check what you know before the capstone lab. These questions test how Helm handles values on an upgrade, revisions and revision tags, version skew, and the order of steps that decides whether an upgrade leaves your workloads stranded.
 
 ---
 
@@ -195,9 +195,6 @@ Why must you not upgrade from 1.28 directly to 1.30?
 
 ---
 
-## Ready for the Labs?
+## What comes next
 
-*   **[Module 1 Lab: Upgrade And Reconfigure Istio With Helm](./module-01/labs/lab-01)**
-*   **[Module 2 Lab: Canary Upgrade With Revisions And Revision Tags](./module-02/labs/lab-01)**
-*   **[Module 3 Lab: In-Place Upgrade Of The Control Plane](./module-03/labs/lab-01)**
-*   **[Section 030 Capstone: A Complete Canary Migration](./capstone/labs/lab-01)**
+The section capstone lab comes next. It combines the skills of the whole section in one task on a live cluster.

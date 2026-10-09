@@ -1,6 +1,6 @@
 # Solution Walkthrough
 
-Read this only after you have tried the specification yourself, astronaut.
+Read this only after you have tried the specification yourself.
 
 ---
 
@@ -16,7 +16,7 @@ There are five control plane requirements, and they do not all live in the same 
 | Access logging, `REGISTRY_ONLY` | `spec.meshConfig` | The `istio` ConfigMap |
 | **Sidecars** default to 20m | `spec.values.global.proxy.resources` | A field on every **injected** pod |
 
-The last row separates people who know the layers from people who match patterns. `components.pilot` sizes the control plane: one Deployment. `values.global.proxy` sizes every sidecar, the standard kit every communications officer is issued, multiplied by every meshed pod. They look alike and configure completely different things.
+The last row separates people who know the layers from people who match patterns. `components.pilot` sizes the control plane: one Deployment. `values.global.proxy` sizes every sidecar proxy, multiplied by every meshed pod. They look alike and configure completely different things.
 
 ---
 

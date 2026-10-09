@@ -4,7 +4,7 @@ estimated_duration: 3m
 
 # Section 030 Capstone: A Complete Canary Migration
 
-Welcome to your section capstone, astronaut. This mission runs a canary upgrade from start to finish: build the new mission control, give it the call sign `prod`, move every planet onto that call sign, relaunch every ship, and retire the old mission control in the order that does not strand your workloads.
+The section capstone runs a canary upgrade from start to finish: install the new control plane revision, point the revision tag `prod` at it, move every namespace onto that tag, restart every workload, and remove the old control plane in the order that does not leave workloads without a control plane.
 
 There is no step-by-step guide until you have tried it. Work from the task.
 

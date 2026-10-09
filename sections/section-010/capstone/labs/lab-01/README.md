@@ -4,7 +4,7 @@ estimated_duration: 3m
 
 # Install And Onboard A Mesh
 
-This is the integration mission for the whole section, astronaut. It combines everything about installing Istio: the chart model and its order, values files, gateway release names and placement, injection timing and the three versions. You deliver one platform specification on a clean cluster.
+This is the integration lab for the whole section. It combines everything about installing Istio: the chart model and its order, values files, gateway release names and placement, injection timing and the three versions. You deliver one platform specification on a clean cluster.
 
 There is no step-by-step guide until you have tried it. Work from the specification.
 

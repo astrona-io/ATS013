@@ -2,7 +2,7 @@
 
 Solve this question on: `terminal`
 
-Astronaut, this is your capstone mission: move a whole fleet to a new mission control, then close the old one, in the right order.
+This capstone lab asks you to move every workload to a new control plane revision, then remove the old control plane, in the right order.
 
 Istio **1.29.8** is installed with the `minimal` profile as the default control plane, with no revision name. Two namespaces are in the mesh with `istio-injection=enabled`:
 

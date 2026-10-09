@@ -4,7 +4,7 @@ estimated_duration: 3m
 
 # Shape The Install, Then Choose Who Joins
 
-Welcome to the section capstone, astronaut. It combines both skills of this section into one specification: a customized control plane across all four `IstioOperator` layers, including the sidecar default that only shows up on an injected pod, and an injection decision for three workloads across two namespaces, one of which must stay entirely out of the mesh.
+The section capstone combines both skills of this section into one specification: a customized control plane across all four `IstioOperator` layers, including the sidecar default that only shows up on an injected pod, and an injection decision for three workloads across two namespaces, one of which must stay entirely out of the mesh.
 
 There is no step-by-step guide until you have tried it. Work from the specification.
 
