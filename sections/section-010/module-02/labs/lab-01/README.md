@@ -4,7 +4,7 @@ estimated_duration: 3m
 
 # Install Istio With Helm
 
-Welcome to your Helm build mission, astronaut. The cluster has no Istio. You install the three Istio charts as pinned releases in the right order, put the ingress gateway in its own namespace under its own release name, set mesh options from a values file, and prove the mesh works by bringing a running workload into it.
+The cluster has no Istio. The learner installs the three Istio charts as pinned releases in the right order, puts the ingress gateway in its own namespace under its own release name, sets mesh options from a values file, and proves the mesh works by bringing a running workload into it.
 
 ## Launching the Lab
 

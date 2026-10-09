@@ -1,6 +1,6 @@
 # Solution Walkthrough
 
-Mission debrief, astronaut. Follow these steps to install Istio as three Helm releases, put the gateway in its own namespace, and bring the existing workload into the mesh.
+Follow these steps to install Istio as three Helm releases, put the gateway in its own namespace, and bring the existing workload into the mesh.
 
 ---
 
@@ -17,7 +17,7 @@ NAME    NAMESPACE   REVISION    STATUS  CHART   APP VERSION
 0
 ```
 
-No releases and no CRDs. Check what the chart repository offers:
+No releases and no CRDs (Custom Resource Definitions, which add the Istio object kinds to the API server). Check what the chart repository offers:
 
 ```sh
 helm search repo istio --versions | head -6
@@ -50,7 +50,7 @@ namespace/edge created
 
 Neither chart creates its namespace. `--create-namespace` would also work, but on a real cluster the namespace is where labels and quotas go, so it is worth creating on its own.
 
-The gateway lives in `edge`, not `istio-system`, on purpose. A gateway faces the internet, scales on its own and fails on its own. `istio-system` holds mission control and the cluster's certificate authority. Keeping them apart lets a team manage their gateway without access to `istio-system`.
+The gateway lives in `edge`, not `istio-system`, on purpose. A gateway faces the internet, scales on its own and fails on its own. `istio-system` holds the control plane (`istiod`) and the cluster's certificate authority. Keeping them apart lets a team manage their gateway without access to `istio-system`.
 
 ---
 
@@ -85,7 +85,7 @@ kubectl -n istio-system get pods
 No resources found in istio-system namespace.
 ```
 
-A deployed release, a stack of CRDs, and no pods. `base` is pure definitions. That is why installing `istiod` first fails: the kinds it needs would not exist yet, and the API server rejects them with an error that names the missing resource.
+A deployed release, fifteen CRDs, and no pods. `base` is pure definitions. That is why installing `istiod` first fails: the kinds it needs would not exist yet, and the API server rejects them with an error that names the missing resource.
 
 ---
 
@@ -104,7 +104,7 @@ pilot:
 
 The two top-level keys do different jobs:
 
-*   **`meshConfig`** is mesh-wide behaviour, the fleet's standing orders. The chart writes it word for word into a ConfigMap named `istio` in `istio-system`, under the key `mesh`. You check it there in Step 7.
+*   **`meshConfig`** holds mesh-wide behaviour, such as access logging. The chart writes it word for word into a ConfigMap named `istio` in `istio-system`, under the key `mesh`. You check it there in Step 7.
 *   **`pilot`** configures the control plane workload itself. `pilot` is the old name of the component that became `istiod`. With `autoscaleEnabled: false`, the chart creates no HorizontalPodAutoscaler.
 
 Apply it:

@@ -2,7 +2,7 @@
 
 Solve this question on: `terminal`
 
-Astronaut, this time you build mission control from Helm kits. The cluster is clean: no Istio, no CRDs (Custom Resource Definitions), and `helm ls -A` is empty. `helm` 3 and `istioctl` 1.30.5 are on your PATH, and the `istio` chart repository is already added. The namespace `mesh-demo` exists and runs one Deployment, `notification-service`. Its pod has a single container right now.
+The cluster has no Istio control plane yet. It is clean: no Istio, no CRDs (Custom Resource Definitions), and `helm ls -A` is empty. `helm` 3 and `istioctl` 1.30.5 are on your PATH, and the `istio` chart repository is already added. The namespace `mesh-demo` exists and runs one Deployment, `notification-service`. Its pod has a single container right now.
 
 Install Istio **with Helm**. Do not use `istioctl install`. The grader looks for Helm release records, and a cluster with two owners of the same objects is exactly what you must avoid.
 

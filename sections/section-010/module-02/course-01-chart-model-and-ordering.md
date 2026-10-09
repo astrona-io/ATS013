@@ -1,14 +1,10 @@
 # The Chart Model And Its Ordering
 
-Before you run anything, settle what Istio's Helm packaging really is. Astronaut, a Helm chart is a flat-pack kit from the shipyard, and a Helm release is one kit assembled in your solar system under a name. "Install Istio with Helm" means three kits, not one, in an order you cannot change, ending up in two different namespaces. Each of those facts has a reason, and knowing the reasons lets you debug the install instead of retrying it.
+Before you install anything, it helps to know what Istio's Helm packaging really is. A Helm **chart** is a package of templates for Kubernetes objects. A Helm **release** is one installation of a chart in the cluster, under a name you choose. "Install Istio with Helm" means three releases, not one, installed in an order you cannot change, and placed in two different namespaces. Each of those facts has a reason. When you know the reasons, you can debug a failed install instead of retrying it.
 
 ## Five charts, three of them for sidecar mode
 
-Istio publishes five charts. A classic install with sidecars needs only three of them. This section shows the three commands, then what every chart contains.
-
-### The three installs
-
-A full sidecar-mode install is these commands, in this order:
+Istio publishes five charts, but a classic install with sidecar proxies needs only three of them. A full sidecar-mode install is these commands, in this order. Do not run them yet; they only show the shape of the install:
 
 ```text
 helm install istio-base           istio/base     -n istio-system
@@ -16,7 +12,7 @@ helm install istiod               istio/istiod   -n istio-system
 helm install istio-ingressgateway istio/gateway  -n istio-ingress
 ```
 
-### What each chart installs
+Each of the five charts has one job. The table lists what each chart installs and whether it runs pods:
 
 | Chart | Installs | Runs pods? |
 | --- | --- | --- |
@@ -26,13 +22,11 @@ helm install istio-ingressgateway istio/gateway  -n istio-ingress
 | `istio/cni` | The node-level traffic redirection DaemonSet | Yes: ambient, or sidecar mode without init containers |
 | `istio/ztunnel` | The per-node layer 4 proxy DaemonSet | Yes: ambient only |
 
-`istio/base` holds the foundations: CRDs (Custom Resource Definitions) are new forms the API server, the solar system's registry office, learns to accept. `istio/istiod` is mission control, and `istio/gateway` is a spaceport gate. The last two charts are for ambient mode. For a classic sidecar install, three is the whole list.
+`istio/base` holds the definitions. A CRD (Custom Resource Definition) adds a new object kind, such as `VirtualService`, to the Kubernetes API server, so the API server accepts objects of that kind. `istio/istiod` installs the control plane. `istio/gateway` installs one gateway: an Envoy proxy that runs on its own, at the edge of the mesh, instead of next to an application. The last two charts are for ambient mode, which this course does not use. For a classic sidecar install, three charts are the whole list.
 
-Chart versions follow Istio releases exactly: chart `1.30.5` installs Istio `1.30.5`. That one-to-one match is what makes `--version 1.30.5` a real pin, and it is why the chart repository shows `CHART VERSION` and `APP VERSION` as the same string.
+Chart versions follow Istio releases exactly: chart `1.30.5` installs Istio `1.30.5`. That one-to-one match makes `--version 1.30.5` a real pin. It is also why the chart repository shows `CHART VERSION` and `APP VERSION` as the same string.
 
-### See it in your playground
-
-List the charts and their versions:
+You can see this in your playground. `helm search repo` lists the charts in the repository you added, and `helm show chart` prints the metadata of one chart:
 
 <!-- astrona:playground:renew -->
 
@@ -41,7 +35,7 @@ helm search repo istio --versions | head -8
 helm show chart istio/base | head -6
 ```
 
-Expect something like:
+The output looks like this (shortened):
 
 ```text
 NAME                    CHART VERSION   APP VERSION     DESCRIPTION
@@ -52,17 +46,17 @@ istio/istiod            1.30.5          1.30.5          Helm chart for istio con
 istio/ztunnel           1.30.5          1.30.5          Helm chart for Istio ztunnel components
 ```
 
-Five charts, all on the same version. There is no umbrella chart that pulls in the others. Istio does not ship one on purpose: the pieces have different lifecycles, and in a real organisation they often have different owners.
+There are five charts, all on the same version. There is no umbrella chart that pulls in the others, and Istio leaves it out on purpose. The pieces have different lifecycles, and in a real organisation they often have different owners.
 
 ## The order is a dependency, not a habit
 
-The install order comes from what each chart needs to exist before it. This section explains both links in the chain.
+Knowing the three charts is not enough; you also need to know why they go in that order. The order comes from what each chart needs to exist before it. There are two links in that chain, and the first one is strict.
 
-### Why `base` comes first
+### Why base comes first
 
-The `istiod` chart creates objects of kinds that `base` defines. A `CustomResourceDefinition` teaches the API server what a kind *is*. Until it exists, the API server rejects any object of that kind, with an error that names the missing resource. Helm does not reject it; the API server does.
+The `istiod` chart creates objects of kinds that the `base` chart defines. A `CustomResourceDefinition` tells the API server what a kind *is*. Until it exists, the API server rejects every object of that kind, with an error that names the missing resource. Helm does not reject the object; the API server does.
 
-That is the important difference. A wrong order does not produce a Helm dependency warning. It produces an API error that reads like a broken chart:
+That difference matters when you read the error. A wrong order does not produce a Helm dependency warning. It produces an API error that looks like a broken chart:
 
 ```text
 Error: INSTALLATION FAILED: unable to build kubernetes objects from release manifest:
@@ -72,44 +66,36 @@ ensure CRDs are installed first
 
 The last clause is the whole diagnosis. Read the kind in the error before you assume anything else is wrong.
 
-### Why `gateway` comes after `istiod`
+### Why gateway comes after istiod
 
-A gateway pod is an Envoy proxy that fetches its whole configuration from the control plane over xDS (the protocols mission control uses to radio orders). Started with no control plane to reach, it comes up and sits there with empty orders. It does not crash; it is just useless. It recovers when `istiod` appears, so this link is softer than the first one. Still, installing into a working control plane means the gateway serves traffic from the moment it is ready.
+The second link is softer. A gateway pod is an Envoy proxy that gets its whole configuration from `istiod` over xDS. xDS is the set of discovery protocols (LDS, RDS, CDS and EDS, for listeners, routes, clusters and endpoints) that `istiod` uses to send configuration to proxies while they run. A gateway started with no control plane to reach comes up with no listeners and no routes. It does not crash, but it serves nothing. It recovers when `istiod` appears. Still, if you install the gateway after `istiod`, the gateway serves traffic from the moment it is ready.
 
 ```mermaid
 flowchart TB
     B["istio-base"] -->|"CRDs first"| I["istiod"]
-    I -->|"xDS orders"| G["gateway"]
+    I -->|"xDS configuration"| G["gateway"]
 ```
 
-The diagram shows the chain. `istio-base` defines the kinds, `istiod` creates objects of those kinds and becomes the source of orders, and the gateway has nothing to do until `istiod` exists.
+The diagram shows the chain: `istio-base` defines the kinds, `istiod` creates objects of those kinds and sends configuration, and the gateway has nothing to serve until `istiod` exists.
 
 ## Why a gateway is its own release
 
-The control plane chart has no flag that says "also give me an ingress gateway". This is a deliberate packaging choice, and it has three results.
+The order explains why there are separate charts. It does not yet explain why the gateway is separate from the control plane. The `istiod` chart has no flag that says "also give me an ingress gateway". This is a deliberate packaging choice, and it has three results.
 
-### A separate blast radius
+The first result is a separate area of failure. A gateway is a workload that faces the internet, with its own Service, its own scaling and its own ways to fail. `istio-system` holds the control plane and the certificate authority that signs every proxy certificate in the mesh. When the two live apart, you can let a team manage their gateway (scale it, change its Service type, restart it) without giving them any rights in `istio-system`.
 
-A gateway is a workload facing the internet, with its own Service, its own scaling and its own ways to fail. `istio-system` holds the cluster's security-critical control plane and its certificate authority. Keeping them apart means you can let a team manage their gateway (scale it, change its Service type, restart it) without giving them anything in `istio-system`.
+The second result is that you can run as many gateways as you need. Install the same chart twice, under two release names in two namespaces, and you get two independent gateways. Splitting public traffic from internal traffic, or giving each team its own edge, is one more `helm install`, not a different design.
 
-### As many gateways as you need
+The third result matters most in daily work: the release name becomes the object name. The chart builds the Deployment name, the Service name and the pod labels from the release name. A `Gateway` resource you write later selects a gateway workload *by its labels*. So the release name is not decoration; your traffic configuration depends on it.
 
-Install the same chart twice, under two release names in two namespaces, and you get two independent gateways. Splitting public from internal traffic, or giving each team its own edge, is one more `helm install`, not a different design.
-
-### The release name becomes the object name
-
-The chart builds the Deployment name, the Service name and the pod labels from the release name. That matters because a `Gateway` resource you write later selects a gateway *workload by its labels*. So the release name is not decoration. Your traffic configuration depends on it.
-
-### See it in your playground
-
-Print the names the chart would use for a release called `my-edge`:
+You can see this without installing anything. `helm template` renders a chart's objects on your machine and prints them, without touching the cluster, much like `istioctl manifest generate`. Print the names the chart would use for a release called `my-edge`:
 
 ```sh
 helm template my-edge istio/gateway -n istio-ingress \
   | grep -E '^kind:|^  name:|    app:|    istio:' | head -20
 ```
 
-Expect something like:
+The output looks like this (shortened):
 
 ```text
 kind: ServiceAccount
@@ -124,23 +110,23 @@ kind: Service
     istio: my-edge
 ```
 
-`helm template` draws the objects on your machine without touching the cluster, much like `istioctl manifest generate`. Every name and label here came from the release name `my-edge`. Change the release name and all of them change with it, including the `istio:` label that a `Gateway` resource selects.
+Every name and label here came from the release name `my-edge`. If you change the release name, all of them change with it, including the `istio:` label that a `Gateway` resource selects.
 
-## Where the value tree comes from
+## Where the values tree comes from
 
-One more fact about the structure, because it saves you learning the same thing twice. Chart values follow the **same tree** as `spec.values` in an `IstioOperator` document. `meshConfig.accessLogFile` is `meshConfig.accessLogFile` whether you write it in a Helm values file or in an `IstioOperator`.
+One more fact about the structure saves you from learning the same thing twice. Chart values follow the **same tree** as `spec.values` in an `IstioOperator` document. `meshConfig.accessLogFile` is `meshConfig.accessLogFile` whether you write it in a Helm values file or in an `IstioOperator`.
 
-That is no accident: `istioctl install` uses the Istio charts internally. The two install methods are two front ends on one templating layer. That is why what you learn carries over between them, and also why running both against one cluster gives you two owners of the very same objects.
+That is no accident: `istioctl install` uses the Istio charts internally. The two install methods are two front ends on one templating layer. That is why what you learn about one carries over to the other. It is also why running both against one cluster gives you two owners of the very same objects.
 
-Istio ships as separate charts because its pieces have separate lifecycles, and the install order comes from the CRDs, not from style.
+You now know that Istio ships as separate charts because its pieces have separate lifecycles, that `base` must come first because it defines the CRDs, and that the gateway release name becomes the name of its objects. The open question is how to run the three installs for real, and where your own settings enter.
 
 ## Common pitfalls
 
 > [!WARNING]
-> **Treating the order as a habit.** `base` defines the CRDs. Without it, the API server rejects the objects in `istiod`'s chart. The error names the missing kind.
+> **Treating the order as a habit.** `base` defines the CRDs. Without it, the API server rejects the objects in the `istiod` chart. The error names the missing kind.
 >
 > **Expecting one chart to install everything.** Sidecar mode needs three releases, and a gateway is deliberately its own.
 >
-> **Forgetting the gateway release.** Without it there is no ingress workload, and a `Gateway` object you apply selects nothing and quietly does nothing.
+> **Forgetting the gateway release.** Without it there is no ingress workload, and a `Gateway` object you apply selects nothing and does nothing, with no error.
 >
 > **Assuming the release name is decoration.** It becomes the object name and the selector label, so you will read it in `kubectl get` for the life of the cluster.

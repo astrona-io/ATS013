@@ -138,7 +138,7 @@ modules:
         title: "Installing The Three Releases"
         path: sections/section-010/module-02/course-02-installing-the-releases.md
       - type: reading
-        title: "Release State, Verification And Cleanup"
+        title: "Release State And Verification"
         path: sections/section-010/module-02/course-03-release-state-and-verification.md
       - type: reading
         title: Question
@@ -163,8 +163,31 @@ modules:
           - name: "Global mesh options"
             url: https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
       - type: reading
-        title: "Wrap-Up: Mission Debrief"
-        path: sections/section-010/module-02/course-04-wrap-up.md
+        title: "Uninstall And Clean Removal"
+        path: sections/section-010/module-02/course-04-uninstall-and-clean-removal.md
+      - type: reading
+        title: Question
+        path: sections/section-010/module-02/labs/lab-02/question.md
+      - type: lab
+        title: "Remove An Istio Helm Install Completely Lab"
+        path: sections/section-010/module-02/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: helm-install
+        task_kind: build
+        tags: [helm, helm-release, uninstall, crds, namespace-injection, rollout-restart, sidecar-injection]
+        learning_goals:
+          - Remove three Istio Helm releases and the CRDs and namespaces that helm uninstall leaves behind
+          - Delete only the Istio CRDs and keep the CRDs of other teams in place
+          - Bring a running workload out of the mesh by removing its injection label and restarting it
+        resources:
+          - name: "Install with Helm"
+            url: https://istio.io/latest/docs/setup/install/helm/
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+      - type: reading
+        title: "Summary"
+        path: sections/section-010/module-02/course-05-summary.md
 
       - type: reading
         title: "Section 010 Knowledge Check: Installing Istio With istioctl Or Helm"

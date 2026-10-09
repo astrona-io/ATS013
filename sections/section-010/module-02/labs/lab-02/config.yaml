@@ -1,0 +1,33 @@
+metadata:
+  name: "ats-013-lab-010-02-02"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-helm-and-istioctl"
+      description: "Installs helm 3 and istioctl 1.30.5 and registers the istio chart repository"
+      type: "file"
+      source: "bootstrap/01-install-tooling.sh"
+    - name: "lab-010-02-02-setup"
+      description: "Installs Istio 1.30.5 as three Helm releases, adds an unrelated CRD owned by another team, and runs an injected workload in mesh-demo"
+      type: "file"
+      source: "bootstrap/02-install-istio-and-workload.sh"
+
+testing:
+  init:
+    - name: "solution"
+      description: "Reference solution applied by `astrona test` in CI"
+      type: "file"
+      source: "solution/apply.sh"
+
+validation:
+  scripts:
+    - name: "verify-clean-removal"
+      description: "Confirms the three Helm releases and their cluster-wide objects are gone, only the Istio CRDs were deleted, the Istio namespaces are gone, and the workload runs again without a sidecar from its original Deployment"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

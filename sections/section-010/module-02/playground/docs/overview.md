@@ -1,6 +1,6 @@
 # Overview: Install Istio With Helm (Playground)
 
-This is a **playground**, not a lab. Astronaut, it is your training solar system in the simulator. The environment starts clean, runs `bootstrap/prepare.sh`, and then waits. There is no task, no `astrona submit` and no pass or fail. Explore, break things, run `astrona destroy`, and start over.
+This is a **playground**, not a lab. The environment starts clean, runs `bootstrap/prepare.sh`, and then waits. There is no task, no `astrona submit` and no pass or fail. Explore, break things, run `astrona destroy`, and start over.
 
 ## What is in the box
 
