@@ -5,29 +5,35 @@ scripts) is for people learning a technical subject, often for a
 certification exam. Many of them are not native English speakers and have no
 university degree.
 
-## Plain English
+## Technical documentation in plain English
 
-Write the text in Plain English for a general adult audience (18+) without a
-university degree. The content must be highly accessible and easy to
-understand for non-technical readers, without feeling childish.
+This is technical documentation. Say exactly what the system does, with the
+real technical terms, in clear and simple English. Never hide a concept
+behind a metaphor, a made-up name or a vague word: the reader must learn the
+words they will meet in the product, the logs and the exam.
 
 Strict guidelines:
 
-1. Target a Flesch-Kincaid Grade Level of 8 or 9 (equivalent to a standard
-   newspaper article).
-2. Avoid all technical jargon, acronyms, and corporate buzzwords. If a
-   technical term is necessary, explain it immediately using an everyday
-   analogy.
-3. Keep sentences conversational and direct. Split long sentences into two.
-4. Use short paragraphs (max 3-4 sentences per paragraph) and clear
-   subheadings to make the text scannable.
-5. Use the active voice (e.g., "We did this" instead of "This was done by us").
+1. Use the correct technical term every time (request, response, pod,
+   namespace, Service, sidecar proxy, certificate, mTLS, JWT, listener). The
+   first time a term appears in a file, define it in one plain sentence that
+   says what it is and what it does. Spell out every acronym on first use.
+2. No metaphors or analogies in explanations. Not "the communications
+   officer", but "the sidecar proxy (Envoy)"; not "a signal", but "a
+   request"; not "the planet", but "the namespace".
+3. Simple sentences. Target a Flesch-Kincaid Grade Level of 8 or 9 for the
+   prose around the terms. Keep sentences direct; split long sentences into
+   two. No corporate buzzwords.
+4. Use short paragraphs (max 3-4 sentences per paragraph).
+5. Use the active voice ("istiod sends the configuration", not "the
+   configuration is sent").
 
 ## How this applies to course material
 
-- **Know which file you are in.** A module has a short landing page and a few
-  deep-dive parts. The landing page is a map: goals, what to know first, the
-  order of the parts, where it fits. The real teaching goes in the parts. A lab
+- **Know which file you are in.** A module has a short landing page, a few
+  deep-dive parts and a summary page. The landing page is a map: goals, what
+  to know first, the order of the parts. The real teaching goes in the parts.
+  The summary closes the module. A lab
   has a task, a step-by-step solution and a short intro. Keep each file to its
   job. Do not add "Prerequisite: ... Next: ..." navigation lines to pages;
   the landing page and the course outline already give the order.
@@ -36,7 +42,24 @@ Strict guidelines:
   the playground in one sitting of about 15 minutes. Split at a natural seam
   where each half ends with something the learner has seen work. Never split
   only to hit a number. When you split, renumber the files, fix every "Part N"
-  reference in the module, the wrap-up links and `astrona.yaml`.
+  reference in the module and `astrona.yaml`.
+- **Read like a book, not like a web page.** Each part reads as a chapter of
+  a technical book. Open with a short paragraph on the problem it solves and
+  why it matters. Link each paragraph to the next with a transition sentence.
+  Close with a paragraph that sums up what the reader now knows and the
+  question still open, before `## Common pitfalls` and the mission. Write
+  explanations as prose; keep bullets for real lists (fields, ordered steps,
+  options). Use `##` only when the topic changes and `###` only inside a long
+  section, never for a single command. Weave hands-on steps into the text:
+  one or two sentences on what to run and why, the command, the real output,
+  then a sentence or two on what it shows.
+- **The module ends with a summary.** The last page of every module is
+  `course-0N-summary.md` with the title `# Summary`: a few short prose
+  paragraphs on what the reader learned, organised by idea, optionally with
+  one short list of key facts. It names no parts, modules, sections or
+  chapters, and has no links, lab table, quiz or commands. Its last line is
+  `<!-- astrona:playground:destroy -->` on its own line; the platform turns it
+  into the step that removes the playground.
 - **Every heading gets an intro.** A `##` section that has `###`
   subsections starts with one to three sentences that say what the section
   is about and why it matters, before the first `###`. Never put a `###`
@@ -47,26 +70,28 @@ Strict guidelines:
   a fact from elsewhere, state the fact directly in one or two sentences.
   This also goes for parts of the same module: never write "Part 2 shows",
   "from Part 1" or "as in Part 3". Say the fact itself ("the commands below
-  need Istio installed with the `demo` profile"). The wrap-up page is the one
-  exception: it recaps each part and links to it.
+  need the `scout` `DestinationRule` applied"). This includes the summary.
   The landing page does not have a "Where this fits" section.
 - **Write words out in full.** Do not use informal short forms in prose:
   write "communications", "configuration", "repository", "administrator",
   "for example" and "that is", never "comms", "config", "repo", "admin",
   "e.g." or "i.e.". Names in code, commands and file paths stay as they are.
 - **Exam terms stay.** The product's own names are what the reader must learn
-  (for example a resource kind, a field, a command). Keep them, but explain
-  each one in plain words, with an everyday analogy, the first time it appears
-  in a file. Spell out acronyms on first use, with a short plain meaning.
-- **Analogies come from space, and the reader is an astronaut.** When a term
-  needs an everyday picture, use space: spaceships, planets, solar systems,
-  space stations, mission control, signals, docking, star charts, airlocks,
-  even the Death Star. Talk to the reader as an astronaut (for example "your
-  first mission", "astronaut, check your flight log"), but not in every
-  sentence. Requests are **signals** that ships send to each other. Use one
-  analogy per hard idea, keep it short, and keep it the same everywhere (if
-  the repository has an analogy glossary, use it). The analogy helps the reader; it
-  never replaces the real term, and it never changes code or output.
+  (for example a resource kind, a field, a command). Use them as they are and
+  define each one in plain technical words the first time it appears in a
+  file. Spell out acronyms on first use, with a short plain meaning.
+- **The space theme is only for examples.** Space appears in two places and
+  nowhere else: the names of the example workloads (the Starfleet: `bridge`,
+  `scout`, `shuttle`, `probe`, the `starfleet` and `outpost` namespaces) and
+  the short scenario that opens a lab task or a practice exercise (for
+  example "the `drifter` in `outpost` must keep reaching the probe"). The
+  explanation around an example is plain technical text: write "the
+  `shuttle` pod sends a request to the `probe` Service", never "the shuttle
+  sends a signal to the probe ship". Do not address the reader as an
+  astronaut, and do not use space metaphors (communications officer, mission
+  control, badge, airlock, guest list, star chart) for Istio or Kubernetes
+  concepts. Titles of pages and labs name the technical task ("Require mTLS
+  With PeerAuthentication"), not a space story.
 - **Show one real example before the rule.** Start with a concrete case the
   reader can run, then give the general rule.
 - **Say which part does the work.** Readers often mix up the parts of a system
@@ -79,10 +104,8 @@ Strict guidelines:
 - **Prose only.** The grade-level and sentence rules apply to explanations.
   They do not apply to code blocks, tables of field names or reference lists
   (those may stay short and dense).
-- **Keep the page furniture the same.** Hands-on steps are normal page
-  content, not boxes: a short `###` subsection (for example "See it in your
-  playground") with one sentence saying what to do, the command, the real
-  output, and one or two sentences saying what it shows. A `> [!TIP]` box is
+- **Keep the page furniture the same.** Hands-on steps are part of the prose
+  (see "Read like a book"), not boxes or headings of their own. A `> [!TIP]` box is
   only for a real tip: advice the reader can reuse beyond this one step (a
   habit, a shortcut, how to spot a problem, an exam habit). Everything else
   is a normal sentence: notes about the current step ("if the log line is
@@ -100,41 +123,70 @@ Strict guidelines:
   one sentence on what the reader can now do, one on what the mission asks,
   then pause the playground (`astrona stop <playground name>`), the
   `astrona run` and `astrona submit` commands, and finally
-  `astrona destroy <lab name>` plus `astrona start <playground name>`. The
-  wrap-up lists the missions and ends with cleaning up the playground
-  (`astrona list`, `astrona destroy <playground name>`).
+  `astrona destroy <lab name>` plus `astrona start <playground name>`.
 - **Renew the playground before hands-on work.** Every reading part that
   runs commands has `<!-- astrona:playground:renew -->` exactly once, on its
   own line, right before the first hands-on step (the first "Save this as"
   or the first command block), so the playground timer is reset before the
   learner needs the playground. Not on landing pages (they carry
-  `<!-- astrona:playground -->`), wrap-up pages or pages without commands.
+  `<!-- astrona:playground -->`), summary pages (they carry
+  `<!-- astrona:playground:destroy -->`) or pages without commands.
 - **Mermaid without HTML.** The platform renders Mermaid with HTML labels
   switched off, so `<br/>` and any other HTML tag break the drawing. Rules:
   - One line per box, no `<br/>`, no HTML. Keep the box to the thing's name
-    (`"istio-base"`, `"istiod"`, `"Service: notification-service"`).
-  - Put the logic on the arrows: `B -->|"CRDs first"| I`,
-    `I -->|"webhook"| P`, `N -->|"istio.io/rev: canary"| R`. Keep edge labels short.
+    (`"scout-v2"`, `"istiod"`, `"Service: scout"`).
+  - Put the logic on the arrows: `E -->|"version: v2"| P2`,
+    `I -->|"CDS"| C`, `A -->|"end-user: jason"| B`. Keep edge labels short.
   - Quote every label. Prefer `flowchart TB`; use `LR` only for a short chain.
-  - Sequence diagrams: short participant aliases (`participant T as tester`)
+  - Sequence diagrams: short participant aliases (`participant S as shuttle`)
     and short message text.
   - Anything longer (cluster names, full hostnames) goes in the sentence under
     the diagram.
+- **Every course starts with an Introduction.** It lives in `sections/intro/`
+  and is the first entry in `astrona.yaml` (`id: module-intro`, title
+  "Introduction"). It has exactly these four pages, in this order:
+  - `README.md`, `# Introduction`: what the introduction covers and its three
+    pages, named in prose (no links), ending with the topic the course starts
+    with.
+  - `course-01-welcome.md`, `# Welcome To The Course`: who the course is for,
+    the exam domain and what the reader can do at the end, the words the
+    course uses, the example app, how the course is laid out and how to read
+    a page.
+  - `course-02-get-your-machine-ready.md`, `# Get Your Machine Ready`: the
+    tools to install, the `astrona` commands used every day, and what to do
+    when a start goes wrong.
+  - `course-03-how-this-course-is-made.md`, `# How This Course Is Made`: how
+    content is written and checked, the maintainers, how to report a mistake,
+    and the license.
+  The Introduction teaches no product content and has no playground, labs or
+  summary. Its only links are the repository's contributors page, issues
+  page and license.
+- **No links to other course files.** A course page (every reading listed in
+  `astrona.yaml`, the playground guide `docs/overview.md`, and a lab's
+  `question.md` and `solution.md`) never links to or points the reader at
+  another page or file of the repository: no links to parts, summaries,
+  labs, `question.md`, other modules, sections or the Introduction, and no
+  "see `practice.md`" or "open `config.yaml`". The platform shows the pages in
+  the order of `astrona.yaml`, so a link only adds a second, often wrong,
+  path. Name a thing in plain words when the reader needs it ("the task is on
+  the next page"), and state a fact on the page itself instead of sending the
+  reader somewhere else. Repository files for authors (the root `README.md`,
+  a lab's or playground's `README.md`) may link.
 - **No links to outside sources.** Course pages, labs and playground docs do
   not link to or point at outside websites (the one exception is the
   `resources` field of a lab entry in `astrona.yaml`) (official docs, GitHub, blogs,
   RFCs), and they have no "Reference" or "Official docs" lists. Everything the
   reader needs is explained on the page itself. Not affected: addresses the
   reader actually uses in a command or browser (`http://127.0.0.1:9080`,
-  `curl https://httpbin.org`), and the Mission Briefing's contributors and
+  `curl https://httpbin.org`), and the Introduction's contributors and
   "report a mistake" links.
 - **Configuration goes to a file first.** Whenever the reader should apply
   YAML (course parts, playground docs, labs), use three separate steps:
-  1. "Save this as `namespace-mesh-demo.yaml`:" followed by a plain
+  1. "Save this as `virtualservice-scout.yaml`:" followed by a plain
      ` ```yaml ` block with only the YAML. No `cat > file <<'EOF'`, no
      `kubectl apply -f - <<EOF`, no shell around it.
   2. "Apply it:" followed by a ` ```sh ` block with only
-     `kubectl apply -f namespace-mesh-demo.yaml`.
+     `kubectl apply -f virtualservice-scout.yaml`.
   3. "Then check the result:" followed by the check commands, if any.
   The file name says the kind and the object. If a value must come from the
   reader's cluster (an IP address), use a placeholder like `<PARTNER>` in the
@@ -150,28 +202,31 @@ Strict guidelines:
 ## About this repo (ATS013 only)
 
 Everything above is general and can be copied to other course repositories. This
-section is only true for this one.
+section is only true for this one. It adds facts about this course; it never
+changes a general rule. If anything here seems to disagree with the rules
+above, the rules above win.
 
 ### What the student is trying to learn
 
 - **The goal:** pass the **Installation, Upgrade And Configuration** domain
   of the **Istio Certified Associate (ICA)** exam. It is 20% of the exam, and
-  every other domain sits on top of it.
-- **What the exam really tests:** installing, shaping and upgrading Istio by
-  hand, on a live cluster, under time pressure, and proving it worked. So the
-  student must *do* things (install with `istioctl` and with Helm, change
+  every other domain builds on it.
+- **What the exam really tests:** installing, configuring and upgrading Istio
+  by hand, on a live cluster, under time pressure, and proving it worked. So
+  the student must *do* things (install with `istioctl` and with Helm, change
   mesh settings, choose which pods get a sidecar, move workloads to a new
   control plane, switch on ambient mode), not just recognise words. Every
-  explanation should lead to something they can run, and every change should
+  explanation should lead to a command they can run, and every change should
   be proved with a command that shows the new state (`istioctl version`,
-  `istioctl proxy-status`, `helm list`, a pod's container count).
+  `istioctl proxy-status`, `helm list`, a pod's container count, a request
+  from `tester`).
 - **The four exam topics (curriculum items):** installing Istio with
   `istioctl` or Helm, customizing the Istio installation, upgrading Istio
   (canary and in-place), and installing Istio in sidecar or ambient mode.
   Each section covers exactly one of them.
 - **The sections:**
 
-  | Section | Title | Exam topic |
+  | Section | Title | Curriculum item |
   | --- | --- | --- |
   | 010 | Installing Istio With istioctl Or Helm | Installing Istio with istioctl or Helm |
   | 020 | Customizing Your Istio Installation | Customizing your Istio installation |
@@ -180,132 +235,73 @@ section is only true for this one.
 
 - **The version:** everything is built and checked on **Istio 1.30.5** on a
   single-node `kind` cluster. The upgrade section (030) starts on **1.29.8**
-  and moves to **1.30.5**, so version skew is something the learner watches
-  happen. Do not teach fields or behaviour from other versions without
-  saying so. There is no in-cluster Istio operator in these versions:
-  `istioctl install` renders and applies on the learner's machine.
+  and moves to **1.30.5**, so the learner sees version skew happen. Do not
+  teach fields, flags or output from other versions without saying so. There
+  is no in-cluster Istio operator in these versions: `istioctl install`
+  renders the manifests and applies them from the learner's machine.
 - **The main sources:** the Istio install pages,
   <https://istio.io/latest/docs/setup/install/>, the upgrade pages,
   <https://istio.io/latest/docs/setup/upgrade/>, and the ambient install
   pages. Check every page against them.
 
-### Space analogy glossary
+### Terms, not metaphors
 
-Use these pictures for these terms, in every course page, lab and playground.
-Keep them consistent so the astronaut builds one picture of the universe.
-They are the same pictures as in the other Istio courses (ATS014, ATS015),
-plus the ones this domain needs to talk about building and replacing mission
-control. Most pages written before these rules have no space analogies yet;
-add them when you rework a page, using this table.
+Explanations use Istio's, Envoy's, Helm's and Kubernetes' own words. Older
+pages and the earlier version of this file used a space picture for each term
+("mission control", "communications officer", "blueprint", "relay tower").
+Do not use them. Replace them with the real terms when you touch a page.
+Define each term in plain technical language on first use in a file, for
+example:
 
-**The universe**
-
-| Term | Space picture |
+| Term | First-use definition (example wording) |
 | --- | --- |
-| The learner | An astronaut (a cadet on their first missions) |
-| Kubernetes cluster | A solar system |
-| Namespace | A planet in that solar system |
-| Pod | A spaceship |
-| Container | A module inside the ship (the app is the crew) |
-| Kubernetes Service | A beacon: one call sign that a whole group of ships answers to |
-| Request / response | A signal sent out, and the reply signal |
-| Port | A radio channel |
-| Service mesh | The fleet's shared signal network |
-| `kind` cluster on your laptop | A training solar system in the simulator |
-| Kubernetes API server | The solar system's registry office: every object is filed there |
-| Custom Resource Definition (CRD) | A new form the registry office learns to accept (a new kind of object) |
-| Admission webhook | A dock inspector the registry office calls before it files a new ship |
+| Sidecar proxy (Envoy) | A proxy container Istio adds to each pod; all inbound and outbound traffic of the pod passes through it |
+| `istiod` | Istio's control plane; it turns Istio resources and mesh settings into proxy configuration and sends it, plus certificates, to every proxy |
+| xDS | The protocol `istiod` uses to push configuration to running proxies, without a pod restart |
+| Custom Resource Definition (CRD) | Adds a new kind of object (for example `VirtualService`) to the Kubernetes API server |
+| Sidecar injection | The mutating admission webhook (`istio-sidecar-injector`) adds the `istio-proxy` container when a pod is created in a namespace or pod that opts in; running pods do not change |
+| `istio-injection=enabled` / `sidecar.istio.io/inject` | The namespace label that turns injection on, and the pod label that overrides it for one pod |
+| Native sidecar | The proxy runs as an init container with `restartPolicy: Always`, so it starts before the app container and stops after it |
+| `istioctl install` | Renders the full set of Kubernetes manifests on the learner's machine from a profile plus overlays, then applies them and removes objects the new render no longer contains |
+| `IstioOperator` | The input document for `istioctl install`; it is read once and is not a running controller |
+| Profile | A built-in starting configuration (`default`, `demo`, `minimal`, `ambient`) |
+| Overlay (`-f`, `--set`) | Settings layered on top of the profile; a `--set` flag wins over a file |
+| `meshConfig` | Mesh-wide settings (access logging, outbound traffic policy); `istiod` reads them from the `istio` ConfigMap in `istio-system` |
+| Helm chart / release | A chart is a package of templates; a release is one installed copy of a chart, with a name and a numbered history stored in a Secret |
+| `istio/base`, `istio/istiod`, `istio/gateway` | The Helm charts for the CRDs, the control plane and a gateway; `base` goes first because the others need its CRDs |
+| Version skew | The client (`istioctl`), the control plane and the proxies run different versions |
+| Revision | A named control plane (`--set revision=...`, Deployment `istiod-<revision>`), so two can run side by side |
+| `istio.io/rev` label | Picks which revision injects the pods of a namespace |
+| Revision tag | A stable name (for example `prod`) that points at one revision; moving the tag moves the namespaces at their next pod restart |
+| Canary / in-place upgrade | Install a new revision next to the old one and move namespaces over / replace the control plane in the same place |
+| Ambient mode | A data plane mode without sidecars: a per-node proxy handles L4 traffic and an optional waypoint handles L7 |
+| ztunnel | The per-node proxy in ambient mode; it does mTLS (mutual TLS) and L4 policy but cannot read HTTP |
+| `istio-cni` node agent | Redirects the traffic of ambient pods to the ztunnel on their node |
+| HBONE | The mTLS tunnel (HTTP-Based Overlay Network Environment) that ztunnels and waypoints use between them |
+| Waypoint | An Envoy proxy, deployed as a Gateway API `Gateway`, that applies L7 rules (path, method, headers) for a namespace or Service |
 
-**The mesh**
-
-| Term | Space picture |
-| --- | --- |
-| Sidecar proxy (Envoy) | The ship's communications officer: every signal in or out goes through them |
-| Sidecar injection | Putting a communications officer on board when the ship launches (ships already flying do not get one) |
-| Injection webhook (`istio-sidecar-injector`) | The dock inspector who adds the communications officer to each new ship |
-| `istio-injection=enabled` namespace label | A planet-wide order: every new ship launched here gets a communications officer |
-| `sidecar.istio.io/inject` pod label | One ship's own request, which beats the planet-wide order |
-| Native sidecar (init container with `restartPolicy: Always`) | The communications officer boards before the crew and stays for the whole flight |
-| `istio-init` / Istio CNI plugin | The dock crew who rewire the ship's radio so every signal passes the communications officer |
-| `istiod` (control plane) | Mission control: it sends every communications officer their orders and issues ID badges |
-| xDS push | Mission control radioing new orders to every ship in flight, no landing needed (no restart) |
-| `meshConfig` / the `istio` ConfigMap | The fleet's standing orders, pinned on mission control's notice board |
-| `values.global.proxy` (proxy resources, image) | The standard kit every communications officer is issued |
-| Ingress / egress gateway | The spaceport arrival gate / departure gate |
-
-**Building mission control (installation)**
-
-| Term | Space picture |
-| --- | --- |
-| `istioctl` | Your launch console: you operate it by hand |
-| `istioctl install` (render and apply) | The console draws a complete blueprint on your machine, then builds the solar system to match it |
-| `IstioOperator` document | The blueprint itself: an input, not a building that watches anything |
-| Profile (`default`, `demo`, `minimal`, `ambient`) | A stock blueprint from the shipyard catalogue |
-| Overlay (`-f` file, `--set` flag) | Notes pinned on top of the blueprint; a `--set` note always wins |
-| `istioctl manifest generate` | Printing the blueprint without building anything |
-| `istioctl x precheck` | The pre-flight check of the launch pad, before you build |
-| Pruning / reconciliation | Anything the new blueprint does not show gets taken down |
-| `istioctl uninstall --purge` | Demolishing every Istio building, foundations included |
-| Helm chart | A flat-pack kit from the shipyard |
-| Helm release | One kit, assembled in your solar system under a name, with a numbered logbook |
-| `istio/base` chart (CRDs) | The foundations: the registry office must learn the new forms before anything else is built |
-| `istio/istiod`, `istio/gateway` charts | Mission control, and a spaceport gate, each built from its own kit |
-| Helm values file | The order form for a kit |
-| Release history (`helm history`, the release Secret) | The logbook: one page per build of that kit |
-
-**Replacing mission control (upgrades)**
-
-| Term | Space picture |
-| --- | --- |
-| Version skew (client, control plane, data plane) | Your console, mission control and the communications officers running different software versions |
-| `istioctl version` / `istioctl proxy-status` | A roll call: who runs which version, and who is in contact with mission control |
-| `helm upgrade` value handling (`--reuse-values`, `--reset-then-reuse-values`) | Copying last time's order form, or starting from the kit's blank form and copying your own notes onto it |
-| `helm rollback` | Rebuilding the kit from an older logbook page |
-| In-place upgrade | Replacing mission control in the same building; ships keep the old orders until they relaunch |
-| Canary upgrade | Building a second mission control next to the first and moving planets over one at a time |
-| Revision (`--revision`, `istiod-<revision>`) | A named mission control, so two can run side by side |
-| `istio.io/rev` namespace label | Which mission control a planet reports to |
-| Revision tag (for example `prod`) | A call sign that points at one mission control; move the call sign and planets follow at their next launch |
-| `defaultRevision` / `default` tag | The mission control that answers planets with the plain `istio-injection=enabled` order |
-| `kubectl rollout restart` | Relaunching the ships so each gets a fresh communications officer |
-
-**Ambient mode (section 040)**
-
-| Term | Space picture |
-| --- | --- |
-| Ambient mode | Ships fly without their own communications officer; shared relay towers do the job instead |
-| ztunnel | A shared relay tower, one per node (launch pad), for every ship docked there: it does the handshake and checks badges, but cannot read the signal's contents |
-| `istio-cni` node agent | The dock crew at every launch pad who connect each ship's radio to the relay tower |
-| `istio.io/dataplane-mode=ambient` label | A planet-wide order: every ship here, new or already flying, uses the relay towers |
-| HBONE | The sealed tunnel the relay towers use between them |
-| Waypoint | A checkpoint station you build only where someone must read the signal's contents (L7 rules) |
-| `istio.io/use-waypoint` label | Telling a beacon or planet to route its signals through the checkpoint station |
-| Gateway API CRDs | The forms a checkpoint station is filed on; the registry office must know them first |
-| L4 rule vs L7 rule | Checking the envelope (who, which channel) vs reading the letter (path, method, headers) |
-
-### The sample apps the playgrounds and labs use
+### The example workloads
 
 This course is about the mesh itself, not about an application, so its
-workloads are small stand-ins. Their names come from the code and **stay as
-they are**: never rename them in commands, YAML or output. The Starfleet
-names from the other Istio courses (`bridge`, `scout`, `shuttle`) do **not**
-exist here. In prose you may still use the pictures from the glossary (for
-example "the `tester` ship is your test shuttle"), but always next to the
-real name.
+workloads are small plain-named services. Use their names as they are in
+commands, YAML and output, and describe them in technical terms. The
+Starfleet app from the general rules (`bridge`, `scout`, `shuttle`, `probe`)
+is not deployed in this repository; do not refer to it in a page until a
+playground actually runs it.
 
 | Kubernetes name | Image | What it is | Where |
 | --- | --- | --- | --- |
-| `notification-service` (Deployment and Service, port `80`) | `nginx:1.27-alpine` | A ship that answers every signal; the main workload in most modules | Most playgrounds and labs; `notification-service-v1` is the Deployment name in the upgrade and ambient playgrounds |
-| `tester` | `curlimages/curl:8.11.1` | Your test shuttle: every test signal is sent from here | Upgrade playground 030-03, ambient playgrounds, some labs |
-| `logging-agent`, `batch-job` | `busybox:1.36` | Ships with no network job, used to show injection choices | `inject-demo` (section 020, module 2) |
-| `checkout-api`, `batch-runner`, `audit-shipper`, `nightly-report`, `order-api` | `nginx` / `busybox` / `curl` | The capstone fleets | `payments`, `legacy`, `orders` namespaces in the capstones |
-| `catalog-api`, `storefront` | `nginx` / `curl` | The ambient capstone fleet | `ambient-shop` (section 040 capstone) |
+| `notification-service` (Deployment and Service, port `80`) | `nginx:1.27-alpine` | Backend that answers every request; the main workload in most modules | Most playgrounds and labs; the Deployment is `notification-service-v1` in the upgrade and ambient playgrounds |
+| `tester` | `curlimages/curl:8.11.1` | Client pod; test requests are sent from here with `kubectl exec deploy/tester -- curl ...` | Playground 030-03, the ambient playgrounds, some labs |
+| `logging-agent`, `batch-job` | `busybox:1.36` | Pods with no network role, used to show injection choices | `inject-demo` (section 020, module 2) |
+| `checkout-api`, `batch-runner`, `audit-shipper`, `nightly-report`, `order-api` | `nginx` / `busybox` / `curl` | Capstone workloads | `payments`, `legacy`, `orders` namespaces |
+| `catalog-api`, `storefront` | `nginx` / `curl` | Ambient capstone workloads | `ambient-shop` (section 040 capstone) |
 
-The planets (namespaces) are named after the module: `mesh-demo`,
-`inject-demo`, `canary-demo`, `inplace-demo`, `ambient-demo`, `ambient-l7`,
-plus `istio-system` (mission control) and `istio-ingress` (the gateway's own
-planet in the Helm installs). The section 030 module 1 playground runs
-`notification-service` in `default`.
+Namespaces are named after the module: `mesh-demo`, `inject-demo`,
+`canary-demo`, `inplace-demo`, `ambient-demo`, `ambient-l7`, plus
+`istio-system` (control plane) and `istio-ingress` (the gateway in the Helm
+installs). The section 030 module 1 playground runs `notification-service`
+in `default`.
 
 ### Environment facts the text must respect
 
@@ -314,7 +310,8 @@ planet in the Helm installs). The section 030 module 1 playground runs
   copies `istioctl` to `/usr/local/bin`, or to `$HOME/.local/bin` when that
   is not writable. If `istioctl` is "not found", the fix is
   `export PATH="$HOME/.local/bin:$PATH"`.
-- **Starting states differ per module, on purpose.**
+- **Starting states differ per module, on purpose.** Never "fix" them in the
+  bootstrap.
   - 010 module 1: no Istio at all (no `istio-system`, no CRDs, no webhooks).
   - 010 module 2: no Istio; `helm` 3 is installed and the `istio` chart
     repository (`https://istio-release.storage.googleapis.com/charts`) is
@@ -339,23 +336,28 @@ planet in the Helm installs). The section 030 module 1 playground runs
   `istioctl ztunnel-config` and the waypoint's own proxy.
 - **A waypoint is a Gateway API `Gateway`.** Without the Gateway API CRDs,
   `istioctl waypoint apply` fails with an unknown-kind error.
-- **Install documents are applied with the installer.** The "save to a file,
-  then apply" rule still holds, but the apply step for an `IstioOperator`
-  file is `istioctl install -f <file> -y`, and for a values file it is
-  `helm install` or `helm upgrade` with `-f <file>`.
+- **How install files are applied.** The general "Configuration goes to a
+  file first" rule holds here too; only the apply step changes. For an
+  `IstioOperator` file it is `istioctl install -f <file> -y`; for a Helm
+  values file it is `helm install` or `helm upgrade` with `-f <file>`.
 - **One owner per cluster.** A cluster is installed with `istioctl` or with
   Helm, never both. Pages must not mix the two on one cluster.
 
 ### Where things are in this repo
+
+The tree was written before the general rules above. It has no
+`sections/intro/` yet, and each module closes with a `course-0N-wrap-up.md`
+page instead of `course-0N-summary.md`. Follow the general rules when you
+add or rework those pages.
 
 | What | Where |
 | --- | --- |
 | Course outline the platform reads: every reading page and lab, in order. Never list `solution.md` here | `astrona.yaml` |
 | Overview, sections table, how to run things | `README.md` |
 | Section overview and its modules | `sections/section-0N0/README.md` |
-| Module reading: landing page, deep-dive parts, wrap-up | `sections/section-0N0/module-0M/course.md`, `course-0N-*.md` |
+| Module reading: landing page, deep-dive parts, closing page | `sections/section-0N0/module-0M/course.md`, `course-0N-*.md` |
 | Graded lab: task, walkthrough, setup, grader | `.../labs/lab-0N/` (`question.md`, `solution.md`, `bootstrap/`, `solution/apply.sh`, `validation/`) |
-| Ungraded sandbox for a module | `.../playground/` (`config.yaml`, `bootstrap/prepare.sh`, `docs/overview.md` says what is in the box) |
+| Ungraded sandbox for a module | `.../playground/` (`config.yaml`, `bootstrap/prepare.sh`, `docs/overview.md`, which is the only learner page) |
 | One graded integration lab per section | `sections/section-0N0/capstone/labs/lab-01/` |
 | Section knowledge check (multiple choice) | `sections/section-0N0/quiz.md` |
 | Closed-book simulation of the whole domain | `sections/final-domain-quiz.md` |
@@ -366,23 +368,24 @@ A lab folder holds:
 | Path | Purpose |
 | --- | --- |
 | `config.yaml` | Lab definition; `metadata.docs` has `question: "question.md"` and `solution: "solution.md"` |
-| `README.md` | Short intro with `estimated_duration` front matter and the run, submit and destroy commands |
+| `README.md` | Short intro for authors with `estimated_duration` front matter and the run, submit and destroy commands |
 | `question.md` | The exam-style task. Starts with `# Question` and `Solve this question on: \`terminal\`` |
 | `solution.md` | Step-by-step walkthrough with real output |
-| `bootstrap/01-*.sh`, `bootstrap/02-*.sh` | Tooling, Istio install where the task needs it, and the starting workloads; never the graded end state |
+| `bootstrap/01-*.sh`, `bootstrap/02-*.sh` | Tooling, the Istio install where the task needs it, and the starting workloads; never the graded end state |
 | `solution/apply.sh` | Reference end state, applied only by `astrona test` |
 | `validation/validate-completed.sh` | Grading against the live cluster |
 
 ### Lab metadata in `astrona.yaml`
 
-`astrona.yaml` has one entry per section under `modules:` (`module-010`,
-`module-020`, `module-030`, `module-040`) and a `final-exam` entry. Each
-section's `content` lists, in order: the section `README.md`, then for each
-module its landing page, its parts, and right after the part a lab tests, a
-`Question` reading (`labs/lab-0N/question.md`) followed by the `type: lab`
-entry; the module's wrap-up page comes last. The section quiz and then the
-section capstone close the section. Playgrounds are not listed: the landing
-page's `<!-- astrona:playground -->` marker shows them.
+`astrona.yaml` has a `training:` block (id `ATS013`, domain
+`Installation, Upgrade And Configuration`, weight `20`), one entry per
+section under `modules:` (`module-010` to `module-040`) and a `final-exam`
+entry. Each section's `content` lists, in order: the section `README.md`,
+then for each module its landing page, its parts, and right after the part a
+lab tests, a `Question` reading (`labs/lab-0N/question.md`) followed by the
+`type: lab` entry; the module's closing page comes last. The section quiz and
+then the section capstone close the section. Playgrounds are not listed: the
+landing page's `<!-- astrona:playground -->` marker shows them.
 
 Every `type: lab` entry (module labs and capstones) carries these fields, in
 this order:
@@ -412,10 +415,10 @@ this order:
 - `topic`: exactly one of `istioctl-install`, `helm-install`,
   `customization`, `sidecar-injection`, `helm-upgrade`, `canary-upgrade`,
   `in-place-upgrade`, `ambient`.
-- `task_kind`: exactly one of `build` (install or configure from
-  scratch), `troubleshooting` (find and fix what is broken) or `migration`
-  (move a working setup to another version, revision or data plane mode).
-  The platform filters labs by it, so it is a field of its own, never a tag.
+- `task_kind`: exactly one of `build` (install or configure from scratch),
+  `troubleshooting` (find and fix what is broken) or `migration` (move a
+  working setup to another version, revision or data plane mode). The
+  platform filters labs by it, so it is a field of its own, never a tag.
 - `tags`: 4 to 8 ids, only from the tag list below. Add a new tag to the list
   first if nothing fits.
 - `learning_goals`: 2 or 3 plain sentences, each starting with a verb, saying
@@ -469,23 +472,21 @@ Names (from each `config.yaml` `metadata.name`):
 | Module lab | `ats-013-lab-<section>-<module>` | `ats-013-lab-020-02` |
 | Capstone | `ats-013-capstone-<section>` | `ats-013-capstone-040` |
 
-A lab's `config.yaml` names its docs with `metadata.docs.question:
-"question.md"` and `metadata.docs.solution: "solution.md"`. The platform
-reads these names to show the task and the solution. Never rename them,
-even if a local `astrona validate` reports them as unknown fields.
-
-Keep those names. A new, second lab in a module takes
+Keep those names. A second lab in a module takes
 `ats-013-lab-<section>-<module>-<lab>`, for example `ats-013-lab-040-02-02`,
-so two labs never share a name. Lab bootstrap scripts do not pin a kube
-context: astrona sets `KUBECONFIG` for the lab, and `astrona test` runs on a
-cluster with a different name. Every lab must pass `astrona validate` and
-`astrona test`.
+so two labs never share a name. A lab's `config.yaml` names its docs with
+`metadata.docs.question: "question.md"` and `metadata.docs.solution:
+"solution.md"`; the platform reads these names, so never rename them, even if
+a local `astrona validate` reports them as unknown fields. Lab bootstrap
+scripts do not pin a kube context: astrona sets `KUBECONFIG` for the lab, and
+`astrona test` runs on a cluster with a different name. Every lab must pass
+`astrona validate` and `astrona test`.
 
-Graders check **the live state**: releases and their versions, the
-ConfigMap mesh settings, which control plane each proxy is connected to,
-container counts, and real traffic where it matters (for example through a
-waypoint). A lab's `question.md` and `solution.md` must match what its
-`validation/` scripts actually check.
+Graders check **the live state**: Helm releases and their versions, the mesh
+settings in the `istio` ConfigMap, which control plane each proxy is
+connected to, container counts, and real traffic where it matters (for
+example through a waypoint). A lab's `question.md` and `solution.md` must
+match what its `validation/` scripts actually check.
 
 Test clusters on the maintainer's machine: one at a time. Podman has 10 GiB
 and also runs the platform stack; parallel clusters run it out of memory.
@@ -493,7 +494,9 @@ Never touch clusters you did not create.
 
 ### Where to find trusted sources
 
-Check facts here before writing them down. Prefer these over memory.
+Check facts here before writing them down. Prefer these over memory. These
+links are for authors; course pages still follow "No links to outside
+sources".
 
 - **Installing:**
   [Install with istioctl](https://istio.io/latest/docs/setup/install/istioctl/),
