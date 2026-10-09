@@ -439,7 +439,8 @@ this order:
 - Upgrades: `version-skew`, `revisions`, `revision-tags`, `default-revision`,
   `canary`, `in-place`, `rollback`
 - Ambient: `ambient`, `ztunnel`, `istio-cni`, `hbone`, `waypoint`,
-  `use-waypoint`, `gateway-api`, `l4-policy`, `l7-policy`
+  `use-waypoint`, `gateway-api`, `httproute`, `authorizationpolicy`,
+  `l4-policy`, `l7-policy`
 - Tools: `istioctl-version`, `proxy-status`, `istioctl-analyze`,
   `ztunnel-config`, `helm-get-values`
 
@@ -467,6 +468,11 @@ Names (from each `config.yaml` `metadata.name`):
 | Playground | `ats-013-playground-<section>-<module>` | `ats-013-playground-030-02` |
 | Module lab | `ats-013-lab-<section>-<module>` | `ats-013-lab-020-02` |
 | Capstone | `ats-013-capstone-<section>` | `ats-013-capstone-040` |
+
+A lab's `config.yaml` names its docs with `metadata.docs.question:
+"question.md"` and `metadata.docs.solution: "solution.md"`. The platform
+reads these names to show the task and the solution. Never rename them,
+even if a local `astrona validate` reports them as unknown fields.
 
 Keep those names. A new, second lab in a module takes
 `ats-013-lab-<section>-<module>-<lab>`, for example `ats-013-lab-040-02-02`,
