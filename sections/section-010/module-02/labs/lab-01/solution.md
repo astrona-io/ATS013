@@ -73,7 +73,7 @@ Each flag has a reason:
 
 *   `--version 1.30.5` pins the chart. Without it, Helm installs whatever is newest in the repository right now, so the same command next month gives a different Istio.
 *   `--wait` makes Helm wait until the release's resources are ready, instead of returning when the API server accepts them. It stops a script racing ahead to the next chart.
-*   `--set defaultRevision=default` tells the chart which control plane revision owns the injection webhook for namespaces with no revision named. Skip it on a single control plane install and injection can fail later, with no webhook willing to serve a namespace labelled `istio-injection=enabled`.
+*   `--set defaultRevision=default` tells the `base` chart which control plane revision checks Istio configuration by default. The chart creates the `istiod-default-validator` validating webhook, which sends Istio objects that carry no revision label to the `istiod` Service for a check. `default` is the chart's own default value; the flag makes it visible.
 
 ```sh
 kubectl get crd | grep -c istio.io

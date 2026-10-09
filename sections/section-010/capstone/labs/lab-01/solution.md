@@ -87,7 +87,7 @@ STATUS: deployed
 Three details matter here:
 
 *   **`--version 1.30.5` on all three.** The grader checks the `istiod` image version, and an install without a pin is a different Istio next month.
-*   **`--set defaultRevision=default` on `base`.** Without it, a namespace labelled `istio-injection=enabled` can find no webhook willing to serve it, and injection fails in a way that looks nothing like its cause.
+*   **`--set defaultRevision=default` on `base`.** It makes the `base` chart create the `istiod-default-validator` webhook, which checks Istio objects that carry no revision label. `default` is the chart's own default value; the flag makes the choice visible in the command.
 *   **`--set service.type=NodePort` on the gateway.** The gateway chart uses `LoadBalancer` by default, which stays `<pending>` forever on `kind`. The specification asks for `NodePort`, and the grader reads the Service's `spec.type`.
 
 The release name `public-gateway` becomes the Deployment name, the Service name and the pod labels. Get it wrong, and every later `Gateway` resource that selects the workload by label selects nothing.

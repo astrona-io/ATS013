@@ -23,7 +23,7 @@ With the namespaces in place, the first release installs the definitions. The in
 
 `--wait` makes Helm wait until the release's resources report ready, instead of returning as soon as the API server accepts them. `base` has no pods to wait for, so it returns almost at once. Using `--wait` on all three installs stops a script from racing ahead to `istiod` before the CRDs (Custom Resource Definitions, which add the Istio object kinds to the API server) are really in place.
 
-`--set defaultRevision=default` tells the chart which control plane revision is the default one. A **revision** is a named installation of the control plane; several revisions can run side by side during an upgrade. The `default` revision is the one that serves namespaces labelled with the plain `istio-injection=enabled` label. Leave it out on a single control plane install, and injection can fail later with no webhook willing to serve the namespace. That failure looks nothing like its cause.
+`--set defaultRevision=default` tells the `base` chart which control plane revision checks Istio configuration by default. A **revision** is a named installation of the control plane; several revisions can run side by side during an upgrade. With this value, the chart creates the `istiod-default-validator` validating webhook configuration: the API server sends every new or changed Istio object without a revision label, for example a `VirtualService`, to the `istiod` Service for a check before it stores it. `default` is already the chart's own default value, so the flag makes the choice visible rather than changing it. Sidecar injection for namespaces labelled `istio-injection=enabled` does not come from this value; the `istiod` chart creates that webhook.
 
 Install `base`, then look at what it created. `helm ls` lists the releases in a namespace, and the last two commands count the Istio CRDs and list the pods:
 
@@ -172,7 +172,7 @@ You now know how to install the three releases in order, why each install carrie
 >
 > **Setting a mesh-wide value on the wrong release.** `meshConfig` belongs to `istiod`. Helm accepts it on `base` or `gateway`, and it does nothing there.
 >
-> **Leaving `defaultRevision` unset when you meant to own the default.** The injection webhook needs a revision to point at.
+> **Setting `defaultRevision` to an empty value.** The `base` chart then creates no `istiod-default-validator` webhook, so Istio objects without a revision label are stored without a check, and a typo in a `VirtualService` gives no error.
 >
 > **Reading the ConfigMap as proof that the proxies have the setting.** The ConfigMap is the input to `istiod`. `istioctl proxy-status` shows whether `istiod` pushed it.
 >
