@@ -33,6 +33,7 @@ Work through the modules in this order. Each part teaches one idea. A mission (a
 3. [Injection And The Version Triad](module-01/course-03-injection-and-version-alignment.md)
    - Mission: [Install Istio With istioctl Lab](module-01/labs/lab-01/question.md)
 4. [Reconciliation And Clean Removal](module-01/course-04-reconciliation-and-removal.md)
+   - Mission: [Remove Istio Completely With istioctl Lab](module-01/labs/lab-02/question.md)
 5. [Summary](module-01/course-05-summary.md)
 
 ### [Install Istio With Helm](module-02/course.md)

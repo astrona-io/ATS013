@@ -41,6 +41,6 @@ Read the parts in this order:
 1. **The Render-And-Apply Pipeline:** what `istioctl install` does on your machine before anything reaches the cluster, why no operator pod exists, and what `istioctl x precheck` checks.
 2. **Profiles And The Objects They Produce:** what a profile is, how to print one, and the control plane, webhooks, CRDs and gateways an install creates.
 3. **Injection And The Version Triad:** how a pod gets a sidecar proxy, why labelling a namespace does not change running pods, and how to read `istioctl version` and `istioctl proxy-status`. The graded lab "Install Istio With istioctl" follows this part.
-4. **Reconciliation And Clean Removal:** what a second install does to settings you left out, how `istioctl` decides what to delete, and the difference between `--revision` and `--purge`.
+4. **Reconciliation And Clean Removal:** what a second install does to settings you left out, how `istioctl` decides what to delete, and the difference between `--revision` and `--purge`. The graded lab "Remove Istio Completely With istioctl" follows this part.
 
 A summary closes the module.

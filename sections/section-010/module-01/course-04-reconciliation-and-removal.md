@@ -148,3 +148,32 @@ You now know that a second `istioctl install` makes the cluster match the new do
 > **Assuming uninstall removes sidecars.** It does not. Existing pods keep the proxy container until they are created again.
 >
 > **`istioctl` and Helm both owning one cluster.** Two tools each making the cluster match their own set of objects means changes that are undone at random. Pick one method per cluster.
+
+## Your mission: Remove Istio Completely With istioctl Lab
+
+You can now tell `--revision` from `--purge` and name what an uninstall leaves behind. The lab asks you to remove a running `demo` install so the cluster is fully clean, recreate two injected workloads without their sidecars, and prove that they still talk to each other.
+
+The lab runs on its own cluster, so first pause your playground. Nothing in it is lost:
+
+```sh
+astrona stop ats-013-playground-010-01
+```
+
+Then start the lab. The task is on the next page; solve it on your own first:
+
+```sh
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-010/module-01/labs/lab-02
+```
+
+When you think you are done, send it for grading:
+
+```sh
+astrona submit -c sections/section-010/module-01/labs/lab-02
+```
+
+When the lab is done, remove it and start your playground again:
+
+```sh
+astrona destroy ats-013-lab-010-01-02
+astrona start ats-013-playground-010-01
+```

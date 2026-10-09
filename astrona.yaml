@@ -105,6 +105,26 @@ modules:
         title: "Reconciliation And Clean Removal"
         path: sections/section-010/module-01/course-04-reconciliation-and-removal.md
       - type: reading
+        title: Question
+        path: sections/section-010/module-01/labs/lab-02/question.md
+      - type: lab
+        title: "Remove Istio Completely With istioctl Lab"
+        path: sections/section-010/module-01/labs/lab-02
+        difficulty: beginner
+        estimated_duration: 15m
+        topic: istioctl-install
+        task_kind: build
+        tags: [istioctl, uninstall, crds, injection-webhook, namespace-injection, rollout-restart]
+        learning_goals:
+          - Remove every Istio revision and the Istio CRDs with istioctl uninstall --purge and delete the istio-system namespace
+          - Clear what an uninstall leaves behind by removing the namespace injection label and recreating pods that still carry a sidecar
+          - Prove the cleanup with a 200 from the tester pod and no istio-proxy container left in the namespace
+        resources:
+          - name: "Install with istioctl"
+            url: https://istio.io/latest/docs/setup/install/istioctl/
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+      - type: reading
         title: "Summary"
         path: sections/section-010/module-01/course-05-summary.md
 
