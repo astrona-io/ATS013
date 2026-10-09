@@ -2,7 +2,7 @@
 
 Solve this question on: `terminal`
 
-Astronaut, your solar system has no mission control yet. The cluster is clean: there is no `istio-system` namespace, no `networking.istio.io` CRDs (Custom Resource Definitions) and no injection webhook. `istioctl` 1.30.5 is already on your PATH. The namespace `mesh-demo` exists and runs one Deployment, `notification-service`. Its pod has a single container right now.
+The cluster has no Istio control plane yet. It is clean: there is no `istio-system` namespace, no `networking.istio.io` CRDs (Custom Resource Definitions) and no injection webhook. `istioctl` 1.30.5 is already on your PATH. The namespace `mesh-demo` exists and runs one Deployment, `notification-service`. Its pod has a single container right now.
 
 Do the following:
 

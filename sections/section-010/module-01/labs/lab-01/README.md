@@ -4,7 +4,7 @@ estimated_duration: 3m
 
 # Install Istio With istioctl
 
-Welcome to your first build mission, astronaut. The cluster has no Istio at all. You install mission control (`istiod`) with `istioctl` and the `demo` profile, confirm what the install created, bring a workload that is already running into the mesh, and prove that the control plane and the data plane run the same version.
+The cluster has no Istio at all. The learner installs the Istio control plane (`istiod`) with `istioctl` and the `demo` profile, confirms what the install created, brings a workload that is already running into the mesh, and proves that the control plane and the data plane run the same version.
 
 ## Launching the Lab
 

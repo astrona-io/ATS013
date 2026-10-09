@@ -31,9 +31,9 @@ Work through the modules in this order. Each part teaches one idea. A mission (a
 1. [The Render-And-Apply Pipeline](module-01/course-01-render-and-apply-pipeline.md)
 2. [Profiles And The Objects They Produce](module-01/course-02-profiles-and-installed-objects.md)
 3. [Injection And The Version Triad](module-01/course-03-injection-and-version-alignment.md)
-4. [Reconciliation And Clean Removal](module-01/course-04-reconciliation-and-removal.md)
    - Mission: [Install Istio With istioctl Lab](module-01/labs/lab-01/question.md)
-5. [Wrap-Up: Mission Debrief](module-01/course-05-wrap-up.md)
+4. [Reconciliation And Clean Removal](module-01/course-04-reconciliation-and-removal.md)
+5. [Summary](module-01/course-05-summary.md)
 
 ### [Install Istio With Helm](module-02/course.md)
 

@@ -1,12 +1,12 @@
 # Overview: Install Istio With istioctl (Playground)
 
-This is a **playground**, not a lab. Astronaut, it is your training solar system in the simulator. The environment starts clean, runs `bootstrap/prepare.sh`, and then waits. There is no task, no `astrona submit` and no pass or fail. Explore, break things, run `astrona destroy`, and start over.
+This is a **playground**, not a lab. The environment starts clean, runs `bootstrap/prepare.sh`, and then waits. There is no task, no `astrona submit` and no pass or fail. Explore, break things, run `astrona destroy`, and start over.
 
 ## What is in the box
 
 - A single-node `kind` Kubernetes cluster. `kubectl` already points at it. The context is `kind-astro-ats-013-playground-010-01`.
 - **`istioctl` 1.30.5** on your PATH: `/usr/local/bin/istioctl`, or `~/.local/bin/istioctl` if the first place was not writable. Confirm it with `istioctl version --remote=false`.
-- **No Istio in the cluster.** There is no `istio-system` namespace, no `networking.istio.io` CRDs (Custom Resource Definitions) and no injection webhook. Building mission control is the point of the module, so nothing is installed for you.
+- **No Istio in the cluster.** There is no `istio-system` namespace, no `networking.istio.io` CRDs (Custom Resource Definitions) and no injection webhook. Installing the control plane is the point of the module, so nothing is installed for you.
 
 ## Things to try
 
