@@ -296,6 +296,7 @@ playground actually runs it.
 | `logging-agent`, `batch-job` | `busybox:1.36` | Pods with no network role, used to show injection choices | `inject-demo` (section 020, module 2) |
 | `checkout-api`, `batch-runner`, `audit-shipper`, `nightly-report`, `order-api` | `nginx` / `busybox` / `curl` | Capstone workloads | `payments`, `legacy`, `orders` namespaces |
 | `catalog-api`, `storefront` | `nginx` / `curl` | Ambient capstone workloads | `ambient-shop` (section 040 capstone) |
+| `reporting-service` (Deployment and Service) | `nginx:1.27-alpine` | Second backend that stays on layer 4 while `notification-service` uses a service waypoint | `ambient-l7` (section 040, module 2, lab 2) |
 
 Namespaces are named after the module: `mesh-demo`, `inject-demo`,
 `canary-demo`, `inplace-demo`, `ambient-demo`, `ambient-l7`, plus
