@@ -288,8 +288,11 @@ modules:
         title: "How `helm upgrade` Computes Values"
         path: sections/section-030/module-01/course-02-how-upgrade-computes-values.md
       - type: reading
-        title: "Executing And Reverting An Upgrade"
-        path: sections/section-030/module-01/course-03-executing-and-reverting.md
+        title: "Upgrading In Order And Finishing The Job"
+        path: sections/section-030/module-01/course-03-upgrading-in-order-and-finishing.md
+      - type: reading
+        title: "Rolling Back And A Safe Procedure"
+        path: sections/section-030/module-01/course-04-rolling-back-and-a-safe-procedure.md
       - type: reading
         title: Question
         path: sections/section-030/module-01/labs/lab-01/question.md
@@ -312,6 +315,9 @@ modules:
             url: https://istio.io/latest/docs/releases/supported-releases/
           - name: "helm upgrade"
             url: https://helm.sh/docs/helm/helm_upgrade/
+      - type: reading
+        title: "Wrap-Up: Mission Debrief"
+        path: sections/section-030/module-01/course-05-wrap-up.md
 
       - type: reading
         title: "Canary Upgrade With Revisions And Revision Tags"
@@ -320,8 +326,11 @@ modules:
         title: "Revisions: A Named Control Plane"
         path: sections/section-030/module-02/course-01-revisions-a-named-control-plane.md
       - type: reading
-        title: "Selecting, Moving And Retiring A Revision"
-        path: sections/section-030/module-02/course-02-selecting-moving-retiring.md
+        title: "Moving A Namespace To A Revision"
+        path: sections/section-030/module-02/course-02-moving-a-namespace-to-a-revision.md
+      - type: reading
+        title: "Revision Tags"
+        path: sections/section-030/module-02/course-03-revision-tags.md
       - type: reading
         title: Question
         path: sections/section-030/module-02/labs/lab-01/question.md
@@ -344,6 +353,12 @@ modules:
             url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
           - name: "Resource annotations and labels"
             url: https://istio.io/latest/docs/reference/config/annotations/
+      - type: reading
+        title: "Retiring The Old Revision"
+        path: sections/section-030/module-02/course-04-retiring-the-old-revision.md
+      - type: reading
+        title: "Wrap-Up: Mission Debrief"
+        path: sections/section-030/module-02/course-05-wrap-up.md
 
       - type: reading
         title: "In-Place Upgrade Of The Control Plane"
@@ -376,6 +391,9 @@ modules:
             url: https://istio.io/latest/docs/releases/supported-releases/
           - name: "Install with istioctl"
             url: https://istio.io/latest/docs/setup/install/istioctl/
+      - type: reading
+        title: "Wrap-Up: Mission Debrief"
+        path: sections/section-030/module-03/course-03-wrap-up.md
 
       - type: reading
         title: "Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)"

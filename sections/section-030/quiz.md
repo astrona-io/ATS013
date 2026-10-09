@@ -1,6 +1,6 @@
 # Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)
 
-Test your understanding of Helm's value semantics, revisions and revision tags, version skew, and the ordering rules that decide whether an upgrade strands your workloads.
+Astronaut, check your flight log before the missions. These questions test how Helm handles values on an upgrade, revisions and revision tags, version skew, and the order of steps that decides whether an upgrade leaves your workloads stranded.
 
 ---
 
@@ -81,7 +81,7 @@ What does `istioctl install --set profile=minimal --set revision=1-30-5` create?
 
 **Correct Answer: B**
 
-*   **Why B is correct:** A revision suffixes every namespaced object the install owns, so names do not collide. Istio's reconciliation is scoped by the `istio.io/rev` ownership label, which means this install cannot see or prune the default revision's objects — that scoping is precisely what lets two control planes coexist. Installing a revision is completely non-disruptive: no running pod moves.
+*   **Why B is correct:** A revision adds its name as a suffix to every namespaced object the install owns, so names do not collide. Istio's reconciliation is scoped by the `istio.io/rev` ownership label, which means this install cannot see or prune the default revision's objects — that scoping is precisely what lets two control planes coexist. Installing a revision is completely non-disruptive: no running pod moves.
 *   **Why others are incorrect:**
     *   *Option A* describes an in-place upgrade, which is what happens when you omit `revision`.
     *   *Option C* describes `istioctl tag set`.
@@ -123,7 +123,7 @@ You have moved every namespace to revision `1-30-5` and restarted the workloads.
 
 **Correct Answer: B**
 
-*   **Why B is correct:** `--revision <name>` removes one named control plane and the objects labelled for it, leaving other revisions and the shared cluster-scoped resources — including the CRDs — intact. That is exactly what retiring a revision after a canary means.
+*   **Why B is correct:** `--revision <name>` removes one named control plane and the objects labelled for it, leaving other revisions and the shared cluster-wide resources intact, including the Custom Resource Definitions (CRDs). That is exactly what retiring a revision after a canary means.
 *   **Why others are incorrect:**
     *   *Option A* removes **every** revision, including the one you just promoted, plus the shared CRDs. This is the destructive mistake the section warns about repeatedly.
     *   *Option C* deletes one object and leaves its Service, webhook and cluster-scoped resources behind — a half-removed control plane that the next `precheck` will complain about.

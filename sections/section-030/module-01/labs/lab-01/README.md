@@ -1,9 +1,29 @@
-# Upgrade And Reconfigure Istio With Helm Sandbox
+---
+estimated_duration: 3m
+---
 
-Welcome to the Module 1 targeted practice sandbox. Istio 1.29.8 is installed through Helm with a non-default values file that no longer exists on disk. In this lab you'll recover that configuration, upgrade all three releases without losing any of it, make one deliberate mesh change, and finish the upgrade by restarting the data plane.
+# Upgrade And Reconfigure Istio With Helm
+
+Welcome to an upgrade mission, astronaut. Istio 1.29.8 runs as three Helm releases, and `istiod` was installed with a values file that no longer exists on disk. The only record of those settings is inside the release.
+
+Your job is to recover that configuration, upgrade all three releases to 1.30.5 without losing any of it, make one change to the mesh settings on the way, and finish the upgrade by restarting the data plane so no proxy is left on the old version.
 
 ## Launching the Lab
-Run the following command in your terminal to boot the kind Kubernetes cluster:
+
+Run this command to start the cluster with Istio 1.29.8 already installed:
+
 ```bash
-astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-030/module-01/labs/lab-01
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-030/module-01/labs/lab-01
+```
+
+When you think you have finished, send it for grading:
+
+```bash
+astrona submit -c sections/section-030/module-01/labs/lab-01
+```
+
+When you are done, remove the lab:
+
+```bash
+astrona destroy ats-013-lab-030-01
 ```
