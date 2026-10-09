@@ -1,155 +1,167 @@
-# Part 3 — What Injection Writes Into The Pod
+# What Injection Writes Into The Pod
 
-> Prerequisite: [Part 2 — The Precedence Rules](./course-02-the-precedence-rules.md). Next: [the module landing page](./course.md), then [Section 030 — Upgrading Istio](../../section-030/README.md).
+Sidecar injection decides *whether* a ship (a pod) gets a communications officer. This part is about *what* that means in the pod spec: which containers appear, how signals are sent into the proxy without the application knowing, and which ports do what.
 
-Parts 1 and 2 covered *whether* a pod gets injected. This part covers *what* that means in the pod spec: which containers appear, how traffic is redirected into the proxy without the application knowing, and which ports do what. Knowing this turns "the sidecar intercepts traffic" from a slogan into something you can verify and debug.
+Knowing this turns "the sidecar intercepts traffic" from a slogan into something you can check and debug.
 
 ## The patch, in summary
 
-With the `default` profile, injection adds:
+When `istiod` injects a pod, it hands the API server a patch. With the `default` profile, the patch adds:
 
-- **`istio-proxy`** — the Envoy sidecar container. It receives configuration from `istiod` over xDS and holds the workload's mTLS identity.
-- **`istio-init`** — an init container that runs `istio-iptables` to install the redirection rules. It needs `NET_ADMIN` and `NET_RAW`, runs to completion, and is gone before the application container starts.
-- **Volumes** — `istio-envoy` (the proxy's runtime config), `istio-data`, `istio-podinfo`, and `istio-token` (a projected service account token used to authenticate to `istiod` when requesting a certificate).
-- **Environment variables and annotations** describing the pod to the proxy — its service account, namespace, labels, and the `discoveryAddress` it should connect to.
+- **`istio-proxy`**: the Envoy sidecar, the communications officer. It receives its orders from `istiod` (mission control) and holds the workload's mTLS identity, its ID badge.
+- **`istio-init`**: an init container that runs `istio-iptables` to install the traffic rules. It needs the `NET_ADMIN` and `NET_RAW` capabilities, runs to the end, and is finished before the application starts.
+- **Volumes**: `istio-envoy` (the proxy's runtime configuration), `istio-data`, `istio-podinfo`, and `istio-token`. The last one is a short-lived service account token the proxy uses to prove who it is to `istiod` when it asks for a certificate.
+- **Environment variables and annotations** that describe the pod to the proxy: its service account, namespace, labels, and the `discoveryAddress` of `istiod`.
 
-The init container is the piece that makes the whole model work, so it is worth understanding rather than skimming.
+The init container is the piece that makes the whole model work, so it is worth understanding properly.
 
 ## How traffic gets redirected
 
-`istio-init` runs once, in the pod's network namespace, before any application container starts. It writes iptables rules into that namespace — which the pod's containers all share — so that:
+`istio-init` is the dock crew who rewire the ship's radio. It runs once, inside the pod's network namespace, before any application container starts. All containers in a pod share that network namespace, so the rules it writes apply to all of them.
 
-- **Outbound** traffic leaving the pod is redirected to port **15001** on localhost, where Envoy is listening.
-- **Inbound** traffic arriving at the pod is redirected to port **15006**, Envoy's inbound listener.
+### Two capture ports
+
+The rules send traffic to two ports on localhost, where Envoy listens:
+
+- **Outbound** traffic leaving the pod goes to port **15001**.
+- **Inbound** traffic arriving at the pod goes to port **15006**.
 
 ```mermaid
 flowchart LR
-    A["app container<br/>connects to notification-service:80"] --> T["iptables OUTPUT redirect<br/>installed by istio-init"]
-    T --> P["istio-proxy on :15001<br/>outbound listener"]
-    P --> N["applies routing, mTLS, retries, telemetry"]
-    N --> U["the upstream, over a connection the proxy opened"]
+    A["app container"] -->|"connect notification-service:80"| T["iptables rules"]
+    T -->|"redirect"| P["istio-proxy :15001"]
+    P -->|"routing, mTLS, telemetry"| U["upstream"]
 ```
 
-The application is not configured for any of this. The redirect is what makes the proxy unavoidable, and it is the only reason an unmodified application gets mesh behaviour at all.
+The diagram shows an outbound signal: the application connects as normal, the `iptables` rules written by `istio-init` send the connection to Envoy on port `15001`, and Envoy applies routing, mutual TLS and telemetry before it opens its own connection to the destination.
 
-That is the entire "no application changes required" claim, made concrete. The application opens a connection to `notification-service:80` exactly as it would without a mesh. The kernel redirects it. Envoy picks it up, decides where it really goes, encrypts it, and sends it on. Nothing in the application's code or configuration changed, and nothing in it can tell the difference.
+That is the whole "no application changes" claim, made concrete. The application opens a connection to `notification-service:80` exactly as it would without a mesh. The kernel redirects it. Envoy picks it up, decides where it really goes, encrypts it and sends it on. Nothing in the application's code or configuration changed, and nothing in it can tell.
 
-The ports are fixed and worth recognising in output:
+### The ports you will see
+
+The ports are fixed, and you will meet them in command output:
 
 | Port | Role |
 | --- | --- |
-| `15001` | Outbound capture — where redirected egress lands |
-| `15006` | Inbound capture — where redirected ingress lands |
-| `15008` | HBONE, used in ambient mode (section 040) |
+| `15001` | Outbound capture: where redirected outgoing traffic lands |
+| `15006` | Inbound capture: where redirected incoming traffic lands |
+| `15008` | HBONE, the tunnel used in ambient mode |
 | `15020` | Merged telemetry and the proxy's own health endpoint |
 | `15021` | Health checking, exposed by gateways and sidecars |
 | `15090` | Envoy's raw Prometheus metrics |
-| `15012` | On `istiod`'s side: the xDS and CA port sidecars dial |
+| `15012` | On `istiod`'s side: the port sidecars dial for their orders and certificates |
 
-## Reading the mutation rather than trusting it
+## Reading the change instead of trusting it
 
-`istioctl kube-inject` performs the same mutation **client-side**, writing the result to stdout instead of applying it. Read the name as **kube**rnetes-manifest **inject**: manifest in, injected manifest out.
+`istioctl kube-inject` makes the same change on your own machine and prints the result instead of applying it. Read the name as "Kubernetes manifest, inject": a manifest goes in, and an injected manifest comes out.
 
-It reads the cluster's live injection configuration — the `istio-sidecar-injector` ConfigMap and the mesh config — to do that, so its output reflects *your* control plane rather than a generic template. Two practical uses: inspecting exactly what injection would do before it happens, and producing manifests for a cluster where the webhook is unavailable or deliberately not used.
+It reads the cluster's live injection settings (the `istio-sidecar-injector` ConfigMap and the mesh configuration) to do that. So its output shows what *your* control plane would do, not a generic template. It has two practical uses: checking exactly what injection would do before it happens, and producing manifests for a cluster where the webhook is unavailable or not used on purpose.
 
-> [!TIP]
-> **Try it — read the containers and the capture ports**
->
-> ```sh
-> kubectl -n inject-demo get deployment notification-service -o yaml > notification-service.yaml
-> istioctl kube-inject -f notification-service.yaml | grep -E '^\s+- name: (istio-proxy|istio-init|notification-service)$'
-> istioctl kube-inject -f notification-service.yaml | grep -A8 'name: istio-init'
-> ```
->
-> Expect something like:
->
-> ```text
->       - name: notification-service
->       - name: istio-proxy
->       - name: istio-init
->
->       - name: istio-init
->         image: docker.io/istio/proxyv2:1.30.5
->         args:
->         - istio-iptables
->         - -p
->         - "15001"
->         - -z
->         - "15006"
->         - -u
->         - "1337"
->         - -m
->         - REDIRECT
-> ```
->
-> `-p 15001` is the outbound capture port and `-z 15006` the inbound one — the two numbers from the diagram, passed as arguments to the command that writes the rules. `-u 1337` is the UID Envoy runs as, excluded from redirection so the proxy's own traffic does not loop back into itself. Note the init container uses the *same* `proxyv2` image as the sidecar; it is one image with several entry points.
+### See it in your playground
+
+Save the `notification-service` Deployment to a file, run it through `kube-inject`, and pick out the containers and the `istio-init` arguments:
+
+<!-- astrona:playground:renew -->
+
+```sh
+kubectl -n inject-demo get deployment notification-service -o yaml > notification-service.yaml
+istioctl kube-inject -f notification-service.yaml | grep -E '^\s+- name: (istio-proxy|istio-init|notification-service)$'
+istioctl kube-inject -f notification-service.yaml | grep -A8 'name: istio-init'
+```
+
+Expect something like:
+
+```text
+      - name: notification-service
+      - name: istio-proxy
+      - name: istio-init
+
+      - name: istio-init
+        image: docker.io/istio/proxyv2:1.30.5
+        args:
+        - istio-iptables
+        - -p
+        - "15001"
+        - -z
+        - "15006"
+        - -u
+        - "1337"
+        - -m
+        - REDIRECT
+```
+
+`-p 15001` is the outbound capture port and `-z 15006` the inbound one: the two numbers from the diagram, passed to the command that writes the rules. `-u 1337` is the user ID Envoy runs as. Its traffic is left out of the redirect, so the proxy's own signals do not loop back into itself.
+
+Notice that the init container uses the *same* `proxyv2` image as the sidecar. It is one image with several entry points.
 
 ## The exclusions you can set
 
-Because redirection is iptables rules generated from arguments, the arguments are configurable per pod through annotations on the pod template. The ones worth knowing:
+The redirect rules are built from arguments, and you can change those arguments per pod with annotations on the pod template. This section lists the useful ones and shows one becoming a rule.
 
-- `traffic.sidecar.istio.io/excludeOutboundPorts` — outbound ports left un-captured.
-- `traffic.sidecar.istio.io/excludeInboundPorts` — inbound ports left un-captured.
-- `traffic.sidecar.istio.io/excludeOutboundIPRanges` — destinations left un-captured, commonly a database or a metadata endpoint.
-- `traffic.sidecar.istio.io/includeOutboundIPRanges` — the inverse: capture *only* these, letting everything else out directly.
+### Four annotations
 
-These are genuinely useful and genuinely dangerous. Traffic excluded from capture gets no mTLS, no authorization policy and no telemetry — it is outside the mesh while appearing to be inside it. Use them for a specific, documented reason, such as a protocol Envoy mishandles, and write the reason next to the annotation.
+- `traffic.sidecar.istio.io/excludeOutboundPorts`: outgoing ports that are not captured.
+- `traffic.sidecar.istio.io/excludeInboundPorts`: incoming ports that are not captured.
+- `traffic.sidecar.istio.io/excludeOutboundIPRanges`: destinations that are not captured, often a database or a metadata endpoint.
+- `traffic.sidecar.istio.io/includeOutboundIPRanges`: the opposite. Capture *only* these, and let everything else out directly.
+
+These are useful and dangerous at the same time. Traffic left out of capture gets no mTLS, no authorization policy and no telemetry. It is outside the mesh while the workload still looks meshed. Use them only for a specific reason, such as a protocol Envoy handles badly, and write the reason next to the annotation.
+
+### See it in your playground
+
+Add an exclusion for port `5432` to `notification-service`, wait for the rollout, and read the new `istio-init` arguments:
+
+```sh
+kubectl -n inject-demo patch deployment notification-service -p \
+  '{"spec":{"template":{"metadata":{"annotations":{"traffic.sidecar.istio.io/excludeOutboundPorts":"5432"}}}}}'
+kubectl -n inject-demo rollout status deployment notification-service --timeout=120s
+kubectl -n inject-demo get pod -l app=notification-service \
+  -o jsonpath='{.items[0].spec.initContainers[0].args}{"\n"}' | tr ',' '\n' | grep -A1 -- '-o'
+```
+
+Expect something like:
+
+```text
+"-o"
+"5432"
+```
+
+The annotation became an `-o 5432` argument to `istio-iptables`, which becomes an exception in the rules. Nothing about the annotation is magic: it is a value passed into a command line.
+
+Remove the exclusion again:
+
+```sh
+kubectl -n inject-demo patch deployment notification-service --type=json -p '[{"op":"remove","path":"/spec/template/metadata/annotations/traffic.sidecar.istio.io~1excludeOutboundPorts"}]'
+```
+
+## The Istio CNI plugin
+
+The init container needs `NET_ADMIN` and `NET_RAW`, and some clusters forbid those through Pod Security Standards. Istio's answer is the **Istio CNI plugin**: a DaemonSet that does the same network setup from the node, when the pod is created. The dock crew works from the launch pad instead of boarding the ship, so the pod itself needs no extra rights.
+
+With `istio-cni` installed, injection still adds the `istio-proxy` container. The `istio-init` container is replaced by a much smaller `istio-validation` init container, or left out entirely, depending on the settings. The traffic redirect is the same; only who writes the rules changes.
+
+This matters for two reasons. First, if you inspect a pod on a cluster with the CNI plugin and find no `istio-init`, the pod is not broken. Second, ambient mode *requires* the CNI plugin: it is how a workload can join the mesh without any change to the pod.
+
+## Good habits for real clusters
+
+**Namespace label for the default, pod label for the exception.** A namespace-wide rule with a few documented per-workload overrides is far easier to check than labels on every workload. Keep the overrides in the manifests, in version control, with a comment saying why.
+
+**Restarts have a real cost.** Turning on injection across a busy namespace means replacing every pod in it. Check `PodDisruptionBudget`s, go one Deployment at a time, and expect slightly slower pod starts afterwards.
+
+**`istioctl proxy-status` is the cross-check.** Counting containers tells you what the pod spec says. `proxy-status` is a roll call: it tells you which workloads mission control is actually serving. A workload in one list but not the other is a real problem, often a proxy that cannot reach `istiod` on port `15012`.
 
 > [!TIP]
-> **Try it — see an exclusion change the generated rules**
->
-> ```sh
-> kubectl -n inject-demo patch deployment notification-service -p \
->   '{"spec":{"template":{"metadata":{"annotations":{"traffic.sidecar.istio.io/excludeOutboundPorts":"5432"}}}}}'
-> kubectl -n inject-demo rollout status deployment notification-service --timeout=120s
-> kubectl -n inject-demo get pod -l app=notification-service \
->   -o jsonpath='{.items[0].spec.initContainers[0].args}{"\n"}' | tr ',' '\n' | grep -A1 -- '-o'
-> ```
->
-> Expect something like:
->
-> ```text
-> "-o"
-> "5432"
-> ```
->
-> The annotation became an `-o 5432` argument on `istio-iptables`, which becomes an exception in the generated rules. Nothing about the annotation is magic — it is a value threaded into a command line. Remove it again with `kubectl -n inject-demo patch deployment notification-service --type=json -p '[{"op":"remove","path":"/spec/template/metadata/annotations/traffic.sidecar.istio.io~1excludeOutboundPorts"}]'`.
+> Before you mesh a workload you do not know well, run `istioctl kube-inject -f` on its manifest and read what would be added. It costs nothing, needs no restart, and shows the exact containers, ports and exclusions your control plane would apply.
 
-## The CNI variant
-
-The init container needs `NET_ADMIN` and `NET_RAW`, which some clusters forbid outright through Pod Security Standards. Istio's answer is the **Istio CNI plugin**: a DaemonSet that performs the same network-namespace setup from the node, at pod creation time, so the pod itself needs no elevated capabilities.
-
-When `istio-cni` is installed, injection still adds the `istio-proxy` container but the `istio-init` container is replaced by a much smaller `istio-validation` init container — or omitted entirely, depending on configuration. The traffic redirection is identical; only who writes the rules changes.
-
-This matters here for two reasons. First, if you inspect a pod on a CNI-enabled cluster and find no `istio-init`, the pod is not broken. Second, ambient mode in section 040 *requires* the CNI plugin — it is how enrollment can take effect without touching the pod at all.
-
-> [!WARNING]
 ## Common pitfalls
 
 > [!WARNING]
-> **Assuming a missing `istio-init` means injection failed.** On a CNI-enabled cluster it is expected. Check for the `istio-proxy` container instead.
+> **Assuming a missing `istio-init` means injection failed.** On a cluster with the Istio CNI plugin it is expected. Look for the `istio-proxy` container instead.
 >
-> **Excluding ports or IP ranges without recording why.** Excluded traffic silently leaves the mesh: no mTLS, no authorization, no telemetry, while the workload still looks meshed.
+> **Excluding ports or address ranges without writing down why.** Excluded traffic silently leaves the mesh: no mTLS, no authorization, no telemetry, while the workload still looks meshed.
 >
-> **Applications that connect at startup.** An injected pod has one more container to pull and start, and an app that opens connections immediately can race the proxy. `meshConfig.defaultConfig.holdApplicationUntilProxyReady: true` fixes it at the cost of slower starts — an install-time setting, covered in [the customisation module](../module-01/course-01-the-four-configuration-layers.md).
+> **Applications that connect the moment they start.** An injected pod has one more container to pull and start, and an application that connects right away can race the proxy. `meshConfig.defaultConfig.holdApplicationUntilProxyReady: true` fixes it at the cost of slower starts. It is an installation setting in the `meshConfig` layer of the `IstioOperator` document.
 >
-> **Expecting `istioctl kube-inject` output to be version-neutral.** It renders against the live cluster's configuration, so output from one cluster is not portable to another running a different version.
+> **Expecting `istioctl kube-inject` output to work everywhere.** It renders against the live cluster's settings, so output from one cluster is not portable to another running a different version.
 >
-> **Forgetting gateways are not injected.** An ingress or egress gateway is a standalone Envoy Deployment from the profile or gateway chart. Injection labels on its namespace do not apply to it.
-
-## Operational considerations
-
-**Namespace label for the default, pod label for the exception.** A namespace-wide policy with a handful of documented per-workload overrides is far easier to audit than per-workload labels everywhere. Keep the overrides in the manifests, in version control, with a comment saying why.
-
-**Restarts are a real cost.** Enabling injection across a busy namespace means replacing every pod in it. Check `PodDisruptionBudget`s, go per Deployment rather than all at once, and expect marginally slower pod starts afterwards.
-
-**`istioctl proxy-status` is the cross-check.** Counting containers tells you what the pod spec says. `proxy-status` tells you which workloads the control plane is actually serving. A workload in one list but not the other is a real problem worth chasing — commonly a proxy that cannot reach `istiod` on port 15012.
-
-> *Injection adds a proxy and an init container that writes iptables rules redirecting the pod's traffic to ports 15001 and 15006 — the application never learns anything changed.*
-
-## Reference
-
-- [Sidecar injection annotations](https://istio.io/v1.30/docs/reference/config/annotations/) — every `traffic.sidecar.istio.io/*` exclusion and its effect.
-- [Traffic capture and ports](https://istio.io/v1.30/docs/ops/deployment/application-requirements/) — the reserved port list and what Istio expects of an application.
-- [Istio CNI plugin](https://istio.io/v1.30/docs/setup/additional-setup/cni/) — the init-container-free variant and why it exists.
-- [istioctl kube-inject](https://istio.io/v1.30/docs/reference/commands/istioctl/#istioctl-kube-inject) — flags, including rendering against a local config instead of the cluster.
+> **Forgetting gateways are not injected.** An ingress or egress gateway is a standalone Envoy Deployment from the profile or the gateway chart. Injection labels on its namespace do not apply to it.

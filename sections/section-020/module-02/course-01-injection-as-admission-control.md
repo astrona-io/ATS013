@@ -1,169 +1,177 @@
-# Part 1 — Injection As Admission Control
+# Injection As Admission Control
 
-> Prerequisite: [the module landing page](./course.md). Next: [Part 2 — The Precedence Rules](./course-02-the-precedence-rules.md).
+Sidecar injection puts a communications officer, the `istio-proxy` sidecar container, on board a ship (a pod) when it launches. It is not an Istio feature bolted onto Kubernetes. It uses a standard Kubernetes extension point, and Istio simply registers a handler for it.
 
-Injection is not an Istio feature bolted onto Kubernetes; it is a standard Kubernetes extension point that Istio registers a handler for. Once you have the admission path in your head, the two rules that trip everyone up stop being facts to memorise and become things you can derive. This part builds that path.
+Once you have that path in your head, the two rules that trip everyone up stop being facts to memorise. You can work them out yourself. This part builds that path.
 
 ## The path a pod takes
 
+Every new pod passes through the Kubernetes API server, the solar system's registry office, before it is stored and scheduled. Injection happens there, at one exact moment.
+
+### Mutating admission
+
+Before the API server stores a new object, it runs admission: a set of checks, some of which may change the object. A mutating admission webhook is a dock inspector the registry office calls before it files a new ship. The inspector may hand back changes. Istio's inspector is `istiod`, and its change is "add a communications officer".
+
 ```mermaid
 flowchart TD
-    A["kubectl apply, a Deployment"] --> B["Deployment controller creates a ReplicaSet,<br/>which creates a Pod object"]
-    B --> C["API SERVER: authentication, then authorization,<br/>then MUTATING ADMISSION"]
-    C --> D{"does the webhook selector match<br/>this pod and its namespace"}
-    D -->|"no"| S["skip: the pod is stored unchanged"]
-    D -->|"yes"| P["POST the pod object to istiod's /inject endpoint"]
-    P --> J["istiod returns a JSON patch:<br/>istio-proxy container, istio-init, volumes, env, annotations"]
-    J --> ST["the patched pod is stored, then scheduled"]
+    A["Deployment"] -->|"controller creates"| B["Pod object"]
+    B --> C["API server: mutating admission"]
+    C --> D{"webhook selectors match?"}
+    D -->|"no"| S["pod stored unchanged"]
+    D -->|"yes"| P["istiod /inject"]
+    P -->|"JSON patch"| ST["patched pod stored"]
 ```
 
-Injection is an API-server concern, not a scheduling one. By the time a pod exists on a node the decision is already made and permanent for that pod.
+The diagram shows that the Deployment controller creates the Pod object, the API server runs mutating admission, and only if the webhook's selectors match does it send the pod to `istiod`. `istiod` returns a patch that adds the `istio-proxy` container, the `istio-init` container, volumes, environment variables and annotations.
 
-Two structural facts fall out of that, and between them they cover most injection questions.
+Injection is a job for the API server, not for the scheduler. By the time a pod is on a node, the decision is made, and it is final for that pod.
 
-**The webhook is called for Pods, not Deployments.** Istio's handler is registered against the `pods` resource on the `CREATE` operation. It never sees your Deployment. That is why every label that influences injection has to be somewhere the *pod* carries it — the topic of Part 2.
+### Two facts that follow
 
-**The decision happens once, when the pod is created.** Mutating admission runs between the object being submitted and being stored. There is no controller watching for namespaces that became eligible later, because admission is not a reconciliation loop. A pod that was stored without a sidecar will never grow one; the only way to change its status is to replace it.
+Two facts follow from that path, and together they answer most injection questions.
+
+**The webhook is called for Pods, not Deployments.** Istio's handler is registered for the `pods` resource and the `CREATE` operation. It never sees your Deployment. So every label that affects injection must be somewhere the *pod* carries it.
+
+**The decision happens once, when the pod is created.** Mutating admission runs between the moment an object is sent and the moment it is stored. Nothing watches for namespaces that become eligible later, because admission is not a loop that keeps checking. A pod stored without a sidecar never grows one. The only way to change it is to replace the pod.
 
 ## The two webhook entries
 
-Istio registers one `MutatingWebhookConfiguration` — `istio-sidecar-injector` — containing **two** webhook entries. Both point at the same `istiod` endpoint; what differs is the selector that decides when each fires.
+Istio registers one `MutatingWebhookConfiguration` named `istio-sidecar-injector`, and it holds **two** webhook entries. Both send the pod to the same `istiod` endpoint. What differs is the selector that decides when each one fires.
+
+### Which entry fires when
 
 | Entry | Fires when | Purpose |
 | --- | --- | --- |
 | `namespace.sidecar-injector.istio.io` | the **namespace** carries an injection label | The namespace-level opt-in |
 | `object.sidecar-injector.istio.io` | the **pod** carries `sidecar.istio.io/inject: "true"` | The per-workload override, in a namespace that has not opted in |
 
-That split is the mechanism behind "a pod label can force injection in an unlabelled namespace". It is not a special case inside `istiod`; it is a second webhook entry with a different selector. Kubernetes evaluates both, and a match on either sends the pod to `istiod`.
+That split is why a pod label can force injection in an unlabelled namespace. It is not a special case inside `istiod`. It is a second webhook entry with a different selector. Kubernetes checks both, and a match on either sends the pod to `istiod`.
 
 Two selector fields do the work:
 
-- **`namespaceSelector`** — a label selector evaluated against the *namespace object*. This is the mechanical reason the namespace label exists.
-- **`objectSelector`** — a label selector evaluated against the *pod being admitted*.
+- **`namespaceSelector`** is a label selector checked against the *namespace object*. This is why the namespace label exists at all.
+- **`objectSelector`** is a label selector checked against the *pod being admitted*.
 
-> [!TIP]
-> **Try it — read the selectors the webhook enforces**
->
-> ```sh
-> kubectl get mutatingwebhookconfiguration istio-sidecar-injector \
->   -o jsonpath='{range .webhooks[*]}{"── "}{.name}{"\n  resources: "}{.rules[0].resources}{"\n  operations: "}{.rules[0].operations}{"\n  nsSelector: "}{.namespaceSelector}{"\n  objSelector: "}{.objectSelector}{"\n\n"}{end}'
-> ```
->
-> Expect something like:
->
-> ```text
-> ── namespace.sidecar-injector.istio.io
->   resources: ["pods"]
->   operations: ["CREATE"]
->   nsSelector: {"matchExpressions":[{"key":"istio-injection","operator":"In","values":["enabled"]},...]}
->   objSelector: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"NotIn","values":["false"]}]}
->
-> ── object.sidecar-injector.istio.io
->   resources: ["pods"]
->   operations: ["CREATE"]
->   nsSelector: {"matchExpressions":[{"key":"istio-injection","operator":"NotIn","values":["enabled"]},...]}
->   objSelector: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"In","values":["true"]}]}
-> ```
->
-> `resources: ["pods"]` and `operations: ["CREATE"]` are the two facts everything else follows from. Read the two entries as a pair: the first says "namespace opted in, and the pod did not opt out"; the second says "namespace did not opt in, but the pod opted in". Between them they cover the four combinations, and Part 2 turns that into a decision table.
+### See it in your playground
+
+Read the selectors straight out of the webhook configuration:
+
+<!-- astrona:playground:renew -->
+
+```sh
+kubectl get mutatingwebhookconfiguration istio-sidecar-injector \
+  -o jsonpath='{range .webhooks[*]}{"── "}{.name}{"\n  resources: "}{.rules[0].resources}{"\n  operations: "}{.rules[0].operations}{"\n  nsSelector: "}{.namespaceSelector}{"\n  objSelector: "}{.objectSelector}{"\n\n"}{end}'
+```
+
+Expect something like:
+
+```text
+── namespace.sidecar-injector.istio.io
+  resources: ["pods"]
+  operations: ["CREATE"]
+  nsSelector: {"matchExpressions":[{"key":"istio-injection","operator":"In","values":["enabled"]},...]}
+  objSelector: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"NotIn","values":["false"]}]}
+
+── object.sidecar-injector.istio.io
+  resources: ["pods"]
+  operations: ["CREATE"]
+  nsSelector: {"matchExpressions":[{"key":"istio-injection","operator":"NotIn","values":["enabled"]},...]}
+  objSelector: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"In","values":["true"]}]}
+```
+
+`resources: ["pods"]` and `operations: ["CREATE"]` are the two facts everything else follows from. Read the entries as a pair. The first says "the namespace opted in, and the pod did not opt out". The second says "the namespace did not opt in, but the pod opted in". Together they cover all four combinations.
 
 ## The starting state, and why nothing has a sidecar
 
-With the selectors in hand, the playground's opening state is predictable rather than something to discover. `inject-demo` was created with no injection label at all, so neither webhook entry can match: the namespace has not opted in, and no pod template carries `sidecar.istio.io/inject: "true"`. Checking it is worth thirty seconds, because it establishes that "one container per pod" is the *expected* state here and not a fault — and because every later step is measured against it.
+With the selectors in hand, you can predict the playground's starting state. `inject-demo` was created with no injection label at all, so neither entry can match: the namespace has not opted in, and no pod template carries `sidecar.istio.io/inject: "true"`.
 
-> [!TIP]
-> **Try it — confirm the namespace does not match**
->
-> ```sh
-> kubectl get ns inject-demo --show-labels
-> kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME          STATUS   AGE    LABELS
-> inject-demo   Active   4m2s   kubernetes.io/metadata.name=inject-demo
->
-> POD                        CONTAINERS
-> batch-job-...              batch-job
-> logging-agent-...          logging-agent
-> notification-service-...   notification-service
-> ```
->
-> The only label is the one Kubernetes adds automatically. Neither webhook entry matches — no namespace opt-in and no pod-level `"true"` — so `istiod` is never consulted and all three pods have exactly one container.
+### See it in your playground
 
-## Labelling, and why it appears to do nothing
+Check the namespace labels and the containers in each pod:
 
-Adding `istio-injection=enabled` to the namespace makes the first webhook entry match. For pods created from that moment on.
+```sh
+kubectl get ns inject-demo --show-labels
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+```
 
-> [!TIP]
-> **Try it — label the namespace and watch nothing change**
->
-> ```sh
-> kubectl label namespace inject-demo istio-injection=enabled
-> kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
-> ```
->
-> Expect something like:
->
-> ```text
-> namespace/inject-demo labeled
->
-> POD                        CONTAINERS
-> batch-job-...              batch-job
-> logging-agent-...          logging-agent
-> notification-service-...   notification-service
-> ```
->
-> The label is on and every pod still has one container. This is not a delay, and waiting will not fix it — those pods were admitted before the webhook applied to them, and admission is a one-time event per object.
+Expect something like:
 
-Recreating the pods is what completes the change. `kubectl rollout restart deployment` is the right tool: it replaces pods through the Deployment controller, gradually, so the service stays up while the new pods go through admission.
+```text
+NAME          STATUS   AGE    LABELS
+inject-demo   Active   4m2s   kubernetes.io/metadata.name=inject-demo
 
-> [!TIP]
-> **Try it — restart, and watch the mesh appear**
->
-> ```sh
-> kubectl -n inject-demo rollout restart deployment notification-service logging-agent batch-job
-> kubectl -n inject-demo rollout status deployment notification-service --timeout=120s
-> kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
-> ```
->
-> Expect something like:
->
-> ```text
-> POD                        CONTAINERS
-> batch-job-...              batch-job,istio-proxy
-> logging-agent-...          logging-agent,istio-proxy
-> notification-service-...   notification-service,istio-proxy
-> ```
->
-> All three now carry `istio-proxy` — including the two that should not. The namespace label is a blunt instrument that applies to everything in the namespace, which is exactly why the per-workload overrides in Part 2 exist.
+POD                        CONTAINERS
+batch-job-...              batch-job
+logging-agent-...          logging-agent
+notification-service-...   notification-service
+```
+
+The only label is the one Kubernetes adds by itself. Neither webhook entry matches, so `istiod` is never asked, and each pod has exactly one container. That is the *expected* state here, not a fault, and every later step is measured against it.
+
+## Labelling, and why it seems to do nothing
+
+Adding `istio-injection=enabled` to the namespace is a planet-wide order: every new ship launched here gets a communications officer. It makes the first webhook entry match, for pods created from that moment on.
+
+### See it in your playground
+
+Label the namespace, then look at the pods again:
+
+```sh
+kubectl label namespace inject-demo istio-injection=enabled
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+```
+
+Expect something like:
+
+```text
+namespace/inject-demo labeled
+
+POD                        CONTAINERS
+batch-job-...              batch-job
+logging-agent-...          logging-agent
+notification-service-...   notification-service
+```
+
+The label is on, and every pod still has one container. This is not a delay, and waiting will not fix it. Those pods were admitted before the webhook applied to them, and admission happens once per object.
+
+### Restart, and watch the mesh appear
+
+Recreating the pods completes the change. `kubectl rollout restart deployment` is the right tool: the Deployment controller replaces the pods a few at a time, so the service stays up while the new pods pass through admission.
+
+```sh
+kubectl -n inject-demo rollout restart deployment notification-service logging-agent batch-job
+kubectl -n inject-demo rollout status deployment notification-service --timeout=120s
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+```
+
+Expect something like:
+
+```text
+POD                        CONTAINERS
+batch-job-...              batch-job,istio-proxy
+logging-agent-...          logging-agent,istio-proxy
+notification-service-...   notification-service,istio-proxy
+```
+
+All three now carry `istio-proxy`, including `logging-agent`, which should not. The namespace label is a blunt tool that applies to every pod in the namespace. That is exactly why per-workload overrides exist.
 
 ## What happens when the webhook cannot be reached
 
-The webhook configuration carries a `failurePolicy`, and Istio sets it to `Fail`. That means if the API server cannot reach `istiod`, pod creation in a matching namespace is **rejected** rather than silently proceeding without a sidecar.
+The webhook configuration has a `failurePolicy`, and Istio sets it to `Fail`. If the API server cannot reach `istiod`, creating a pod in a matching namespace is **refused**. It does not quietly go ahead without a sidecar.
 
-That is the right default — silently un-injected pods in a mesh enforcing STRICT mTLS would be worse — but it has a consequence worth knowing before it happens at 3am: a control plane outage does not just stop configuration updates, it stops pods from starting in every injected namespace. Existing pods keep running; new ones cannot be scheduled.
+That is the right default: pods silently missing their sidecar in a mesh that demands mTLS (mutual TLS, the secret handshake both ships do before they talk) would be worse. But know the cost before it bites you at 3am. A control plane outage does not only stop configuration updates. It stops new pods from starting in every injected namespace. Running pods keep running; new ones are refused.
 
-This is also why a stale webhook configuration left over from a removed install is so disruptive, and why `istioctl x precheck` looks for exactly that.
+It is also why a stale webhook configuration, left behind by a removed install, causes so much trouble, and why `istioctl x precheck` looks for exactly that.
 
-> *The webhook fires on Pod CREATE only, selected by namespace or by pod label — every injection surprise is a consequence of those two words.*
+In short: the webhook fires on Pod `CREATE` only, selected by the namespace or by a pod label. Every injection surprise follows from those words.
 
 ## Common pitfalls
 
 > [!WARNING]
-> **Labelling a namespace and expecting existing pods to change.** The decision is made at admission. Label first, then recreate the pods.
+> **Labelling a namespace and expecting running pods to change.** The decision is made at admission. Label first, then recreate the pods.
 >
 > **Reading a missing sidecar as a broken webhook.** The far more common cause is a selector that does not match, or a pod created before the label existed.
 >
-> **Forgetting the webhook is in the request path.** If `istiod` is unreachable, pod creation in injected namespaces is affected — the `failurePolicy` decides whether it fails open or closed.
+> **Forgetting the webhook is in the request path.** If `istiod` cannot be reached, creating pods in injected namespaces fails, because Istio sets `failurePolicy: Fail`.
 >
 > **Assuming injection is retried.** It happens once, for that pod object, and never again.
-
-## Reference
-
-- [Installing the sidecar](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — Istio's own description of the automatic injection path.
-- [Dynamic admission control](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) — `namespaceSelector`, `objectSelector`, `failurePolicy` and the rest of the extension point.
-- [Admission webhook good practices](https://kubernetes.io/docs/concepts/cluster-administration/admission-webhooks-good-practices/) — why `failurePolicy: Fail` has the blast radius it does.
-- `kubectl explain mutatingwebhookconfiguration.webhooks` — the field reference for what you just read out of the cluster.

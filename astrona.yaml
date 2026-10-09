@@ -192,6 +192,9 @@ modules:
             url: https://istio.io/latest/docs/reference/config/istio.operator.v1alpha1/
           - name: "Global mesh options"
             url: https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
+      - type: reading
+        title: "Wrap-Up: Mission Debrief"
+        path: sections/section-020/module-01/course-04-wrap-up.md
 
       - type: reading
         title: "Control Sidecar Injection"
@@ -202,9 +205,6 @@ modules:
       - type: reading
         title: "The Precedence Rules"
         path: sections/section-020/module-02/course-02-the-precedence-rules.md
-      - type: reading
-        title: "What Injection Writes Into The Pod"
-        path: sections/section-020/module-02/course-03-what-injection-writes.md
       - type: reading
         title: Question
         path: sections/section-020/module-02/labs/lab-01/question.md
@@ -225,6 +225,12 @@ modules:
             url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
           - name: "Resource annotations and labels"
             url: https://istio.io/latest/docs/reference/config/annotations/
+      - type: reading
+        title: "What Injection Writes Into The Pod"
+        path: sections/section-020/module-02/course-03-what-injection-writes.md
+      - type: reading
+        title: "Wrap-Up: Mission Debrief"
+        path: sections/section-020/module-02/course-04-wrap-up.md
 
       - type: reading
         title: "Section 020 Knowledge Check: Customizing Your Istio Installation"

@@ -1,10 +1,12 @@
 # Solution Walkthrough
 
-Follow these steps to write an [`IstioOperator`](https://istio.io/v1.30/docs/reference/config/istio.operator.v1alpha1/) that deviates from `demo` in three layers and prove each change landed.
+Mission debrief, astronaut. You write one `IstioOperator` file that changes the `demo` blueprint in three layers, check it before you build, apply it, and prove each change landed where its layer puts it.
 
 ---
 
-## Step 1: Read the Baseline First
+## Step 1: Read the starting state first
+
+List the Deployments in `istio-system`, and look for the two mesh settings in the `istio` ConfigMap:
 
 ```sh
 kubectl -n istio-system get deploy
@@ -20,14 +22,15 @@ istiod                 1/1     1            1           3m
 (neither key is present)
 ```
 
-Absence is meaningful. The stock `demo` profile sets neither `accessLogFile` nor `outboundTrafficPolicy`, so the built-in defaults apply. Those two keys appearing later is how you will know your document took effect.
+The missing keys mean something. The stock `demo` profile sets neither `accessLogFile` nor `outboundTrafficPolicy`, so the built-in defaults apply. When those two keys appear later, you know your document took effect.
 
 ---
 
-## Step 2: Write the Document
+## Step 2: Write the document
 
-```sh
-cat > istio-custom.yaml <<'YAML'
+Save this as `istio-custom.yaml`:
+
+```yaml
 apiVersion: install.istio.io/v1alpha1
 kind: IstioOperator
 spec:
@@ -45,21 +48,22 @@ spec:
     accessLogFile: /dev/stdout
     outboundTrafficPolicy:
       mode: REGISTRY_ONLY
-YAML
 ```
 
 Three requirements, two layers:
 
-*   **`spec.components`** decides *what is deployed and how big*. `egressGateways` removes a Deployment; `pilot.k8s.resources` changes a field on a pod template. `pilot` is the historical name of the component that became `istiod`, and `k8s:` is the fixed sub-key for Kubernetes-level settings.
-*   **`spec.meshConfig`** decides *how the deployed things behave*. It ends up verbatim in the `istio` ConfigMap.
+*   **`spec.components`** decides *what is deployed and how big*. `egressGateways` removes a Deployment, and `pilot.k8s.resources` changes a field on a pod template. `pilot` is the old name of the component that became `istiod`, and `k8s:` is the fixed sub-key for Kubernetes settings.
+*   **`spec.meshConfig`** decides *how the deployed things behave*. It ends up word for word in the `istio` ConfigMap.
 
-Keeping `profile: demo` is what preserves the ingress gateway. The document is a deviation *from* `demo`, not a replacement for it.
+Keeping `profile: demo` is what keeps the ingress gateway. The document is a change *to* `demo`, not a replacement for it.
 
 ---
 
-## Step 3: Check Before You Apply
+## Step 3: Check before you apply
 
-`components.egressGateways` is a **list**, and entries are matched against the profile's entries by `name`. A typo does not error — it defines a *new*, disabled gateway and leaves the original running.
+`components.egressGateways` is a **list**, and Istio matches its entries against the profile's entries by `name`. A typo does not cause an error. It defines a *new*, disabled gateway and leaves the original running.
+
+Validate the file, and count the egress gateway objects in the rendered result:
 
 ```sh
 istioctl validate -f istio-custom.yaml
@@ -68,16 +72,12 @@ istioctl manifest generate -f istio-custom.yaml | grep -c '^  name: istio-egress
 
 ```text
 "istio-custom.yaml" is valid
-
-    - enabled: false
-      k8s:
-        ...
-      name: istio-egressgateway
+0
 ```
 
-One entry, `enabled: false`, under the name the profile actually uses. If the dump showed *two* egress gateway entries, one enabled and one not, the name is wrong.
+Zero egress gateway objects means your entry matched the profile's `istio-egressgateway`. If the count is not zero, the name in your file is wrong.
 
-`istioctl validate` checks the schema; `profile dump -f` shows the rendered result. The second is the stronger check — if your override is not in the dump, it did not take, whatever the reason.
+`istioctl validate` checks the schema. `istioctl manifest generate -f` shows the rendered result, and it is the stronger check: if your change is not in the rendered output, it did not take, whatever the reason.
 
 ---
 
@@ -94,11 +94,13 @@ istioctl install -f istio-custom.yaml -y
 ✔ Installation complete
 ```
 
-Read the summary: "Egress gateways installed" is gone, "Ingress gateways installed" is still there. That is reconciliation removing a component your new document omits — the same mechanism that would delete *both* gateways if you had switched to `minimal`.
+Read the summary. "Egress gateways installed" is gone, and "Ingress gateways installed" is still there. That is `istioctl install` removing a component your new document turns off, while `profile: demo` keeps the other one.
 
 ---
 
-## Step 5: Verify Each Layer Where That Layer Lands
+## Step 5: Check each layer where it lands
+
+Look at the Deployments, the CPU request of `istiod`, and the two mesh keys:
 
 ```sh
 kubectl -n istio-system get deploy
@@ -118,7 +120,7 @@ outboundTrafficPolicy:
   mode: REGISTRY_ONLY
 ```
 
-Three layers, three different places the result shows up: a Deployment disappeared, a field on a pod spec changed, and two keys appeared in a ConfigMap.
+Three layers, three different places: a Deployment disappeared, a field on a pod spec changed, and two keys appeared in a ConfigMap.
 
 Confirm the mesh still works:
 
@@ -133,9 +135,9 @@ notification-service-6c8f9d7b5c-t7wqx   notification-service,istio-proxy
 
 ---
 
-## Step 6: See `REGISTRY_ONLY` Do Something
+## Step 6: See `REGISTRY_ONLY` do something
 
-Worth doing once, because this setting is the one people enable by accident:
+This step is optional, but worth doing once, because people often turn this setting on by accident. Try to reach a public website from the meshed workload:
 
 ```sh
 kubectl -n mesh-demo exec deploy/notification-service -c notification-service -- \
@@ -146,7 +148,7 @@ kubectl -n mesh-demo exec deploy/notification-service -c notification-service --
 exit=1
 ```
 
-The external host is refused by the sidecar. `REGISTRY_ONLY` blocks every destination that is not in the mesh registry — not a Kubernetes Service and not declared with a `ServiceEntry`. That is the setting working, not the mesh breaking.
+The sidecar refuses the external host. `REGISTRY_ONLY` blocks every destination that is not in the mesh registry: not a Kubernetes Service, and not added with a `ServiceEntry`. That is the setting working, not the mesh breaking.
 
 ---
 
@@ -156,28 +158,15 @@ The external host is refused by the sidecar. `REGISTRY_ONLY` blocks every destin
 astrona submit
 ```
 
-The grader checks that no egress gateway Deployment exists anywhere, that `istio-ingressgateway` is still ready, that `istiod` requests `100m` CPU, that both `accessLogFile` and `REGISTRY_ONLY` are in the live mesh ConfigMap, and that `mesh-demo` is still labelled with a running injected pod.
+The grader checks that no egress gateway Deployment exists anywhere, that `istio-ingressgateway` is still ready, that `istiod` requests `100m` CPU, that both `accessLogFile: /dev/stdout` and `REGISTRY_ONLY` are in the live mesh ConfigMap, and that `mesh-demo` is still labelled with a running, ready pod that has its `istio-proxy`.
 
 ---
 
 ## Common Mistakes
 
-*   **Reaching for `minimal` to drop the egress gateway.** It drops the ingress gateway too, and the grader checks for it specifically. Override one component of `demo` instead.
+*   **Switching to `minimal` to drop the egress gateway.** It drops the ingress gateway too, and the grader checks for it. Change one component of `demo` instead.
 *   **A typo in the component `name`.** `istio-egress-gateway` matches nothing in the profile, so Istio adds a second, disabled entry and leaves the original running. `istioctl manifest generate -f` still shows the original egress gateway objects.
 *   **Indenting `meshConfig` under `components`.** Misplaced keys become unknown fields and are ignored. The install succeeds and the ConfigMap is unchanged.
-*   **Applying with `--set` only.** It passes, and it leaves no artifact — so the next person has no idea what the cluster is supposed to look like, and the next install reverts it.
-*   **Expecting external traffic to keep working.** `REGISTRY_ONLY` is deny-by-default for outbound. On a real cluster, inventory your outbound dependencies before enabling it.
-*   **Assuming `istioctl validate` is enough.** It checks the schema, not whether your override matched anything. `profile dump -f` is the check that catches an unmatched list name.
-
----
-
-## Reference
-
-The official documentation for everything this task touches — open these rather than trying to recall field names:
-
-- [istioctl installation](https://istio.io/v1.30/docs/setup/install/istioctl/) — `istioctl install`, `--set`, and what the command actually applies
-- [IstioOperator API](https://istio.io/v1.30/docs/reference/config/istio.operator.v1alpha1/) — every field the install API accepts
-- [Configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what each built-in profile turns on
-- [Global mesh options](https://istio.io/v1.30/docs/reference/config/istio.mesh.v1alpha1/) — every mesh-wide setting and its default
-- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
-- [Installing gateways](https://istio.io/v1.30/docs/setup/additional-setup/gateway/) — deploying gateways separately from the control plane
+*   **Applying with `--set` only.** It passes, but it leaves no file behind. The next person has no idea what the cluster should look like, and the next install reverts it.
+*   **Expecting external traffic to keep working.** `REGISTRY_ONLY` blocks outbound traffic by default. On a real cluster, list your outbound dependencies before you turn it on.
+*   **Trusting `istioctl validate` alone.** It checks the schema, not whether your change matched anything. `istioctl manifest generate -f` is the check that catches a list name that matches nothing.

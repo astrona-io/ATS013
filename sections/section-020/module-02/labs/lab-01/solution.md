@@ -1,10 +1,12 @@
 # Solution Walkthrough
 
-Follow these steps to produce the injection matrix: one namespace opted in, one workload pulled out, one forced in.
+Mission debrief, astronaut. You opt the namespace in, set both pod template overrides, restart what still needs it, and prove that each of the three workloads ended up where it should.
 
 ---
 
-## Step 1: Confirm the Starting State
+## Step 1: Confirm the starting state
+
+Check the namespace labels and the containers in each pod:
 
 ```sh
 kubectl get ns inject-demo --show-labels
@@ -21,7 +23,7 @@ logging-agent-...          logging-agent
 notification-service-...   notification-service
 ```
 
-No injection label, one container each. Worth reading the webhook that will make the decisions:
+No injection label, and one container each. Now read the webhook that will make the decisions:
 
 ```sh
 kubectl get mutatingwebhookconfiguration istio-sidecar-injector \
@@ -38,13 +40,15 @@ object.sidecar-injector.istio.io
   obj: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"In","values":["true"]}]}
 ```
 
-Two entries with complementary selectors. The first says "namespace opted in, and the pod did not opt out"; the second says "namespace did not opt in, but the pod opted in". Between them they cover the four combinations — which is the entire precedence rule, expressed as label selectors rather than as logic inside Istio.
+Two entries with selectors that complement each other. The first says "the namespace opted in, and the pod did not opt out". The second says "the namespace did not opt in, but the pod opted in". Together they cover all four combinations: that is the whole precedence rule, written as label selectors.
 
-Note `obj:` is evaluated against the **Pod**. That is why the override has to be on the pod template.
+`obj:` is checked against the **Pod**. That is why the override has to be on the pod template.
 
 ---
 
-## Step 2: Opt the Namespace In
+## Step 2: Opt the namespace in
+
+Label the namespace, then look at the pods:
 
 ```sh
 kubectl label namespace inject-demo istio-injection=enabled
@@ -60,13 +64,13 @@ logging-agent-...          logging-agent
 notification-service-...   notification-service
 ```
 
-Still one container each. The label is on and nothing happened, because injection is a mutating admission decision made when a pod is *created*. These pods were stored before the webhook applied to them.
+Still one container each. The label is on and nothing happened, because injection is decided when a pod is *created*. These pods were stored before the webhook applied to them.
 
 ---
 
-## Step 3: Set Both Overrides Before Restarting
+## Step 3: Set both overrides before restarting
 
-Do the labels first and the restart last — otherwise you restart twice, and `logging-agent` briefly gets a sidecar it should never have had.
+Set the labels first and restart last. Otherwise you restart twice, and `logging-agent` briefly gets a sidecar it should never have had.
 
 ```sh
 kubectl -n inject-demo patch deployment logging-agent -p \
@@ -81,7 +85,7 @@ deployment.apps/logging-agent patched
 deployment.apps/batch-job patched
 ```
 
-Look at the patch path carefully: `spec` → `template` → `metadata` → `labels`. That is the **pod template**. The equivalent YAML:
+Look at the patch path: `spec`, then `template`, then `metadata`, then `labels`. That is the **pod template**. In YAML it looks like this:
 
 ```yaml
 kind: Deployment
@@ -94,15 +98,15 @@ spec:
         sidecar.istio.io/inject: "false"        # here
 ```
 
-Patching the template changes the template hash, which triggers a rollout on its own — so those two Deployments are already being replaced.
+Changing the template changes its hash, and that starts a rollout by itself. So those two Deployments are already being replaced.
 
-The quotes around `"false"` matter. Kubernetes label values are always strings; an unquoted `false` in YAML is a boolean and the API server rejects the object outright. That one at least fails loudly.
+The quotes around `"false"` matter. Kubernetes label values are always strings. An unquoted `false` in YAML is a boolean, and the API server rejects the object. That mistake, at least, fails loudly.
 
 ---
 
-## Step 4: Restart the Remaining Workload
+## Step 4: Restart the remaining workload
 
-Only `notification-service` still needs it — the other two were restarted by their patches.
+Only `notification-service` still needs a restart. The other two were restarted by their patches.
 
 ```sh
 kubectl -n inject-demo rollout restart deployment notification-service
@@ -115,7 +119,9 @@ deployment "notification-service" successfully rolled out
 
 ---
 
-## Step 5: Verify the Matrix
+## Step 5: Check the result
+
+Look at the containers in each pod:
 
 ```sh
 kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
@@ -128,12 +134,12 @@ logging-agent-...               logging-agent
 notification-service-...        notification-service,istio-proxy
 ```
 
-Three workloads, three different outcomes, one namespace. Confirm the labels are where they need to be:
+Three workloads, three different results, one namespace. Confirm the labels are on the pod templates:
 
 ```sh
-for d in logging-agent batch-job; do
-  echo -n "$d template: "
-  kubectl -n inject-demo get deployment "$d" \
+for deployment_name in logging-agent batch-job; do
+  echo -n "$deployment_name template: "
+  kubectl -n inject-demo get deployment "$deployment_name" \
     -o jsonpath='{.spec.template.metadata.labels.sidecar\.istio\.io/inject}{"\n"}'
 done
 ```
@@ -143,7 +149,7 @@ logging-agent template: false
 batch-job template: true
 ```
 
-And cross-check what Istio thinks is in the mesh:
+Then ask mission control which workloads it is serving:
 
 ```sh
 istioctl proxy-status | grep inject-demo
@@ -154,13 +160,13 @@ batch-job-...inject-demo              Kubernetes   SYNCED   SYNCED   SYNCED   SY
 notification-service-...inject-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-...
 ```
 
-Two entries, not three. Counting containers tells you what the pod spec says; `proxy-status` tells you which workloads the control plane is actually serving. A workload in one list but not the other is a real problem.
+Two entries, not three. Counting containers tells you what the pod spec says. `proxy-status` tells you which workloads the control plane is actually serving. A workload in one list but not the other is a real problem.
 
 ---
 
-## Step 6: Prove `batch-job` Does Not Depend on the Namespace
+## Step 6: Prove `batch-job` does not depend on the namespace
 
-Optional, and the fastest way to feel the precedence rule. Remove the namespace label, restart `batch-job`, and check:
+This step is optional, and it is the fastest way to feel the precedence rule. Remove the namespace label, restart `batch-job`, and check its containers:
 
 ```sh
 kubectl label namespace inject-demo istio-injection-
@@ -173,9 +179,9 @@ kubectl -n inject-demo get pod -l app=batch-job -o jsonpath='{.items[0].spec.con
 batch-job istio-proxy
 ```
 
-Still injected — the second webhook entry matched on the pod label alone.
+It still has its sidecar: the second webhook entry matched on the pod label alone.
 
-**Put the namespace label back before submitting**, because the grader requires it:
+**Put the namespace label back before you submit**, because the grader requires it:
 
 ```sh
 kubectl label namespace inject-demo istio-injection=enabled
@@ -191,28 +197,15 @@ kubectl -n inject-demo rollout status deployment --timeout=180s
 astrona submit
 ```
 
-The grader checks that `inject-demo` carries `istio-injection=enabled` and not `istio.io/rev`, that exactly three Deployments exist and are ready, that `notification-service` and `batch-job` pods carry `istio-proxy` while `logging-agent` has exactly one container, and — specifically — that both `sidecar.istio.io/inject` labels are on `spec.template.metadata.labels`. If it finds one on the Deployment's own metadata it says so by name.
+The grader checks that `inject-demo` carries `istio-injection=enabled` and not `istio.io/rev`, that exactly three Deployments exist and are ready, that the `notification-service` and `batch-job` pods have `istio-proxy` while `logging-agent` has exactly one container, and that both `sidecar.istio.io/inject` labels are on `spec.template.metadata.labels`. If it finds one on the Deployment's own metadata, it tells you so by name.
 
 ---
 
 ## Common Mistakes
 
-*   **Putting the label on the Deployment's `metadata.labels`.** The manifest applies, nothing errors, and injection is unchanged. The grader detects this case and tells you to move it.
-*   **Unquoted `true` / `false`.** A YAML boolean is not a valid label value; the API server rejects it.
-*   **Labelling the namespace and stopping.** Existing pods keep one container forever. Something has to recreate them.
-*   **Restarting before setting the overrides.** `logging-agent` gets a sidecar, then loses it on the second restart. The end state is right but you did twice the work — and on a real cluster that is a real disruption.
-*   **Deleting and recreating a Deployment.** The grader counts three Deployments by name; recreating one under a different name fails.
-*   **Adding `istio.io/rev` "to be explicit".** With `istio-injection` also present, `istio-injection` wins and the revision label is silently ignored. The grader rejects both being set.
-
----
-
-## Reference
-
-The official documentation for everything this task touches — open these rather than trying to recall field names:
-
-- [Install with Helm](https://istio.io/v1.30/docs/setup/install/helm/) — the charts, their values, and install ordering
-- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — revisions, revision labels and moving workloads between control planes
-- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
-- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
-- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-status` and `proxy-config` in full
-- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+*   **Putting the label on the Deployment's `metadata.labels`.** The manifest applies, nothing fails, and injection is unchanged. The grader spots this case and tells you to move it.
+*   **Unquoted `true` or `false`.** A YAML boolean is not a valid label value; the API server rejects it.
+*   **Labelling the namespace and stopping there.** Running pods keep one container forever. Something has to recreate them.
+*   **Restarting before setting the overrides.** `logging-agent` gets a sidecar, then loses it on the second restart. The end state is right, but you did twice the work, and on a real cluster that is a real disruption.
+*   **Deleting and recreating a Deployment.** The grader counts three Deployments by name; recreating one under another name fails.
+*   **Adding `istio.io/rev` "to be explicit".** With `istio-injection` also present, `istio-injection` wins and the revision label is silently ignored. The grader rejects having both.

@@ -18,7 +18,7 @@ astrona destroy ats-013-playground-020-01
 ```
 
 `astrona destroy` takes the environment name (`metadata.name` = `ats-013-playground-020-01`), not
-the config path. `astrona submit` and `astrona test` do not apply — there is no
+the configuration path. `astrona submit` and `astrona test` do not apply — there is no
 grading.
 
 ## Layout

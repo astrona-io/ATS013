@@ -165,7 +165,7 @@ Which command would have caught an indentation error that put `meshConfig` under
 
 **Correct Answer: B**
 
-*   **Why B is correct:** A misplaced key becomes an *unknown field*, and an unknown field does not stop an install. `istioctl validate -f` catches many schema problems, but `profile dump -f` is the stronger check because it shows the fully rendered document — if your override is not in the output, it did not take, whatever the reason.
+*   **Why B is correct:** A misplaced key becomes an *unknown field*, and an unknown field does not stop an install. `istioctl validate -f` catches many schema problems, but `istioctl manifest generate -f` is the stronger check because it shows the fully rendered result — if your override is not in the output, it did not take, whatever the reason.
 *   **Why others are incorrect:**
     *   *Option A* validates against Kubernetes API schemas; an `IstioOperator` file passed to `istioctl` is not applied that way.
     *   *Option C* inspects running proxies, long after the mistake.
@@ -174,8 +174,6 @@ Which command would have caught an indentation error that put `meshConfig` under
 
 ---
 
-## Ready for the Labs?
+## Ready for the Capstone?
 
-*   **[Module 1 Lab: Customize An Istio Installation](./module-01/labs/lab-01)**
-*   **[Module 2 Lab: Control Sidecar Injection](./module-02/labs/lab-01)**
-*   **[Section 020 Capstone: Shape The Install, Then Choose Who Joins](./capstone/labs/lab-01)**
+*   **[Section 020 Capstone: Shape The Install, Then Choose Who Joins](./capstone/labs/lab-01/question.md)**

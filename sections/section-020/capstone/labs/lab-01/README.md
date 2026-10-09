@@ -1,11 +1,29 @@
-# Section 020 Capstone: Shape The Install, Then Choose Who Joins
+---
+estimated_duration: 3m
+---
 
-This is the Section 020 integration challenge. It combines both modules — the four `IstioOperator` configuration layers and the injection precedence rules — into one specification covering a customized control plane and a three-way injection decision across two namespaces.
+# Shape The Install, Then Choose Who Joins
+
+Welcome to the section capstone, astronaut. It combines both skills of this section into one specification: a customized control plane across all four `IstioOperator` layers, including the sidecar default that only shows up on an injected pod, and an injection decision for three workloads across two namespaces, one of which must stay entirely out of the mesh.
 
 There is no step-by-step guide until you have tried it. Work from the specification.
 
 ## Launching the Lab
-Run the following command in your terminal to boot the kind Kubernetes cluster:
+
+Run this command to start the cluster:
+
 ```bash
-astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-020/capstone/labs/lab-01
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-020/capstone/labs/lab-01
+```
+
+When you think you have finished, send it for grading:
+
+```bash
+astrona submit -c sections/section-020/capstone/labs/lab-01
+```
+
+When you are done, remove the lab:
+
+```bash
+astrona destroy ats-013-capstone-020
 ```
