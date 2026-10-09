@@ -1,9 +1,27 @@
-# Install Istio In Ambient Mode Sandbox
+---
+estimated_duration: 20m
+---
 
-Welcome to the Module 1 targeted practice sandbox. The ambient data plane is installed and no namespace is enrolled. In this lab you'll bring a namespace into the mesh without recreating a single pod — and prove it, because the grader recorded every pod's UID before you started.
+# Install Istio In Ambient Mode
+
+Welcome to your first ambient mission, astronaut. The ambient data plane is installed, and no planet is enrolled yet. Your job is to bring the `ambient-demo` namespace into the mesh without recreating a single pod, and to prove it with ztunnel. The grader saved every pod's UID before you started, so it will know if anything was relaunched.
 
 ## Launching the Lab
-Run the following command in your terminal to boot the kind Kubernetes cluster:
+
+Run this command to start the cluster:
+
 ```bash
-astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-040/module-01/labs/lab-01
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-040/module-01/labs/lab-01
+```
+
+When you think you have finished, send it for grading:
+
+```bash
+astrona submit -c sections/section-040/module-01/labs/lab-01
+```
+
+When you are done, remove the lab:
+
+```bash
+astrona destroy ats-013-lab-040-01
 ```

@@ -2,6 +2,8 @@
 
 Test your understanding of the ambient data plane, what enrollment changes and what it does not, and the boundary between what ztunnel enforces and what needs a waypoint proxy.
 
+Two short forms appear throughout: **L4** means layer 4, the transport layer (who is talking, on which port), and **L7** means layer 7, the application layer (HTTP methods, paths and headers). **mTLS** means mutual TLS: both sides prove their identity with a certificate before they talk.
+
 ---
 
 ## Scenario-Based Questions
@@ -143,7 +145,7 @@ You run `istioctl waypoint apply -n shop` without `--enroll-namespace`. The Gate
 
 **Correct Answer: B**
 
-*   **Why B is correct:** `waypoint apply` writes the `Gateway`; `--enroll-namespace` adds the `istio.io/use-waypoint` label that tells ztunnel to send the namespace's traffic to it. Omit the second and you get a healthy, idle Envoy. The check is the `WAYPOINT` column of `istioctl ztunnel-config workload` — it stays `None`.
+*   **Why B is correct:** `waypoint apply` writes the `Gateway`; `--enroll-namespace` adds the `istio.io/use-waypoint` label that tells ztunnel to send the namespace's traffic to it. Omit the second and you get a healthy, idle Envoy. The check is the `WAYPOINT` column of `istioctl ztunnel-config service`: no Service names the waypoint.
 *   **Why others are incorrect:**
     *   *Option A* names the wrong resource and the wrong mechanism; ztunnel decides the routing, not a route resource.
     *   *Option C* misstates `Programmed`, which does mean a proxy was produced.
@@ -197,5 +199,5 @@ When is a **service** waypoint (`--for service`) a better choice than a namespac
 ## Ready for the Labs?
 
 *   **[Module 1 Lab: Install Istio In Ambient Mode](./module-01/labs/lab-01)**
-*   **[Module 2 Lab: Add A Waypoint Proxy For L7 In Ambient Mode](./module-02/labs/lab-01)**
+*   **[Module 2 Lab: Waypoint Proxy For L7](./module-02/labs/lab-01)**
 *   **[Section 040 Capstone: An Ambient Mesh With Selective L7](./capstone/labs/lab-01)**

@@ -1,9 +1,27 @@
-# Add A Waypoint Proxy For L7 In Ambient Mode Sandbox
+---
+estimated_duration: 25m
+---
 
-Welcome to the Module 2 targeted practice sandbox. The namespace is already in the ambient mesh at L4 — mutual TLS works, and HTTP is invisible to it. In this lab you'll add the waypoint proxy that makes L7 configuration possible, then prove with a real request that something is finally parsing HTTP.
+# Waypoint Proxy For L7
+
+Welcome to your waypoint mission, astronaut. The `ambient-l7` namespace is already in the ambient mesh at layer 4: mutual TLS works, but nothing in the path can read HTTP. Your job is to add the waypoint proxy that makes layer 7 configuration possible, attach a route to the Service, and prove with a real request that something is finally reading HTTP.
 
 ## Launching the Lab
-Run the following command in your terminal to boot the kind Kubernetes cluster:
+
+Run this command to start the cluster:
+
 ```bash
-astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-040/module-02/labs/lab-01
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-040/module-02/labs/lab-01
+```
+
+When you think you have finished, send it for grading:
+
+```bash
+astrona submit -c sections/section-040/module-02/labs/lab-01
+```
+
+When you are done, remove the lab:
+
+```bash
+astrona destroy ats-013-lab-040-02
 ```

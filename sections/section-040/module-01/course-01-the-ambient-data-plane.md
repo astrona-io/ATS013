@@ -1,140 +1,149 @@
-# Part 1 — The Ambient Data Plane
+# The Ambient Data Plane
 
-> Prerequisite: [the module landing page](./course.md). Next: [Part 2 — Enrollment, Verification And The L4 Boundary](./course-02-enrollment-and-the-l4-boundary.md).
-
-Ambient mode is a different data plane, not a different product. This part covers what the `ambient` profile puts on a cluster, why two of those components are DaemonSets, and — the piece that makes everything else possible — how a pod's traffic reaches a proxy that is not inside it.
+Ambient mode is a different data plane, not a different product. The data plane is the part of the mesh that actually carries the signals (requests) between ships. In this part you see what the `ambient` profile puts on a cluster, why two of its parts run once per node, and how a pod's traffic reaches a proxy that is not inside the pod.
 
 ## What the profile installs
+
+<!-- astrona:playground:renew -->
+
+The playground already ran this command for you:
 
 ```sh
 istioctl install --set profile=ambient -y
 ```
 
-Already done on the playground. It produces three things:
+A **profile** is a stock blueprint from the shipyard catalogue: a ready-made set of settings that `istioctl` turns into Kubernetes objects. The `ambient` profile builds three things.
 
-- **`istiod`** — a Deployment, the same control plane as ever. It gains the job of programming ztunnel, but it is the same component doing the same three jobs: xDS server, certificate authority, injection webhook backend.
-- **`istio-cni-node`** — a DaemonSet. Despite the name it does not replace your cluster's CNI plugin; it is a *chained* plugin that runs alongside it. Its job is to set up traffic redirection for enrolled pods at the node level.
-- **`ztunnel`** — a DaemonSet. One **z**ero-trust **tunnel** proxy per node, shared by every enrolled pod on that node.
+### The three components
 
-DaemonSet is the load-bearing word in the last two. Sidecar mode scales proxies with the number of **pods**; ambient mode scales them with the number of **nodes**.
+Each component has one clear job. Keep them apart in your head, because most ambient puzzles come from mixing them up.
+
+- **`istiod`** is a Deployment: the same control plane as in sidecar mode. Think of it as mission control. It sends every proxy its orders over xDS (Istio's configuration channel), it is the certificate authority that issues ID badges, and it runs the injection webhook. In ambient mode it also sends orders to ztunnel.
+- **`istio-cni-node`** is a DaemonSet: a workload Kubernetes runs once on every node. Think of it as the dock crew at every launch pad, who connect each ship's radio to the relay tower. Despite its name, it does not replace your cluster's own CNI (Container Network Interface) plugin, the program that gives pods their network. It is a *chained* plugin that runs alongside it. Its job is to set up traffic redirection for enrolled pods.
+- **`ztunnel`** is also a DaemonSet. The name means **zero-trust tunnel**. It is one proxy per node, shared by every enrolled pod on that node: the relay tower on the launch pad.
+
+"DaemonSet" is the key word for the last two. Sidecar mode adds a proxy for every **pod**. Ambient mode adds a proxy for every **node**.
 
 ```mermaid
-flowchart TD
-    S0["sidecar mode: 80 pods, 80 Envoys"] --> SA["pod-a: app + envoy"]
-    S0 --> SB["pod-b: app + envoy"]
-    S0 --> SZ["pod-z: app + envoy"]
-    A0["ambient mode: 80 pods, 1 ztunnel"] --> AA["pod-a: app"]
-    A0 --> AB["pod-b: app"]
-    A0 --> AZ["pod-z: app"]
-    AA --> ZT["ztunnel, one per node"]
-    AB --> ZT
-    AZ --> ZT
+flowchart TB
+    S0["sidecar mode"] -->|"one proxy each"| SA["pod-a: app + envoy"]
+    S0 -->|"one proxy each"| SB["pod-b: app + envoy"]
+    A0["ambient mode"] -->|"no proxy inside"| AA["pod-a: app"]
+    A0 -->|"no proxy inside"| AB["pod-b: app"]
+    AA -->|"traffic"| ZT["ztunnel, one per node"]
+    AB -->|"traffic"| ZT
 ```
 
-The proxy moves out of the pod and onto the node. Everything else about ambient follows from that one change — including what it can no longer do without a waypoint.
+The diagram shows the proxy moving out of the pod and onto the node. With 80 pods on one node, sidecar mode runs 80 Envoy proxies, and ambient mode runs one ztunnel.
 
-That is the cost model in one picture, and it is why ambient exists. It is also the trade: one proxy per node is a shared, node-wide dependency, with a node-wide blast radius if it is starved of resources or crashes.
+That is why ambient mode exists: it costs less to run. It is also the trade-off. One proxy per node is shared by every pod on that node, so if ztunnel runs short of resources or crashes, every enrolled pod on that node feels it.
 
-> [!TIP]
-> **Try it — the ambient data plane, per node**
->
-> ```sh
-> kubectl -n istio-system get daemonset
-> kubectl -n istio-system get pods -o wide
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   AGE
-> istio-cni-node   1         1         1       1            1           5m
-> ztunnel          1         1         1       1            1           5m
->
-> NAME                      READY   STATUS    RESTARTS   AGE   NODE
-> istio-cni-node-8kq2v      1/1     Running   0          5m    astro-...-control-plane
-> istiod-7c9d64f8b5-rlz6t   1/1     Running   0          5m    astro-...-control-plane
-> ztunnel-x4m9p             1/1     Running   0          5m    astro-...-control-plane
-> ```
->
-> `DESIRED 1` because this is a one-node cluster; on a ten-node cluster both would read 10 and `istiod` would still read 1. That relationship — control plane scaled by cluster, data plane scaled by nodes — is the whole ambient cost model.
+### See it in your playground
+
+List the DaemonSets and pods in `istio-system`:
+
+```sh
+kubectl -n istio-system get daemonset
+kubectl -n istio-system get pods -o wide
+```
+
+Expect something like:
+
+```text
+NAME             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   AGE
+istio-cni-node   1         1         1       1            1           5m
+ztunnel          1         1         1       1            1           5m
+
+NAME                      READY   STATUS    RESTARTS   AGE   NODE
+istio-cni-node-8kq2v      1/1     Running   0          5m    astro-...-control-plane
+istiod-7c9d64f8b5-rlz6t   1/1     Running   0          5m    astro-...-control-plane
+ztunnel-x4m9p             1/1     Running   0          5m    astro-...-control-plane
+```
+
+`DESIRED 1` is there because this cluster has one node. On a ten-node cluster both DaemonSets would read 10, and `istiod` would still have one pod. The control plane grows with the cluster, the data plane grows with the number of nodes.
 
 ## How traffic reaches a proxy outside the pod
 
-This is the mechanism to understand, because everything surprising about ambient mode follows from it.
+This is the mechanism to understand, because everything surprising about ambient mode follows from it. First look at how sidecar mode did it, then at what ambient mode does instead.
 
-In sidecar mode, the `istio-init` container ran inside the pod's network namespace and wrote iptables rules redirecting traffic to `localhost:15001` and `localhost:15006` — where the sidecar was listening. The proxy was in the same network namespace, so "redirect to localhost" was enough.
+### Sidecar mode: redirect to a proxy in the same pod
 
-In ambient mode there is no proxy in the pod. `istio-cni-node` still programs the pod's network namespace, but it redirects traffic **out of the pod to the node's ztunnel** instead, using a combination of iptables rules and a network device that moves packets between namespaces. The pod itself is never modified — no container added, no spec change, nothing the pod can observe.
+In sidecar mode, the `istio-init` container ran inside the pod's own network space. It wrote iptables rules (Linux firewall rules) that sent traffic to `localhost:15001` and `localhost:15006`, where the sidecar listened. The proxy lived in the same network space, so "send it to localhost" was enough.
+
+### Ambient mode: redirect out of the pod to the node
+
+In ambient mode there is no proxy in the pod. The `istio-cni-node` agent still sets up rules in the pod's network space, but they send traffic **out of the pod to the ztunnel on that node**. It uses iptables rules plus a network device that moves packets between network spaces. The pod itself is never changed: no container is added, the spec is not touched, and the pod cannot see any difference.
 
 ```mermaid
-flowchart TD
-    P["pod, unchanged, one container<br/>connects to notification-service:80"] --> R["redirection programmed by istio-cni-node<br/>in the pod's network namespace"]
-    R --> Z["ztunnel on THIS node"]
-    Z --> H["an HBONE tunnel, mTLS, to the destination"]
+flowchart TB
+    P["pod, one container"] -->|"connects to notification-service:80"| R["redirect rules"]
+    C["istio-cni-node"] -->|"programs"| R
+    R -->|"traffic"| Z["ztunnel on this node"]
+    Z -->|"HBONE, mTLS"| D["destination"]
 ```
 
-Nothing was added to the pod. The redirect is installed from outside it, which is why enrolling a workload needs no restart.
+The diagram shows that the redirect rules are installed from outside the pod by `istio-cni-node`. The pod keeps its one container, and that is why enrolling a workload needs no restart.
 
-Port **15008** is HBONE's port and it will appear in every ztunnel log line you read in Part 2. HBONE — **H**TTP-**B**ased **O**verlay **N**etwork **E**nvironment — is the transport ambient mode uses between ztunnels: the original connection is carried inside an mTLS-encrypted HTTP/2 tunnel, so both ends are authenticated and the payload is encrypted, without either application knowing.
+### HBONE and port 15008
 
-Two consequences worth stating explicitly:
+**HBONE** stands for **HTTP-Based Overlay Network Environment**. It is the sealed tunnel the relay towers use between them. ztunnel carries the original connection inside an HTTP/2 tunnel protected by mutual TLS (mTLS, the secret handshake where both ships show their badges). Both ends are checked, and the contents are encrypted, while neither application knows anything happened.
 
-**`istio-cni` is a hard prerequisite.** Without it there is no redirection, so ambient mode simply does not function. This is why the `ambient` profile installs it and why a cluster whose CNI does not tolerate chaining cannot run ambient mode — the failure mode there is pods with no connectivity at all, which is worth checking before planning a migration.
+HBONE uses port **15008**. You will see that port in ztunnel's log lines whenever a connection travels through the tunnel.
 
-**Enrollment does not touch the pod.** Because the redirection lives in node-level configuration and ztunnel's own state, turning it on or off is a change *outside* the pod. Part 2 shows the consequence: enrollment takes effect with no restart, which is the headline difference from sidecar mode.
+### Two consequences
 
-## The same control plane, extended
+Two facts follow directly from this mechanism.
 
-`istiod` in ambient mode does everything it did before and adds one responsibility: it tells each ztunnel about the workloads on its node — their identities, their addresses, whether they are enrolled, and whether their destination service has a waypoint.
+**`istio-cni` is required.** Without it there is no redirect, so ambient mode does not work at all. That is why the `ambient` profile installs it. A cluster whose own network plugin does not allow chaining cannot run ambient mode, and the symptom there is pods with no network connection at all. Check this before you plan a move to ambient mode.
 
-That is why `istioctl` has a parallel diagnostic command. `istioctl proxy-config` dumps an Envoy sidecar's view of the world; **`istioctl ztunnel-config`** does the same for a ztunnel. Same idea, different data plane, and Part 2 leans on it heavily because it is the only way to check membership.
+**Enrollment does not touch the pod.** The redirect lives in node-level rules and in ztunnel's own state. Switching it on or off is a change *outside* the pod, so it takes effect with no restart. That is the biggest practical difference from sidecar mode.
 
-> [!TIP]
-> **Try it — confirm the control plane is unchanged and ztunnel is talking to it**
->
-> ```sh
-> kubectl -n istio-system get deploy istiod
-> istioctl ztunnel-config workload --node "$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')" | head -5
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME     READY   UP-TO-DATE   AVAILABLE   AGE
-> istiod   1/1     1            1           7m
->
-> NAMESPACE     POD NAME                  ADDRESS      NODE                     WAYPOINT  PROTOCOL
-> istio-system  istiod-7c9d64f8b5-rlz6t   10.244.0.5   astro-...-control-plane  None      TCP
-> istio-system  ztunnel-x4m9p             10.244.0.6   astro-...-control-plane  None      TCP
-> kube-system   coredns-...               10.244.0.3   astro-...-control-plane  None      TCP
-> ```
->
-> One ordinary `istiod` Deployment, and a ztunnel that already knows about every pod on its node — including ones that are not in the mesh at all. That is the key to Part 2: ztunnel tracks all workloads and the `PROTOCOL` column tells you which ones it will actually tunnel for. `TCP` means plain, un-enrolled traffic.
+## The same control plane, with one more job
 
-## What is *not* installed
+In ambient mode `istiod` does everything it did before and takes on one more job. It tells each ztunnel about the workloads on its node: their identities, their addresses, whether they are enrolled, and whether their destination has a waypoint.
 
-Two absences are worth naming, because both come up as questions.
+That is why `istioctl` has a matching diagnostic command. `istioctl proxy-config` prints what an Envoy sidecar knows. **`istioctl ztunnel-config`** prints what a ztunnel knows. It is the same idea for a different data plane, and it is the only reliable way to check membership in ambient mode.
 
-**No waypoint proxy.** The `ambient` profile installs no Envoy for L7 work. That is deliberate: waypoints are opt-in, per namespace or per service, and the next module deploys one.
+### See it in your playground
 
-**No Gateway API CRDs.** Istio does not ship them, and ambient mode's L4 features do not need them. They become a hard requirement the moment you want a waypoint, because a waypoint *is* a `Gateway` — which is why the next module's playground installs them separately.
+Check the control plane, then ask the ztunnel on your node which workloads it knows:
 
-> *Ambient moves the proxy from the pod to the node: `istio-cni` redirects the pod's traffic out to ztunnel, which tunnels it over mTLS on port 15008, and the pod is never modified.*
+```sh
+kubectl -n istio-system get deploy istiod
+istioctl ztunnel-config workload --node "$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')" | head -5
+```
+
+Expect something like:
+
+```text
+NAME     READY   UP-TO-DATE   AVAILABLE   AGE
+istiod   1/1     1            1           7m
+
+NAMESPACE     POD NAME                  ADDRESS      NODE                     WAYPOINT  PROTOCOL
+istio-system  istiod-7c9d64f8b5-rlz6t   10.244.0.5   astro-...-control-plane  None      TCP
+istio-system  ztunnel-x4m9p             10.244.0.6   astro-...-control-plane  None      TCP
+kube-system   coredns-...               10.244.0.3   astro-...-control-plane  None      TCP
+```
+
+There is one ordinary `istiod` Deployment. The ztunnel already knows every pod on its node, even pods that are not in the mesh. The `PROTOCOL` column tells you which ones it actually tunnels for: `TCP` means plain traffic from a workload that is not enrolled.
+
+## What is not installed
+
+Two things are missing on purpose. Both come up as exam questions.
+
+**No waypoint proxy.** The `ambient` profile installs no Envoy for layer 7 work (reading HTTP: paths, methods, headers). Waypoints are opt-in, per namespace or per service. A waypoint is a checkpoint station you build only where someone must read the signal's contents.
+
+**No Gateway API CRDs.** A CRD (Custom Resource Definition) is a new form the cluster's registry office learns to accept. Istio does not ship the Gateway API CRDs, and ambient mode's layer 4 features do not need them. They become required as soon as you want a waypoint, because a waypoint *is* a Gateway API `Gateway`. You install them separately.
+
+In short: ambient mode moves the proxy from the pod to the node. `istio-cni` sends the pod's traffic out to ztunnel, ztunnel carries it in mTLS on port 15008, and the pod is never changed.
 
 ## Common pitfalls
 
 > [!WARNING]
-> **Expecting a sidecar container to appear.** Ambient pods keep their original container count; membership is not visible in `kubectl get pods`.
+> **Expecting a sidecar container to appear.** Ambient pods keep their original container count. You cannot see membership in `kubectl get pods`.
 >
-> **Assuming ambient gives you L7 features.** ztunnel is an L4 boundary — mTLS and identity, not routing or header matching. That needs a waypoint.
+> **Assuming ambient mode gives you layer 7 features.** ztunnel works at layer 4: mTLS and identity, not routing or header matching. Those need a waypoint.
 >
-> **Forgetting `istio-cni`.** The redirection ambient relies on is programmed by the CNI node agent, not by an init container.
+> **Forgetting `istio-cni`.** The redirect that ambient mode relies on is set up by the CNI node agent, not by an init container. Without it, nothing reaches ztunnel.
 >
-> **Treating ztunnel as per-workload.** It is one per node, shared by every enrolled pod on it.
-
-## Reference
-
-- [Ambient mode overview](https://istio.io/v1.30/docs/ambient/overview/) — the architecture and its motivation.
-- [ztunnel](https://istio.io/v1.30/docs/ambient/architecture/data-plane/) — what the node proxy does and does not do.
-- [HBONE](https://istio.io/v1.30/docs/ambient/architecture/hbone/) — the tunnelling protocol and port 15008.
-- [Istio CNI plugin](https://istio.io/v1.30/docs/setup/additional-setup/cni/) — chaining, requirements, and troubleshooting when pods lose connectivity.
+> **Treating ztunnel as one per workload.** There is one per node, shared by every enrolled pod on that node.

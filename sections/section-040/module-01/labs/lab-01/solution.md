@@ -1,10 +1,12 @@
 # Solution Walkthrough
 
-Follow these steps to enroll a namespace in the ambient mesh without recreating anything.
+Mission debrief, astronaut. Follow these steps to enroll a planet in the ambient mesh without relaunching a single ship.
 
 ---
 
 ## Step 1: Note What You Must Not Change
+
+List the pods and read the baseline the grader saved:
 
 ```sh
 kubectl -n ambient-demo get pods
@@ -20,9 +22,9 @@ notification-service-6c8f9d7b5c-t7wqx=9a1c...-...
 tester-5b7d9c4f88-k2vnm=4e77...-...
 ```
 
-Those UIDs are the grader's record of the pods that existed before enrollment. Every one of them must still be there afterwards — which means no `rollout restart`, no `kubectl delete pod`, no edit to a pod template.
+Those UIDs are the grader's record of the pods that existed before enrollment. Every one of them must still be there at the end. So: no `rollout restart`, no `kubectl delete pod`, and no edit to a pod template.
 
-Check the data plane you are about to join:
+Now check the data plane you are about to join:
 
 ```sh
 kubectl -n istio-system get daemonset
@@ -34,11 +36,13 @@ istio-cni-node   1         1         1       1            1           6m
 ztunnel          1         1         1       1            1           6m
 ```
 
-DaemonSets, not sidecars. Sidecar mode scales proxies with the number of *pods*; ambient mode scales them with the number of *nodes*. On this one-node cluster that is one of each.
+These are DaemonSets, not sidecars. Kubernetes runs one pod of each per node. Sidecar mode adds a proxy for every *pod*; ambient mode adds one for every *node*. This cluster has one node, so there is one of each.
 
 ---
 
 ## Step 2: See That Nothing Is Enrolled Yet
+
+Ask ztunnel what it knows about `ambient-demo`:
 
 ```sh
 istioctl ztunnel-config workload | grep ambient-demo
@@ -50,11 +54,13 @@ ambient-demo  notification-service-6c8f9d7b5c-t7wqx     10.244.0.11  astro-...-c
 ambient-demo  tester-5b7d9c4f88-k2vnm                   10.244.0.12  astro-...-control-plane  None      TCP
 ```
 
-ztunnel already *knows* about every pod on its node — but `PROTOCOL TCP` means plain traffic: these workloads are not in the mesh. That column is the membership check in ambient mode, and it is the one to build a habit around, because counting containers cannot answer the question here.
+ztunnel already *knows* every pod on its node. But `PROTOCOL TCP` means plain traffic: these workloads are not in the mesh. This column is the membership check in ambient mode, because counting containers cannot answer the question.
 
 ---
 
 ## Step 3: Enroll the Namespace
+
+Add the ambient label to the namespace:
 
 ```sh
 kubectl label namespace ambient-demo istio.io/dataplane-mode=ambient
@@ -64,13 +70,15 @@ kubectl label namespace ambient-demo istio.io/dataplane-mode=ambient
 namespace/ambient-demo labeled
 ```
 
-That is the whole operation. No restart, no patch, no waiting.
+That is the whole job. There is no restart, no patch and no waiting.
 
-The reason is mechanical. Sidecar injection is a **mutation of the pod spec**, so it can only happen when a pod is admitted — which is why section 020's labs all needed a `rollout restart`. Ambient enrollment changes **node-level redirection** (programmed by `istio-cni-node`) and **ztunnel's own configuration** (programmed by `istiod`). Both live outside the pod, so the pod does not need to know and does not change.
+Here is why. Sidecar injection changes the **pod spec**, so it can only happen when a pod is created; that is why sidecar mode always needs a `rollout restart`. Ambient enrollment changes the **node-level redirect**, which `istio-cni-node` sets up, and **ztunnel's own configuration**, which `istiod` sends. Both live outside the pod, so the pod does not need to know and does not change.
 
 ---
 
 ## Step 4: Prove Nothing Was Recreated
+
+List the pods again, and compare the live UIDs with the baseline:
 
 ```sh
 kubectl -n ambient-demo get pods
@@ -87,13 +95,15 @@ tester-5b7d9c4f88-k2vnm                 1/1     Running   0          7m12s
 identical - no pod was recreated
 ```
 
-Same names, `RESTARTS` still 0, `AGE` simply larger, identical UIDs. These workloads now have mutual TLS between them and nothing was recreated to make it happen.
+The names are the same, `RESTARTS` is still 0, `AGE` is simply higher, and the UIDs match. These workloads now use mutual TLS between them, and nothing was recreated.
 
-`READY 1/1` — still one container, and it will stay that way. That is the point of the third requirement: in ambient mode a meshed pod is indistinguishable from an unmeshed one by `kubectl get pod`.
+`READY 1/1` means there is still one container, and it stays that way. That is the point of the third requirement: in ambient mode, `kubectl get pod` cannot tell a meshed pod from one outside the mesh.
 
 ---
 
 ## Step 5: Confirm With ztunnel
+
+Ask ztunnel again:
 
 ```sh
 istioctl ztunnel-config workload | grep ambient-demo
@@ -105,15 +115,15 @@ ambient-demo  notification-service-6c8f9d7b5c-t7wqx     10.244.0.11  astro-...-c
 ambient-demo  tester-5b7d9c4f88-k2vnm                   10.244.0.12  astro-...-control-plane  None      HBONE
 ```
 
-`TCP` became `HBONE`. **HBONE** — HTTP-Based Overlay Network Environment — is ambient mode's transport: the original connection is carried inside an mTLS-encrypted HTTP/2 tunnel between ztunnels, so both ends are authenticated and the payload is encrypted.
+`TCP` became `HBONE`. **HBONE** (HTTP-Based Overlay Network Environment) is ambient mode's sealed tunnel: ztunnel carries the original connection inside an HTTP/2 tunnel protected by mutual TLS. Both ends are checked, and the contents are encrypted.
 
-`WAYPOINT None` is the other half of the picture: these workloads have L4 mesh only, with nothing in the path that can read HTTP. That column is what Module 2 fills in.
+`WAYPOINT None` means these workloads have layer 4 mesh only: nothing in the path can read HTTP. A waypoint proxy would fill in that column.
 
 ---
 
 ## Step 6: Watch the Tunnel Carry Traffic
 
-Optional, and worth it once:
+This step is optional, but worth doing once. Send a signal from `tester`, then read ztunnel's log:
 
 ```sh
 kubectl -n ambient-demo exec deploy/tester -- \
@@ -131,39 +141,33 @@ kubectl -n istio-system logs ds/ztunnel --tail=20 | grep ambient-demo | head -2
   dst.identity="spiffe://cluster.local/ns/ambient-demo/sa/default"
 ```
 
-Both ends carry a cryptographic identity, and the destination port is **15008** — ztunnel's HBONE port — not nginx's port 80. The application sent a plain HTTP request to port 80 and never learned it travelled through an authenticated tunnel.
+Both ends carry a cryptographic identity, and the destination port is **15008**, the HBONE port, not nginx's port 80. The application sent a plain HTTP request to port 80 and never learned that it travelled through a checked tunnel.
 
 ---
 
 ## Step 7: Submit
 
+Send the lab for grading:
+
 ```sh
 astrona submit
 ```
 
-The grader checks that both ambient DaemonSets are ready, that `ambient-demo` carries `istio.io/dataplane-mode=ambient` and **not** `istio-injection`, that the live pod UIDs are byte-identical to the recorded baseline, that every pod still has exactly one container and no `istio-proxy`, and that `istioctl ztunnel-config workload` reports both workloads with `HBONE`.
+The grader checks that:
+
+- both ambient DaemonSets have ready pods;
+- `ambient-demo` carries `istio.io/dataplane-mode=ambient` and **not** `istio-injection`;
+- the live pod UIDs exactly match the saved baseline;
+- every pod still has exactly one container, and none is `istio-proxy`;
+- `istioctl ztunnel-config workload` reports both workloads with `HBONE`.
 
 ---
 
 ## Common Mistakes
 
-*   **Running `kubectl rollout restart` out of habit.** It works in the sense that the namespace ends up enrolled, and it fails the lab — the UIDs change. Ambient enrollment needs no restart, and internalising that is the whole point.
-*   **Adding `istio-injection=enabled` as well.** A namespace is one mode or the other. The grader rejects both labels being present.
-*   **Grepping for `istio-proxy` to check membership.** Ambient pods never have a sidecar. Use `istioctl ztunnel-config workload` and read `PROTOCOL`.
+*   **Running `kubectl rollout restart` out of habit.** The namespace ends up enrolled, but the lab fails because the UIDs change. Ambient enrollment needs no restart, and that is the whole point.
+*   **Adding `istio-injection=enabled` as well.** A namespace uses one mode or the other. The grader rejects both labels together.
+*   **Searching for `istio-proxy` to check membership.** Ambient pods never have a sidecar. Use `istioctl ztunnel-config workload` and read `PROTOCOL`.
 *   **Using `istio.io/dataplane-mode=enabled`.** The value is `ambient`.
 *   **Deleting the `lab-baseline` ConfigMap while tidying up.** It is the grader's record; without it the check cannot run.
-*   **Expecting L7 behaviour.** ztunnel is L4 only. An `AuthorizationPolicy` matching on an HTTP method here would be accepted and silently do nothing — which is exactly what Module 2 is about.
-
----
-
-## Reference
-
-The official documentation for everything this task touches — open these rather than trying to recall field names:
-
-- [Sidecar injection](https://istio.io/v1.30/docs/setup/additional-setup/sidecar-injection/) — the namespace label, the pod annotation, and when injection happens
-- [Ambient mode overview](https://istio.io/v1.30/docs/ambient/overview/) — what ambient replaces and what it keeps
-- [ztunnel architecture](https://istio.io/v1.30/docs/ambient/architecture/data-plane/) — the node proxy and what it does and does not do
-- [HBONE](https://istio.io/v1.30/docs/ambient/architecture/hbone/) — the tunnel ambient uses between nodes
-- [Istio CNI plugin](https://istio.io/v1.30/docs/setup/additional-setup/cni/) — replacing the init container's iptables work
-- [Istio annotations and labels](https://istio.io/v1.30/docs/reference/config/annotations/) — the reference list of both
-- [istioctl command reference](https://istio.io/v1.30/docs/reference/commands/istioctl/) — every subcommand and flag
+*   **Expecting layer 7 behaviour.** ztunnel works at layer 4 only. An `AuthorizationPolicy` that matches on an HTTP method would be accepted here and silently do nothing.

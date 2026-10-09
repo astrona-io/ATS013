@@ -1,180 +1,115 @@
-# Part 2 — L7 Configuration Through A Waypoint
+# L7 Configuration Through A Waypoint
 
-> Prerequisite: [Part 1 — What A Waypoint Is And How Traffic Reaches It](./course-01-what-a-waypoint-is.md). Next: [the module landing page](./course.md).
+Your playground now has a waypoint running in `ambient-l7`, with the namespace enrolled to it. The `HTTPRoute` named `notification-header`, which sets the response header `x-processed-by: waypoint`, is still applied and unchanged. It was correct all along; it just had nothing to carry it out. In this part you watch it take effect, and you learn to prove that the configuration really reached the proxy.
 
-Part 1 ended with a waypoint running and ztunnel routing through it. The `HTTPRoute` from the start of that part is still applied and completely unchanged — it was correct all along and had no executor. This part watches it come alive, covers how to scope waypoints to something narrower than a whole namespace, and is precise about what degrades when a waypoint goes away.
+## The same route, now that something can run it
 
-## The same route, now that something can execute it
+Nothing about the route changes in this step. The only difference from before is that a waypoint, the checkpoint station that reads the signal's contents, now sits in the path.
+
+<!-- astrona:playground:renew -->
+
+### See it in your playground
+
+Send the same request from `tester` again:
+
+```sh
+kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -7
+```
+
+Expect something like:
+
+```text
+HTTP/1.1 200 OK
+server: istio-envoy
+date: Sat, 27 Sep 2026 09:48:11 GMT
+content-type: text/html
+content-length: 615
+x-envoy-upstream-service-time: 2
+x-processed-by: waypoint
+```
+
+Three signs show that the waypoint's Envoy is in the path:
+
+- `x-processed-by: waypoint` is a header no application set. An HTTP-aware proxy added it.
+- `server: istio-envoy` replaced `nginx/1.27.4`, so the response passed through Envoy on its way back. Without the waypoint, the same request showed `Server: nginx/1.27.4`.
+- `x-envoy-upstream-service-time` is Envoy timing the call to the application.
+
+### A habit for debugging
+
+That before-and-after is worth turning into a habit. When layer 7 configuration in an ambient namespace seems to do nothing, do not start with "is my route correct?". Start with "is there a waypoint, and is this traffic routed through it?".
 
 > [!TIP]
-> **Try it — the same request, through L7**
->
-> ```sh
-> kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -7
-> ```
->
-> Expect something like:
->
-> ```text
-> HTTP/1.1 200 OK
-> server: istio-envoy
-> date: Sat, 27 Sep 2026 09:48:11 GMT
-> content-type: text/html
-> content-length: 615
-> x-envoy-upstream-service-time: 2
-> x-processed-by: waypoint
-> ```
->
-> Two proofs on one screen. `x-processed-by: waypoint` is a header no application set — an HTTP-aware proxy added it. And `server: istio-envoy` rather than `nginx/1.27.4` shows the response passed through Envoy on its way back, which it did not in Part 1's identical request. `x-envoy-upstream-service-time` is a third tell: Envoy timing the upstream call.
->
-> Nothing about the `HTTPRoute` changed between the two runs. The only difference is that something now exists to execute it.
-
-That contrast is worth holding onto as a diagnostic habit. When L7 configuration in an ambient namespace appears to do nothing, the first question is not "is my route correct?" but "is there a waypoint, and is this workload routed through it?" — `istioctl ztunnel-config workload` answers the second in one line.
+> When an `HTTPRoute` or a layer 7 policy in an ambient namespace seems to do nothing, check for the waypoint first: `istioctl waypoint list -n <namespace>`, then the `WAYPOINT` column in `istioctl ztunnel-config service`. Only then debug the route itself.
 
 ## Reading the route's status honestly
 
-The `HTTPRoute` reported `Accepted` and `ResolvedRefs` in Part 1, before the waypoint existed, and reports the same now. That is not a bug in the status; it is the status answering a narrower question than people assume.
+The `HTTPRoute` reported `Accepted` and `ResolvedRefs` before the waypoint existed, and it reports the same now. That is not a bug in the status. The status answers a narrower question than most people assume.
+
+### What the conditions mean
+
+Each condition on the route proves one thing, and only that thing:
 
 | Condition | Means | Does **not** mean |
 | --- | --- | --- |
-| `Accepted` | The route is well-formed and bound to the parent named in `parentRefs` | Anything is executing it |
-| `ResolvedRefs` | Every `backendRefs` target exists and is reachable as a reference | Traffic is reaching that backend |
+| `Accepted` | The route is well formed and bound to the parent named in `parentRefs` | Anything is carrying it out |
+| `ResolvedRefs` | Every `backendRefs` target exists and can be referenced | Traffic is reaching that backend |
 
-So route status is a validation signal, not a functional one. The functional check is the response — a header, a status code, a timing header — or `istioctl proxy-config route` against the waypoint pod, which shows the routes Envoy actually received.
+So route status is a check on the object, not on what it does. The real check is the response (a header, a status code, a timing header), or the routes the waypoint's Envoy actually received.
 
-> [!TIP]
-> **Try it — see the route inside the waypoint's Envoy**
->
-> ```sh
-> WP=$(kubectl -n ambient-l7 get pod -l gateway.networking.k8s.io/gateway-name=waypoint -o jsonpath='{.items[0].metadata.name}')
-> istioctl proxy-config route "$WP.ambient-l7" | head -10
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME                                          VHOST NAME                              DOMAINS     MATCH     VIRTUAL SERVICE
-> inbound-vip|80|http|notification-service...   inbound|http|80                         *           /*        notification-header.ambient-l7
-> ```
->
-> The waypoint is an ordinary Envoy, so the ordinary `istioctl proxy-config` commands work against it — the same tooling you would use on a sidecar. Seeing your route's name in the `VIRTUAL SERVICE` column is the strongest available evidence that the configuration reached the proxy, as opposed to merely existing in the cluster.
+### See it in your playground
 
-## Namespace waypoints and service waypoints
+The waypoint is an ordinary Envoy, so the ordinary `istioctl proxy-config` commands work on it. `istioctl proxy-config route` lists the routes a proxy holds. Find the waypoint pod's name, then read its routes:
 
-`istioctl waypoint apply --enroll-namespace` gives the whole namespace one waypoint. That is the common starting point: one proxy, one place to attach policy, and every service in the namespace gains L7 capability.
+```sh
+WAYPOINT_POD=$(kubectl -n ambient-l7 get pod -l gateway.networking.k8s.io/gateway-name=waypoint -o jsonpath='{.items[0].metadata.name}')
+istioctl proxy-config route "$WAYPOINT_POD.ambient-l7" | head -10
+```
 
-The alternative is a **service waypoint**, created with `--for service` and attached to specific Services by labelling them `istio.io/use-waypoint`. Two situations call for it:
+Expect something like:
 
-- **One service needs L7 and the rest do not.** A namespace waypoint routes *all* the namespace's traffic through the extra hop, including traffic that only ever needed L4. Scoping avoids paying latency for nothing.
-- **One service needs its own capacity.** A high-throughput service can have a dedicated proxy, scaled and sized independently of everything else.
+```text
+NAME                                          VHOST NAME                              DOMAINS     MATCH     VIRTUAL SERVICE
+inbound-vip|80|http|notification-service...   inbound|http|80                         *           /*        notification-header.ambient-l7
+```
 
-Both are `Gateway` resources of class `istio-waypoint`. The difference is entirely in **who is pointed at them** — a namespace label versus Service labels — not in the object.
+Your route's name, `notification-header.ambient-l7`, appears in the `VIRTUAL SERVICE` column. That is the strongest proof that the configuration reached the proxy, and does not merely exist in the cluster. Use `proxy-config` only on the waypoint pod: the application pods in an ambient namespace have no Envoy of their own.
 
-> [!TIP]
-> **Try it — scope a waypoint to one Service**
->
-> ```sh
-> istioctl waypoint apply -n ambient-l7 --name svc-waypoint --for service
-> kubectl -n ambient-l7 rollout status deployment svc-waypoint --timeout=180s
-> kubectl -n ambient-l7 label service notification-service istio.io/use-waypoint=svc-waypoint
-> istioctl waypoint list -n ambient-l7
-> istioctl ztunnel-config workload | grep ambient-l7
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME           REVISION   PROGRAMMED
-> svc-waypoint   default    True
-> waypoint       default    True
->
-> NAMESPACE   POD NAME                      ADDRESS      NODE                     WAYPOINT      PROTOCOL
-> ambient-l7  notification-service-v1-...   10.244.0.14  astro-...-control-plane  svc-waypoint  HBONE
-> ambient-l7  tester-...                    10.244.0.15  astro-...-control-plane  waypoint      HBONE
-> ```
->
-> Two waypoints running, and the `WAYPOINT` column now differs per workload: traffic to `notification-service` goes through `svc-waypoint` because of the Service label, while the rest of the namespace still uses the namespace waypoint. The Service-level label wins over the namespace-level one — more specific scope, higher precedence, the same pattern as every other label in this course.
->
-> Remove it again with `kubectl -n ambient-l7 label service notification-service istio.io/use-waypoint-` and `istioctl waypoint delete svc-waypoint -n ambient-l7` before moving on.
-
-## What you lose if the waypoint goes away
-
-Deleting a waypoint removes the L7 hop and nothing else:
-
-| Lost | Kept |
-| --- | --- |
-| HTTP routing and traffic splitting | Mutual TLS between workloads |
-| Header manipulation | Workload identity (SPIFFE) |
-| Retries, timeouts, circuit breaking | L4 `AuthorizationPolicy` (identity, port) |
-| `AuthorizationPolicy` rules matching HTTP method / path / header | Connection-level telemetry |
-| Request-level telemetry | Traffic keeps flowing |
-
-So a deleted waypoint **degrades the mesh to L4 rather than breaking it**. Traffic keeps flowing, encrypted and authenticated, while the L7 rules you relied on stop applying — quietly, in exactly the way they never applied before the waypoint existed.
-
-The security consequence deserves stating plainly: if an `AuthorizationPolicy` was the only thing enforcing an HTTP-level restriction — say, denying `POST` to an admin path — removing the waypoint removes the restriction, while the policy object remains in the cluster looking perfectly healthy. Nothing alerts, and a `kubectl get authorizationpolicy` shows it present.
-
-> [!TIP]
-> **Try it — watch L7 degrade while L4 survives**
->
-> ```sh
-> istioctl waypoint delete waypoint -n ambient-l7
-> kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -3
-> istioctl ztunnel-config workload | grep ambient-l7 | head -3
-> kubectl -n istio-system logs ds/ztunnel --tail=10 | grep -c 'src.identity'
-> ```
->
-> Expect something like:
->
-> ```text
-> HTTP/1.1 200 OK
-> Server: nginx/1.27.4
-> Date: Sat, 27 Sep 2026 09:56:40 GMT
->
-> NAMESPACE   POD NAME                      ADDRESS      NODE                     WAYPOINT  PROTOCOL
-> ambient-l7  notification-service-v1-...   10.244.0.14  astro-...-control-plane  None      HBONE
->
-> 3
-> ```
->
-> `Server: nginx` and no `x-processed-by` — the L7 processing is gone. `PROTOCOL HBONE` and identities still in ztunnel's logs — the mTLS and the identity are untouched. That is the degradation, made visible in one screen: the mesh did not break, it got smaller.
->
-> Recreate it with `istioctl waypoint apply -n ambient-l7 --enroll-namespace` if you want to keep exploring.
-
-> [!WARNING]
 ## Common pitfalls
 
 > [!WARNING]
-> **An `HTTPRoute` in a namespace with no waypoint.** Accepted, statused, and completely inert. Check `istioctl ztunnel-config workload` for a non-`None` `WAYPOINT` before debugging the route.
+> **Debugging the route before checking for the waypoint.** An `HTTPRoute` in a namespace with no waypoint is accepted, gets a status, and does nothing. Check that a waypoint exists and that ztunnel names it first.
 >
-> **Missing Gateway API CRDs.** `istioctl waypoint apply` fails with an unknown-kind error that looks like an Istio problem. Install the CRDs separately.
+> **Reading route status as proof of effect.** `Accepted` means well formed and bound, not enforced. Only a real response, or the route inside the waypoint's Envoy, proves it works.
 >
-> **Creating a waypoint without enrolling anything.** Without `--enroll-namespace` or a Service label, the proxy runs and receives no traffic.
+> **Running `istioctl proxy-config` on an application pod.** Ambient pods have no sidecar. Point it at the waypoint pod instead.
 >
-> **Reading route status as proof of effect.** `Accepted` means well-formed and bound, not enforced.
->
-> **Expecting a waypoint to cover traffic that is not in the mesh.** Both ends still need to be meshed for ztunnel to capture the connection. A client outside the mesh reaches the Service directly, bypassing the waypoint entirely.
->
-> **Assuming deleting a waypoint is safe because traffic still flows.** It is, at L4. Any L7 authorization rule silently stops being enforced.
->
-> **Mixing `VirtualService` and `HTTPRoute` for the same Service.** Istio still accepts `VirtualService` for waypoints, but using both produces behaviour nobody can predict from reading either one.
+> **Expecting a waypoint to cover traffic from outside the mesh.** ztunnel only captures connections from meshed workloads. A client outside the mesh reaches the Service directly and skips the waypoint.
 
-## Operational considerations
+## Your mission: Waypoint Proxy For L7
 
-**Gateway API is the documented path for ambient L7.** `VirtualService` remains the right tool for sidecar-mode meshes and is still accepted here, but new ambient work should use `HTTPRoute` and the rest of the Gateway API.
+You can now add a waypoint, attach an `HTTPRoute` to a Service, and prove that layer 7 processing is in the path. Now prove it in a graded mission: deploy a namespace waypoint, enroll the namespace to it, attach a header-setting route, and show a real request coming back with that header.
 
-**A waypoint is a Deployment you own.** It needs resource requests, a replica count matched to the traffic through it, and a `PodDisruptionBudget` if it is on a critical path. `istioctl waypoint apply` gives you a working default, not a production sizing.
+The mission runs in its own training solar system, so first pause your playground. Nothing in it is lost:
 
-**It is an extra hop, so it costs latency.** That is the argument for scoping waypoints narrowly — per service where only one service needs L7 — rather than defaulting every namespace to one.
+```sh
+astrona stop ats-013-playground-040-02
+```
 
-**Scope policy to the layer that enforces it.** L4 rules work everywhere in an ambient mesh. L7 rules need a waypoint in the path for every workload they are meant to cover, so a namespace with a partial waypoint rollout has partial enforcement — which is worse than none, because it looks complete.
+Then start the mission:
 
-**`istioctl waypoint status` is the first check when L7 stops working.** A waypoint whose `Gateway` is not `Programmed`, or whose pod is not running, produces exactly the same symptom as no waypoint at all: traffic flows and the L7 rules do nothing.
+```sh
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-040/module-02/labs/lab-01
+```
 
-> *A waypoint's absence is indistinguishable from its silence — traffic keeps flowing at L4, so check for the waypoint before you debug the route.*
+Read the task in [`question.md`](./labs/lab-01/question.md) and solve it on your own first. When you think you are done, send it for grading:
 
-## Reference
+```sh
+astrona submit -c sections/section-040/module-02/labs/lab-01
+```
 
-- [Waypoint proxies](https://istio.io/v1.30/docs/ambient/usage/waypoint/) — namespace and service scoping, and the `istio.io/use-waypoint` label.
-- [L7 features in ambient mode](https://istio.io/v1.30/docs/ambient/usage/l7-features/) — what a waypoint adds over ztunnel.
-- [HTTPRoute](https://gateway-api.sigs.k8s.io/api-types/httproute/) — filters, matches and backend references.
-- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — `proxy-config` against a waypoint pod.
+When the mission is done, remove it and wake your playground up again:
+
+```sh
+astrona destroy ats-013-lab-040-02
+astrona start ats-013-playground-040-02
+```
