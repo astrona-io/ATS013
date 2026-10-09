@@ -4,7 +4,14 @@
 # Kept in step with solution.md - if one changes, change the other.
 set -eu
 
-helm rollback istiod 1 -n istio-system --wait
+# Helm 4 rolls back with server-side apply. istiod itself owns the
+# failurePolicy field of its validating webhook, so Helm 4 needs
+# --force-conflicts to take that field back. Helm 3 has no such flag.
+if helm version --short 2>/dev/null | grep -q '^v4'; then
+  helm rollback istiod 1 -n istio-system --wait --force-conflicts
+else
+  helm rollback istiod 1 -n istio-system --wait
+fi
 
 # helm returns once istiod reports ready, a moment before the webhook can
 # inject: a pod recreated in that window comes back with no istio-proxy.

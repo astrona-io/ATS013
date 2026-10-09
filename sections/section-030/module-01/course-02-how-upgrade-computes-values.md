@@ -81,6 +81,8 @@ helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 --reuse-values
 helm get values istiod -n istio-system | head -8
 ```
 
+If your machine runs Helm 4, the rollback can stop with `Error: conflict occurred while applying object /istio-validator-istio-system`. Helm 4 applies objects with server-side apply, and `istiod` itself owns the `failurePolicy` field of its validating webhook, so Helm 4 must be told to take that field back. Run the same `helm rollback` command again with `--force-conflicts` added. Helm 3 does not need that flag.
+
 The output looks like this:
 
 ```text

@@ -66,6 +66,8 @@ helm rollback istiod 1 -n istio-system --wait
 Rollback was a success! Happy Helming!
 ```
 
+If your machine runs Helm 4, the rollback can stop with `Error: conflict occurred while applying object /istio-validator-istio-system`. Helm 4 applies objects with server-side apply, and `istiod` itself owns the `failurePolicy` field of its validating webhook, so Helm 4 must be told to take that field back. Run the same `helm rollback` command again with `--force-conflicts` added. Helm 3 does not need that flag.
+
 Run `helm history istiod -n istio-system` again. You should see a new revision 3 with the status `deployed` and the description `Rollback to 1`. Revision 2 is now `superseded`. The history keeps the bad revision; it records what happened, not what you meant.
 
 Do not roll back `istio-base` or `istio-ingressgateway`. `helm rollback` touches only the release you name, and those two releases never had a bad revision.

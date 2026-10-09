@@ -12,7 +12,7 @@ Every section needs the same set of tools. Install these before you start:
 - **The astrona command-line tool.**
 - **`jq`:** reads the JSON that `kubectl` and `istioctl` print, so you can pick out one field.
 
-You do not need to install `istioctl` or `helm` yourself. Each playground and lab installs the exact version it needs, `istioctl` 1.30.5 (and 1.29.8 in the upgrade section) and Helm 3, so the client always matches the task. If a page says `istioctl: command not found`, the binary went to your home directory; run `export PATH="$HOME/.local/bin:$PATH"` and try again.
+You do not need to install `istioctl` or `helm` yourself. Each playground and lab installs the exact version it needs, `istioctl` 1.30.5 (and 1.29.8 in the upgrade section), so the client always matches the task. If your machine has no `helm`, the environments that need it install Helm 3; if you already have Helm 4, they use it, and the upgrade section tells you where Helm 4 behaves differently. If a page says `istioctl: command not found`, the binary went to your home directory; run `export PATH="$HOME/.local/bin:$PATH"` and try again.
 
 The playgrounds and labs need **outbound internet** while they start. They download Istio from `istio.io`, Helm and (in the ambient section) the Gateway API CRDs from GitHub, and the Istio Helm charts from the Istio chart repository. Without outbound internet, those starts fail with network errors that have nothing to do with Istio.
 
