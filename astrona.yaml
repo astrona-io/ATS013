@@ -609,8 +609,26 @@ modules:
         title: "Scoping And Removing Waypoints"
         path: sections/section-040/module-02/course-03-scoping-and-removing-waypoints.md
       - type: reading
-        title: "Wrap-Up: Mission Debrief"
-        path: sections/section-040/module-02/course-04-wrap-up.md
+        title: Question
+        path: sections/section-040/module-02/labs/lab-02/question.md
+      - type: lab
+        title: "Scope A Waypoint To One Service Lab"
+        path: sections/section-040/module-02/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: ambient
+        task_kind: migration
+        tags: [ambient, waypoint, use-waypoint, ztunnel-config, httproute, gateway-api]
+        learning_goals:
+          - Replace a namespace waypoint with a service waypoint that serves only one Service
+          - Remove the namespace enrollment so other Services stay on layer 4
+          - Prove with real requests that only the chosen Service passes through a waypoint
+        resources:
+          - name: "Configure waypoint proxies"
+            url: https://istio.io/latest/docs/ambient/usage/waypoint/
+      - type: reading
+        title: "Summary"
+        path: sections/section-040/module-02/course-04-summary.md
 
       - type: reading
         title: "Section 040 Knowledge Check: Installing Istio In Sidecar Or Ambient Mode"

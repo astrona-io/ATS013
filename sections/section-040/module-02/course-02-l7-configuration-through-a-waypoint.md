@@ -1,22 +1,22 @@
 # L7 Configuration Through A Waypoint
 
-Your playground now has a waypoint running in `ambient-l7`, with the namespace enrolled to it. The `HTTPRoute` named `notification-header`, which sets the response header `x-processed-by: waypoint`, is still applied and unchanged. It was correct all along; it just had nothing to carry it out. In this part you watch it take effect, and you learn to prove that the configuration really reached the proxy.
+A waypoint that runs is not yet proof that your layer 7 (L7, HTTP-aware) configuration works. You need to see the configuration take effect on a real request, and you need to know which checks prove it and which only look like proof. This part sends the same request through the waypoint, reads what the route's status really says, and finds the route inside the waypoint's Envoy proxy.
 
-## The same route, now that something can run it
+The commands below need two things in the `ambient-l7` namespace. The first is the `notification-header` `HTTPRoute`, which attaches to the `notification-service` Service and sets the response header `x-processed-by: waypoint`. The second is a waypoint named `waypoint`, created and enrolled with `istioctl waypoint apply -n ambient-l7 --enroll-namespace`. If your playground is fresh, create both before you go on.
 
-Nothing about the route changes in this step. The only difference from before is that a waypoint, the checkpoint station that reads the signal's contents, now sits in the path.
+## The same route, now with a proxy to run it
 
-<!-- astrona:playground:renew -->
-
-### See it in your playground
+Nothing about the route changes in this step. The route was correct all along; it only had no proxy to carry it out. The one difference now is that a waypoint, an Envoy proxy that reads HTTP (Hypertext Transfer Protocol) requests, sits in the path between `tester` and `notification-service`.
 
 Send the same request from `tester` again:
+
+<!-- astrona:playground:renew -->
 
 ```sh
 kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -7
 ```
 
-Expect something like:
+The output looks like this:
 
 ```text
 HTTP/1.1 200 OK
@@ -28,86 +28,84 @@ x-envoy-upstream-service-time: 2
 x-processed-by: waypoint
 ```
 
-Three signs show that the waypoint's Envoy is in the path:
+Three signs in this response show that the waypoint's Envoy handled it:
 
-- `x-processed-by: waypoint` is a header no application set. An HTTP-aware proxy added it.
+- `x-processed-by: waypoint` is a header that nginx does not set. The waypoint added it, because the `HTTPRoute` told it to.
 - `server: istio-envoy` replaced `nginx/1.27.4`, so the response passed through Envoy on its way back. Without the waypoint, the same request showed `Server: nginx/1.27.4`.
-- `x-envoy-upstream-service-time` is Envoy timing the call to the application.
+- `x-envoy-upstream-service-time` is the time, in milliseconds, that Envoy measured for the call to nginx.
 
-### A habit for debugging
-
-That before-and-after is worth turning into a habit. When layer 7 configuration in an ambient namespace seems to do nothing, do not start with "is my route correct?". Start with "is there a waypoint, and is this traffic routed through it?".
+That before-and-after comparison is worth turning into a habit. When layer 7 configuration in an ambient namespace seems to do nothing, do not start with "is my route correct?". Start with "is there a waypoint, and does ztunnel send this traffic through it?". ztunnel is the per-node proxy of ambient mode; it decides, per destination, whether a connection goes through a waypoint.
 
 > [!TIP]
 > When an `HTTPRoute` or a layer 7 policy in an ambient namespace seems to do nothing, check for the waypoint first: `istioctl waypoint list -n <namespace>`, then the `WAYPOINT` column in `istioctl ztunnel-config service`. Only then debug the route itself.
 
-## Reading the route's status honestly
+## What the route's status proves
 
-The `HTTPRoute` reported `Accepted` and `ResolvedRefs` before the waypoint existed, and it reports the same now. That is not a bug in the status. The status answers a narrower question than most people assume.
-
-### What the conditions mean
+The response proved that the route works, so it is fair to ask what the route's status proved. The `HTTPRoute` reported `Accepted` and `ResolvedRefs` before the waypoint existed, and it reports the same now. That is not a bug in the status. The status answers a narrower question than most people assume.
 
 Each condition on the route proves one thing, and only that thing:
 
 | Condition | Means | Does **not** mean |
 | --- | --- | --- |
-| `Accepted` | The route is well formed and bound to the parent named in `parentRefs` | Anything is carrying it out |
+| `Accepted` | The route is well formed and bound to the parent named in `parentRefs` | A proxy is carrying it out |
 | `ResolvedRefs` | Every `backendRefs` target exists and can be referenced | Traffic is reaching that backend |
 
-So route status is a check on the object, not on what it does. The real check is the response (a header, a status code, a timing header), or the routes the waypoint's Envoy actually received.
+So the route's status is a check on the object, not on what it does. The real check is the response (a header, a status code, a timing header), or the routes the waypoint's Envoy actually received.
 
-### See it in your playground
+## The route inside the waypoint's Envoy
 
-The waypoint is an ordinary Envoy, so the ordinary `istioctl proxy-config` commands work on it. `istioctl proxy-config route` lists the routes a proxy holds. Find the waypoint pod's name, then read its routes:
+The waypoint is an ordinary Envoy, so the ordinary `istioctl proxy-config` commands work on it. `istioctl proxy-config route` lists the routes one proxy holds, as the proxy received them from `istiod`. Store the waypoint pod's name in a variable, then read its routes:
 
 ```sh
 WAYPOINT_POD=$(kubectl -n ambient-l7 get pod -l gateway.networking.k8s.io/gateway-name=waypoint -o jsonpath='{.items[0].metadata.name}')
 istioctl proxy-config route "$WAYPOINT_POD.ambient-l7" | head -10
 ```
 
-Expect something like:
+The output looks like this (shortened):
 
 ```text
 NAME                                          VHOST NAME                              DOMAINS     MATCH     VIRTUAL SERVICE
 inbound-vip|80|http|notification-service...   inbound|http|80                         *           /*        notification-header.ambient-l7
 ```
 
-Your route's name, `notification-header.ambient-l7`, appears in the `VIRTUAL SERVICE` column. That is the strongest proof that the configuration reached the proxy, and does not merely exist in the cluster. Use `proxy-config` only on the waypoint pod: the application pods in an ambient namespace have no Envoy of their own.
+The route's name, `notification-header.ambient-l7`, appears in the `VIRTUAL SERVICE` column, even though it came from an `HTTPRoute`. That is the strongest proof that the configuration reached the proxy, and does not only exist in the cluster. Run `proxy-config` only on the waypoint pod: the application pods in an ambient namespace have no Envoy of their own.
+
+You now know how to prove that a waypoint carries out a route: a real response with the header and `server: istio-envoy`, and the route's name in the waypoint's own route table. You also know that `Accepted` and `ResolvedRefs` only check the object. The open question is scope: whether every Service in the namespace should pay for the extra hop, and what happens when a waypoint goes away.
 
 ## Common pitfalls
 
 > [!WARNING]
-> **Debugging the route before checking for the waypoint.** An `HTTPRoute` in a namespace with no waypoint is accepted, gets a status, and does nothing. Check that a waypoint exists and that ztunnel names it first.
+> **Debugging the route before checking for the waypoint.** An `HTTPRoute` in a namespace with no waypoint is accepted, gets a status, and does nothing. First check that a waypoint exists and that ztunnel names it.
 >
 > **Reading route status as proof of effect.** `Accepted` means well formed and bound, not enforced. Only a real response, or the route inside the waypoint's Envoy, proves it works.
 >
-> **Running `istioctl proxy-config` on an application pod.** Ambient pods have no sidecar. Point it at the waypoint pod instead.
+> **Running `istioctl proxy-config` on an application pod.** Ambient pods have no sidecar proxy. Point the command at the waypoint pod instead.
 >
 > **Expecting a waypoint to cover traffic from outside the mesh.** ztunnel only captures connections from meshed workloads. A client outside the mesh reaches the Service directly and skips the waypoint.
 
 ## Your mission: Waypoint Proxy For L7
 
-You can now add a waypoint, attach an `HTTPRoute` to a Service, and prove that layer 7 processing is in the path. Now prove it in a graded mission: deploy a namespace waypoint, enroll the namespace to it, attach a header-setting route, and show a real request coming back with that header.
+You can now add a waypoint, attach an `HTTPRoute` to a Service, and prove that layer 7 processing is in the path. The lab asks you to deploy a namespace waypoint, enroll the namespace to it, attach a route that sets a response header, and show a real request coming back with that header.
 
-The mission runs in its own training solar system, so first pause your playground. Nothing in it is lost:
+The lab runs on its own cluster, so first pause your playground. Nothing in it is lost:
 
 ```sh
 astrona stop ats-013-playground-040-02
 ```
 
-Then start the mission:
+Then start the lab. The task is on the next page; solve it on your own first:
 
 ```sh
 astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-040/module-02/labs/lab-01
 ```
 
-Read the task in [`question.md`](./labs/lab-01/question.md) and solve it on your own first. When you think you are done, send it for grading:
+When you think you are done, send it for grading:
 
 ```sh
 astrona submit -c sections/section-040/module-02/labs/lab-01
 ```
 
-When the mission is done, remove it and wake your playground up again:
+When the lab is done, remove it and start your playground again:
 
 ```sh
 astrona destroy ats-013-lab-040-02

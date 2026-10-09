@@ -4,7 +4,7 @@ estimated_duration: 25m
 
 # Waypoint Proxy For L7
 
-Welcome to your waypoint mission, astronaut. The `ambient-l7` namespace is already in the ambient mesh at layer 4: mutual TLS works, but nothing in the path can read HTTP. Your job is to add the waypoint proxy that makes layer 7 configuration possible, attach a route to the Service, and prove with a real request that something is finally reading HTTP.
+The `ambient-l7` namespace is already in the ambient mesh at layer 4: ztunnel gives the workloads mutual TLS, but no component in the request path reads HTTP. The learner adds a namespace waypoint proxy, enrolls the namespace to it, attaches an `HTTPRoute` to the `notification-service` Service, and proves with a real request from `tester` that the waypoint adds the response header `x-processed-by: waypoint`.
 
 ## Launching the Lab
 
