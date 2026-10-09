@@ -4,7 +4,7 @@ estimated_duration: 20m
 
 # Install Istio In Ambient Mode
 
-Welcome to your first ambient mission, astronaut. The ambient data plane is installed, and no planet is enrolled yet. Your job is to bring the `ambient-demo` namespace into the mesh without recreating a single pod, and to prove it with ztunnel. The grader saved every pod's UID before you started, so it will know if anything was relaunched.
+Istio 1.30.5 is installed with the `ambient` profile, and no namespace is in the mesh yet. The learner adds the `ambient-demo` namespace to the ambient mesh without creating any pod again, and proves it with `istioctl ztunnel-config workload`. The bootstrap saves every pod's UID before the learner starts, so the grader can tell if any pod was replaced.
 
 ## Launching the Lab
 

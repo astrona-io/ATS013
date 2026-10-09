@@ -2,9 +2,9 @@
 
 Solve this question on: `terminal`
 
-Astronaut, Istio 1.30.5 is installed with the **`ambient`** profile: `istiod` plus the `istio-cni-node` and `ztunnel` DaemonSets. In ambient mode no ship carries its own communications officer; a shared relay tower (ztunnel) on each node does the job. `istioctl` 1.30.5 is on your PATH.
+Istio 1.30.5 is installed with the **`ambient`** profile: `istiod` plus the `istio-cni-node` and `ztunnel` DaemonSets. In ambient mode no pod has its own proxy container; one shared layer 4 proxy (`ztunnel`) on each node carries the traffic of every pod in the mesh on that node. `istioctl` 1.30.5 is on your PATH.
 
-The planet (namespace) `ambient-demo` is **not enrolled** in the mesh. It runs two workloads, `notification-service` (nginx) and `tester`. Each pod has exactly one container.
+The namespace `ambient-demo` is **not enrolled** in the mesh. It runs two workloads, `notification-service` (nginx) and `tester`. Each pod has exactly one container.
 
 1.  Enroll `ambient-demo` in the ambient mesh, using the correct dataplane-mode label.
 2.  Do it **without recreating any pod**. Before you started, the bootstrap saved every pod's `metadata.uid` in the ConfigMap `ambient-demo/lab-baseline`. The grader compares the live UIDs with it. A `rollout restart`, a `kubectl delete pod`, or anything else that replaces a pod fails this check. Ambient enrollment never needs a restart, and that is exactly what this requirement proves.

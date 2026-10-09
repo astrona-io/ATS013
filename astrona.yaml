@@ -510,8 +510,8 @@ modules:
           - name: "ztunnel data plane"
             url: https://istio.io/latest/docs/ambient/architecture/data-plane/
       - type: reading
-        title: "Wrap-Up: Mission Debrief"
-        path: sections/section-040/module-01/course-03-wrap-up.md
+        title: "Summary"
+        path: sections/section-040/module-01/course-03-summary.md
 
       - type: reading
         title: "Add A Waypoint Proxy For L7 In Ambient Mode"
