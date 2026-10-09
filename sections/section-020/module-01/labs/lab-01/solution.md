@@ -15,14 +15,13 @@ kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}' | grep -E 'acces
 
 ```text
 NAME                   READY   UP-TO-DATE   AVAILABLE   AGE
-istio-egressgateway    1/1     1            1           3m
-istio-ingressgateway   1/1     1            1           3m
-istiod                 1/1     1            1           3m
-
-(neither key is present)
+istio-egressgateway    1/1     1            1           18s
+istio-ingressgateway   1/1     1            1           18s
+istiod                 1/1     1            1           30s
+accessLogFile: /dev/stdout
 ```
 
-The missing keys mean something. The built-in `demo` profile sets neither `accessLogFile` nor `outboundTrafficPolicy`, so the built-in defaults apply. When those two keys appear later, you know your document took effect.
+The `demo` profile already turns on access logging, so `accessLogFile: /dev/stdout` is there before you change anything. `outboundTrafficPolicy` is missing, so the built-in default (`ALLOW_ANY`) applies. When that key appears later, you know your document took effect.
 
 ---
 
@@ -61,7 +60,7 @@ Keeping `profile: demo` is what keeps the ingress gateway. The document is a cha
 
 ## Step 3: Check before you apply
 
-`components.egressGateways` is a **list**, and `istioctl` matches its entries against the profile's entries by `name`. A typo does not cause an error. It defines a *new*, disabled gateway and leaves the original running.
+`components.egressGateways` is a **list**, and your list replaces the profile's list as a whole. Your list holds one entry, `istio-egressgateway` with `enabled: false`, so no egress gateway is rendered. A typo in the name does not cause an error either, so the render is the place to check what the install will keep.
 
 Validate the file, and count the egress gateway objects in the rendered result:
 
@@ -75,7 +74,7 @@ istioctl manifest generate -f istio-custom.yaml | grep -c '^  name: istio-egress
 0
 ```
 
-Zero egress gateway objects means your entry matched the profile's `istio-egressgateway`. If the count is not zero, the name in your file is wrong.
+Zero egress gateway objects means the profile's `istio-egressgateway` will not be installed.
 
 `istioctl validate` checks the schema. `istioctl manifest generate -f` shows the rendered result, and it is the stronger check: if your change is not in the rendered output, it did not take, whatever the reason.
 
@@ -87,14 +86,21 @@ Zero egress gateway objects means your entry matched the profile's `istio-egress
 istioctl install -f istio-custom.yaml -y
 ```
 
+The output looks like this (shortened: the logo and the progress lines are left out):
+
 ```text
-✔ Istio core installed
-✔ Istiod installed
-✔ Ingress gateways installed
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
+✔ Ingress gateways installed 🛬
+- Pruning removed resources  Removed apps/v1, Kind=Deployment/istio-egressgateway.istio-system.
+  Removed /v1, Kind=Service/istio-egressgateway.istio-system.
+  Removed /v1, Kind=ServiceAccount/istio-egressgateway-service-account.istio-system.
+  Removed rbac.authorization.k8s.io/v1, Kind=RoleBinding/istio-egressgateway-sds.istio-system.
+  Removed rbac.authorization.k8s.io/v1, Kind=Role/istio-egressgateway-sds.istio-system.
 ✔ Installation complete
 ```
 
-Read the summary. "Egress gateways installed" is gone, and "Ingress gateways installed" is still there. `istioctl install` removed the component your new document turns off, and `profile: demo` kept the other one.
+Read the summary. "Egress gateways installed" is gone, and "Ingress gateways installed" is still there. The pruning step lists the five egress gateway objects that `istioctl install` removed, because your new document turns that component off. `profile: demo` kept the ingress gateway.
 
 ---
 
@@ -110,27 +116,30 @@ kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}' | grep -A2 -E 'a
 
 ```text
 NAME                   READY   UP-TO-DATE   AVAILABLE   AGE
-istio-ingressgateway   1/1     1            1           9m
-istiod                 1/1     1            1           9m
-
+istio-egressgateway    0/1     0            0           23s
+istio-ingressgateway   1/1     1            1           23s
+istiod                 1/1     1            1           35s
 100m
-
 accessLogFile: /dev/stdout
+defaultConfig:
+  discoveryAddress: istiod.istio-system.svc:15012
+--
 outboundTrafficPolicy:
   mode: REGISTRY_ONLY
+rootNamespace: istio-system
 ```
 
-Each change landed in a different place: a Deployment disappeared, a field on a pod spec changed, and two keys appeared in a ConfigMap.
+Right after the install, `istio-egressgateway` still shows `0/1` while Kubernetes removes its pod; a few seconds later it is gone from the list. Each change landed in a different place: a Deployment disappeared, a field on a pod spec changed, and `outboundTrafficPolicy` appeared in the ConfigMap next to `accessLogFile`.
 
-Confirm that the workload still has its sidecar proxy, the `istio-proxy` container that Istio adds to each pod in the mesh:
+Confirm that the workload still has its sidecar proxy, the `istio-proxy` container that Istio adds to each pod in the mesh. Istio 1.30 runs it as a native sidecar, an init container with `restartPolicy: Always`, so list the init containers too:
 
 ```sh
-kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n mesh-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
 ```text
-POD                                     CONTAINERS
-notification-service-6c8f9d7b5c-t7wqx   notification-service,istio-proxy
+POD                                     INIT                     CONTAINERS
+notification-service-76f869bb97-7rvzg   istio-init,istio-proxy   notification-service
 ```
 
 ---
@@ -148,7 +157,18 @@ kubectl -n mesh-demo exec deploy/notification-service -c notification-service --
 exit=1
 ```
 
-The sidecar proxy refuses the external host. `REGISTRY_ONLY` blocks every destination that is not in the mesh registry, the list of services Istio knows about: a host that is not a Kubernetes Service and was not added with a `ServiceEntry` is refused. That is the setting working, not the mesh breaking.
+The sidecar proxy refuses the external host. Its access log shows how:
+
+```sh
+kubectl -n mesh-demo logs deploy/notification-service -c istio-proxy --tail=2
+```
+
+```text
+2026-10-09T23:51:21.206503Z	info	xdsproxy	connected to delta upstream XDS server: istiod.istio-system.svc:15012	id=2
+[2026-10-09T23:51:21.738Z] "GET / HTTP/1.1" 502 - direct_response - "-" 0 0 0 - "-" "Wget" "55417530-b84d-9444-8e6a-43e83a6db871" "example.com" "-" - - 104.20.23.154:80 10.244.0.8:52774 - block_all
+```
+
+The proxy answered `502` itself (`direct_response`), from the route named `block_all`, and sent nothing on. The response flag field is `-`, because no upstream connection failed. `REGISTRY_ONLY` blocks every destination that is not in the mesh registry, the list of services Istio knows about: a host that is not a Kubernetes Service and was not added with a `ServiceEntry` is refused. That is the setting working, not the mesh breaking.
 
 ---
 
@@ -165,8 +185,8 @@ The grader checks that no egress gateway Deployment exists anywhere, that `istio
 ## Common mistakes
 
 *   **Switching to `minimal` to drop the egress gateway.** It drops the ingress gateway too, and the grader checks for it. Change one component of `demo` instead.
-*   **A typo in the component `name`.** `istio-egress-gateway` matches nothing in the profile, so Istio adds a second, disabled entry and leaves the original running. `istioctl manifest generate -f` still shows the original egress gateway objects.
+*   **Adding a gateway entry and expecting the others to stay.** A gateway list in your document replaces the profile's list. If you list a new ingress gateway and leave out `istio-ingressgateway`, the install deletes `istio-ingressgateway`, and the grader checks for it. `istioctl manifest generate -f` shows which gateways remain.
 *   **Indenting `meshConfig` under `components`.** Misplaced keys become unknown fields and are ignored. The install succeeds and the ConfigMap is unchanged.
 *   **Applying with `--set` only.** It passes, but it leaves no file behind. The next person has no idea what the cluster should look like, and the next install reverts it.
 *   **Expecting external traffic to keep working.** `REGISTRY_ONLY` blocks outbound traffic by default. On a real cluster, list your outbound dependencies before you turn it on.
-*   **Trusting `istioctl validate` alone.** It checks the schema, not whether your change matched anything. `istioctl manifest generate -f` is the check that catches a list name that matches nothing.
+*   **Trusting `istioctl validate` alone.** It checks the schema, not whether your change matched anything. `istioctl manifest generate -f` is the check that shows what your lists really render.

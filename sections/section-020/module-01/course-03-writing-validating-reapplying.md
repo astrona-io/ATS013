@@ -2,7 +2,7 @@
 
 An `IstioOperator` file can be wrong in ways that no command reports. A typo in a component name, a key indented one level too far, or a second install without the file all succeed without an error. An `IstioOperator` document is the YAML file you pass to `istioctl install`. It has four layers: `profile` picks a built-in document, `components` decides what is deployed and how big, `meshConfig` holds mesh-wide settings, and `values` passes settings straight to the Helm charts that `istioctl` uses inside.
 
-This part is about the file itself. You write a complete document, meet the list rule that turns a typo into silence, check the file before it touches a cluster, and see what happens on the second install. Each habit here exists because of one specific way installs go wrong.
+This part is about the file itself. You write a complete document, meet the list rule that can delete a gateway without a warning, check the file before it touches a cluster, and see what happens on the second install. Each habit here exists because of one specific way installs go wrong.
 
 ## A document that changes three layers
 
@@ -32,15 +32,15 @@ spec:
 
 Do not apply it yet. The changes land in three different places: a Deployment disappears, a field on a pod template changes, and two keys appear in the `istio` ConfigMap in `istio-system`. Keep that map in mind, and the checks later become obvious.
 
-## Lists are matched by `name`, and a typo creates a new entry
+## A list replaces the profile's list
 
-Before you check the file, you need to know the rule behind the most common silent mistake. `components.egressGateways` and `components.ingressGateways` are **lists**, because a cluster can have several of each. `istioctl` matches your entries against the profile's entries by the `name` field.
+Before you check the file, you need to know the rule behind the most common silent mistake. `components.egressGateways` and `components.ingressGateways` are **lists**, because a cluster can have several of each. In Istio 1.30, `istioctl` does not merge your list with the profile's list entry by entry. When your document sets the list, your list replaces the profile's list as a whole.
 
-That rule causes a nasty failure. Write `name: istio-egress-gateway`, with one extra hyphen, and `istioctl` does not complain. It sees an entry whose name matches nothing in the profile, and treats it as a *new* gateway that happens to be turned off. The real `istio-egressgateway` is untouched and keeps running. Your file says `enabled: false`, the install succeeds, and the gateway is still there.
+Every entry in your list is one gateway, and an entry with no `enabled` field is turned on. So the list must hold every gateway you want, not only the one you change. Say you add an entry for a second ingress gateway, `my-ingress`, under `ingressGateways`. The render then holds `my-ingress` and no `istio-ingressgateway`, and the install deletes the gateway the profile gave you. `istioctl` does not complain, because as far as it can tell, you did not make a mistake.
 
-The general rule: **for any list under `components`, the `name` is the key that joins your entry to the profile's entry, and a name that matches nothing adds an entry instead of changing one.** There is no "no such component" error, because as far as `istioctl` can tell, you did not make a mistake.
+A typo in a `name` is caught by the same rule. Write `name: istio-egress-gateway`, with one extra hyphen, and your list holds one gateway with that name. With `enabled: false` nothing renders, and the profile's `istio-egressgateway` is gone with the replaced list, so the typo has no effect you can see. With `enabled: true` you get a gateway with the wrong name, and the right one disappears.
 
-`components.pilot` is a single object, not a list. A misspelled `pilot` key is simply an unknown field, which is the second silent failure.
+`components.pilot` is a single object, not a list, so its fields merge one at a time. A misspelled `pilot` key is simply an unknown field, which is the second silent failure.
 
 ## Unknown fields, and the two commands that catch them
 
@@ -65,11 +65,32 @@ The output looks like this:
 "istio-custom.yaml" is valid
 0
 2
-  outboundTrafficPolicy:
-    mode: REGISTRY_ONLY
+              outboundTrafficPolicy:
+                description: Set the default behavior of the sidecar for handling
+                  outbound traffic from the application.
+--
+              outboundTrafficPolicy:
+                description: Set the default behavior of the sidecar for handling
+                  outbound traffic from the application.
+--
+              outboundTrafficPolicy:
+                description: Set the default behavior of the sidecar for handling
+                  outbound traffic from the application.
+--
+    outboundTrafficPolicy:
+      mode: REGISTRY_ONLY
+    rootNamespace: istio-system
+--
+        "outboundTrafficPolicy": {
+          "mode": "REGISTRY_ONLY"
+        }
+--
+        "outboundTrafficPolicy": {
+          "mode": "REGISTRY_ONLY"
+        }
 ```
 
-Zero egress gateway objects and a remaining ingress gateway prove that your list entry matched the profile's entry. Now misspell the name on purpose and run the same commands. `validate` still passes, and the egress count is no longer zero, because your entry defined a *second*, disabled gateway and left the original running.
+Zero egress gateway objects and two ingress gateway names (the Deployment and the Service) prove that the egress gateway is off and the ingress gateway is still there. The last command finds `outboundTrafficPolicy` six times. The first three matches are field descriptions inside the `Sidecar` CRD schema. The fourth is the one that matters: `mode: REGISTRY_ONLY` in the `mesh` key of the `istio` ConfigMap. The last two are the same setting in JSON, in the `values` ConfigMap, where `istioctl` stores the values it rendered. Now misspell the name on purpose (`istio-egress-gateway`) and run the same commands. `validate` still passes, and the egress count is still `0`, because your list replaced the profile's list. Then change the misspelled entry to `enabled: true`: the render now holds `istio-egress-gateway` objects and no `istio-egressgateway` objects.
 
 ## A rendered manifest is a change review
 
@@ -80,6 +101,14 @@ istioctl manifest generate -f istio-custom.yaml > proposed.yaml
 grep -c '^kind:' proposed.yaml
 ```
 
+The output looks like this:
+
+```text
+37
+```
+
+The `demo` profile renders 42 objects. The five that are missing are the egress gateway's Deployment, Service, ServiceAccount, Role and RoleBinding.
+
 On a cluster you care about, this is the step between "the file looks right" and "apply it". It costs seconds, and it is the only place where a surprising deletion shows up *before* it happens.
 
 ## Applying, and checking all three layers
@@ -89,6 +118,22 @@ The file is now checked, so make the cluster match it. Apply it:
 ```sh
 istioctl install -f istio-custom.yaml -y
 ```
+
+The output looks like this (shortened: the logo and the progress lines are left out):
+
+```text
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
+✔ Ingress gateways installed 🛬
+- Pruning removed resources  Removed apps/v1, Kind=Deployment/istio-egressgateway.istio-system.
+  Removed /v1, Kind=Service/istio-egressgateway.istio-system.
+  Removed /v1, Kind=ServiceAccount/istio-egressgateway-service-account.istio-system.
+  Removed rbac.authorization.k8s.io/v1, Kind=RoleBinding/istio-egressgateway-sds.istio-system.
+  Removed rbac.authorization.k8s.io/v1, Kind=Role/istio-egressgateway-sds.istio-system.
+✔ Installation complete
+```
+
+There is no "Egress gateways installed" line, and the pruning step lists the five egress gateway objects it removed.
 
 Then check the result, one layer at a time:
 
@@ -102,17 +147,20 @@ The output looks like this:
 
 ```text
 NAME                   READY   UP-TO-DATE   AVAILABLE   AGE
-istio-ingressgateway   1/1     1            1           14m
-istiod                 1/1     1            1           14m
-
+istio-egressgateway    0/1     0            0           2m13s
+istio-ingressgateway   1/1     1            1           2m13s
+istiod                 1/1     1            1           2m25s
 100m
-
 accessLogFile: /dev/stdout
+defaultConfig:
+  discoveryAddress: istiod.istio-system.svc:15012
+--
 outboundTrafficPolicy:
   mode: REGISTRY_ONLY
+rootNamespace: istio-system
 ```
 
-The egress gateway is gone, `istiod` has the requested CPU, and both mesh keys are live. The ingress gateway is untouched: your document never mentioned it, and `demo` still turns it on. Leaving something out *inside* a profile you build on is not the same as leaving out the profile.
+Right after the install, `istio-egressgateway` still shows `0/1`: `istioctl` deleted it, and Kubernetes is still removing its pod. A few seconds later it is gone from the list. The egress gateway is gone, `istiod` has the requested CPU, and both mesh keys are live. The ingress gateway is untouched: your document never mentioned it, and `demo` still turns it on. Leaving something out *inside* a profile you build on is not the same as leaving out the profile.
 
 ## Comparing an installation with its baseline
 
@@ -155,14 +203,14 @@ These habits come straight from the failures above. Each one costs seconds.
 > [!TIP]
 > Before any `istioctl install -f`, run `istioctl manifest generate -f` on the same file and look for the one change you expect. If you cannot find it in the rendered output, the install will not make it either.
 
-You now know how to write an `IstioOperator` file that changes three layers, how a wrong list `name` or a misplaced key hides a mistake, and how `istioctl validate` and `istioctl manifest generate` catch both before the install. You also know that a second install reverts anything the new document leaves out. The open question is whether you can do all of this on a cluster that already runs a workload in the mesh, without breaking it.
+You now know how to write an `IstioOperator` file that changes three layers, how a gateway list replaces the profile's list and how a misplaced key hides a mistake, and how `istioctl validate` and `istioctl manifest generate` catch both before the install. You also know that a second install reverts anything the new document leaves out. The open question is whether you can do all of this on a cluster that already runs a workload in the mesh, without breaking it.
 
 ## Common pitfalls
 
 > [!WARNING]
 > **Expecting an install to merge with the previous one.** It replaces instead, and anything you leave out reverts. This is behind most "who turned off our access logging?" incidents.
 >
-> **A wrong `name` in a component list.** Lists are matched by `name`; a name that matches nothing silently adds a second entry and leaves the original running. `istioctl manifest generate -f` shows the original still there.
+> **Listing only the gateway you change.** A gateway list in your document replaces the profile's list, so every gateway you leave out of it is deleted. `istioctl manifest generate -f` shows which gateways the install will keep.
 >
 > **Indentation errors under `components`.** Misplaced keys become unknown fields and are ignored. `istioctl validate -f` and `istioctl manifest generate -f` catch them; a successful install does not.
 >

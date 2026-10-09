@@ -53,27 +53,41 @@ kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}'
 The output looks like this:
 
 ```text
+accessLogFile: /dev/stdout
 defaultConfig:
   discoveryAddress: istiod.istio-system.svc:15012
-  proxyMetadata: {}
-  tracing:
-    zipkin:
-      address: zipkin.istio-system:9411
 defaultProviders:
   metrics:
   - prometheus
 enablePrometheusMerge: true
+extensionProviders:
+- envoyOtelAls:
+    port: 4317
+    service: opentelemetry-collector.observability.svc.cluster.local
+  name: otel
+- name: skywalking
+  skywalking:
+    port: 11800
+    service: tracing.istio-system.svc.cluster.local
+- name: otel-tracing
+  opentelemetry:
+    port: 4317
+    service: opentelemetry-collector.observability.svc.cluster.local
+- name: jaeger
+  opentelemetry:
+    port: 4317
+    service: jaeger-collector.istio-system.svc.cluster.local
 rootNamespace: istio-system
 trustDomain: cluster.local
 ```
 
-There is no `accessLogFile` key and no `outboundTrafficPolicy` key, because the built-in `demo` profile does not set them. A missing key means "the built-in default applies", not "off".
+`accessLogFile: /dev/stdout` is already there, because the `demo` profile turns on access logging. There is no `outboundTrafficPolicy` key, because the profile does not set it. A missing key means "the built-in default applies", not "off"; for `outboundTrafficPolicy` the default is `ALLOW_ANY`. The `extensionProviders` list names telemetry backends that the `demo` profile defines but does not use until a `Telemetry` resource points at them.
 
 Notice `defaultConfig` too. It is the block that becomes each proxy's own settings, including `discoveryAddress`. That field tells a sidecar proxy the address of `istiod`.
 
 ## Applying a mesh-wide change
 
-Now that you know what the unchanged ConfigMap holds, set two `meshConfig` keys and watch them appear. The second key changes how every workload in the mesh reaches the outside world, so first read what it does.
+Now that you know what the unchanged ConfigMap holds, set two `meshConfig` keys and watch the new one appear. The second key changes how every workload in the mesh reaches the outside world, so first read what it does.
 
 ### What `REGISTRY_ONLY` does
 
@@ -83,7 +97,7 @@ That is a useful security setting. It also causes an outage if you turn it on be
 
 ### Write and apply the change
 
-The change is a short `IstioOperator` document that keeps the `demo` profile and adds two `meshConfig` keys. Save this as `istio-custom.yaml`:
+The change is a short `IstioOperator` document that keeps the `demo` profile and sets two `meshConfig` keys. `accessLogFile` has the same value the profile already sets; writing it down in your own file keeps the setting even if someone later changes the profile. Save this as `istio-custom.yaml`:
 
 ```yaml
 apiVersion: install.istio.io/v1alpha1
@@ -109,18 +123,34 @@ kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}' | grep -A2 -E 'a
 istioctl proxy-status
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 accessLogFile: /dev/stdout
+defaultConfig:
+  discoveryAddress: istiod.istio-system.svc:15012
+--
 outboundTrafficPolicy:
   mode: REGISTRY_ONLY
-
-NAME                                   CLUSTER      CDS      LDS      EDS      RDS        ISTIOD
-istio-ingressgateway-...istio-system   Kubernetes   SYNCED   SYNCED   SYNCED   NOT SENT   istiod-...
+rootNamespace: istio-system
+NAME                                                   CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+istio-egressgateway-b7dd4655b-qn8b6.istio-system       Kubernetes     istiod-7dc9684c55-gsnz6     1.30.5      3 (CDS,LDS,EDS)
+istio-ingressgateway-7f54444996-zn2k8.istio-system     Kubernetes     istiod-7dc9684c55-gsnz6     1.30.5      3 (CDS,LDS,EDS)
 ```
 
-Both keys are now in the ConfigMap, so the second stop is confirmed. `SYNCED` on every proxy confirms the third stop: `istiod` built the new configuration and pushed it, and the proxies accepted it. A few seconds of `STALE` right after an install is normal. A `STALE` that stays means a proxy does not accept what `istiod` sends.
+`grep -A2` prints two lines after each match, and `--` separates the two matches. Both keys are now in the ConfigMap, so the second stop is confirmed. `proxy-status` lists both gateways, connected to `istiod`. To see whether each proxy accepted the new configuration, add `-v 1`, which prints the sync state of every xDS type:
+
+```sh
+istioctl proxy-status -v 1
+```
+
+```text
+NAME                                                   CLUSTER        CDS             ECDS        EDS             LDS             RDS         ISTIOD                      VERSION
+istio-egressgateway-b7dd4655b-qn8b6.istio-system       Kubernetes     SYNCED (4s)     IGNORED     SYNCED (4s)     SYNCED (4s)     IGNORED     istiod-7dc9684c55-gsnz6     1.30.5
+istio-ingressgateway-7f54444996-zn2k8.istio-system     Kubernetes     SYNCED (4s)     IGNORED     SYNCED (4s)     SYNCED (4s)     IGNORED     istiod-7dc9684c55-gsnz6     1.30.5
+```
+
+`SYNCED (4s)` confirms the third stop: four seconds ago `istiod` pushed the new configuration, and the proxy accepted it. `IGNORED` means the proxy did not ask for that type; the gateways have no `Gateway` resource yet, so they need no routes (`RDS`). A few seconds of `STALE` right after an install is normal. A `STALE` that stays means a proxy does not accept what `istiod` sends.
 
 ## Confirming enforcement with real traffic
 
@@ -133,19 +163,31 @@ kubectl label namespace default istio-injection=enabled --overwrite
 kubectl run tester --image=curlimages/curl:8.11.1 --command -- sh -c 'sleep 3600'
 kubectl wait --for=condition=Ready pod/tester --timeout=120s
 kubectl exec tester -c tester -- curl -s -o /dev/null -w 'external: %{http_code}\n' http://example.com
-kubectl exec tester -c tester -- curl -s -o /dev/null -w 'in-cluster: %{http_code}\n' http://istiod.istio-system.svc:15014/ready
+kubectl exec tester -c tester -- curl -s -o /dev/null -w 'in-cluster: %{http_code}\n' http://istiod.istio-system.svc:15014/version
 ```
 
-The output looks like this:
+The output looks like this (shortened: the lines from `kubectl label`, `kubectl run` and `kubectl wait` are left out):
 
 ```text
 external: 502
 in-cluster: 200
 ```
 
-The sidecar proxy of the `tester` pod refuses the external host with `502`, and the Service inside the cluster answers normally. Nothing about the pod changed between the two requests. The proxy applies a mesh-wide rule that arrived through the ConfigMap. This is also exactly what it looks like when someone turns on `REGISTRY_ONLY` by accident, so it is worth seeing once on purpose.
+The sidecar proxy of the `tester` pod refuses the external host with `502`, and the `istiod` Service inside the cluster answers normally on its monitoring port `15014`, where `/version` returns the `istiod` version. Nothing about the pod changed between the two requests. The proxy applies a mesh-wide rule that arrived through the ConfigMap. This is also exactly what it looks like when someone turns on `REGISTRY_ONLY` by accident, so it is worth seeing once on purpose.
 
-The kind of failure is the clue. It is a `502` from the proxy, not a timeout or a name lookup error. A timeout points to a problem on the network path. An immediate `502` from a pod in the mesh to an external host points to mesh policy. The access logs you just turned on make it explicit: `kubectl logs tester -c istio-proxy --tail=5` shows the refused request, with a response flag that says no route was found. A response flag is a short Envoy code in the access log that says why a request failed.
+The kind of failure is the clue. It is a `502` from the proxy, not a timeout or a name lookup error. A timeout points to a problem on the network path. An immediate `502` from a pod in the mesh to an external host points to mesh policy. The access log makes it explicit. Read the last lines of the `istio-proxy` container's log:
+
+```sh
+kubectl logs tester -c istio-proxy --tail=5
+```
+
+The output looks like this (shortened: the startup lines before the request are left out):
+
+```text
+[2026-10-09T23:46:40.561Z] "GET / HTTP/1.1" 502 - direct_response - "-" 0 0 0 - "-" "curl/8.11.1" "43e8081a-0b95-90c7-99be-34c0c5c8121f" "example.com" "-" - - 104.20.23.154:80 10.244.0.8:58124 - block_all
+```
+
+The fields after the status code are the response flag and the response code details. The response flag is a short Envoy code that says why a request failed; here it is `-`, because Envoy did not fail to reach anything. The details say `direct_response`: the proxy answered the request itself, without sending it on. The last field is the name of the route that matched, `block_all`. Under `REGISTRY_ONLY`, `istiod` gives every sidecar this route for hosts outside the mesh registry, and it answers with `502`.
 
 ## Why a setting can be in the ConfigMap and still not apply
 

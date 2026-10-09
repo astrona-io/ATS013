@@ -40,6 +40,6 @@ Read the parts in this order:
 
 1. **The Four Configuration Layers:** what `profile`, `components`, `meshConfig` and `values` each own, how they merge, and where the line runs between installation settings and runtime resources.
 2. **meshConfig: From File To ConfigMap To Proxy:** the path a mesh-wide setting takes, why the `istio` ConfigMap is the fastest place to check it, and how `REGISTRY_ONLY` changes real traffic.
-3. **Writing, Validating And Re-applying The Document:** how to build the `IstioOperator` file, the list rule that hides typos, how to compare with the built-in profile, and what a second install does to settings you left out. The graded lab "Customize An Istio Installation" follows this part.
+3. **Writing, Validating And Re-applying The Document:** how to build the `IstioOperator` file, the rule that a gateway list replaces the profile's list, how to compare with the built-in profile, and what a second install does to settings you left out. The graded lab "Customize An Istio Installation" follows this part.
 
 A summary closes the module.

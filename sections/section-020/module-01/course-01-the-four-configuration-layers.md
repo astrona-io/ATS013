@@ -79,7 +79,7 @@ Inside one document, the four layers are not a priority stack. They configure di
 
 `istioctl` merges **one field at a time, not one block at a time**. Setting `components.pilot.k8s.resources.requests.cpu` does not throw away the rest of `components.pilot` from the profile. It replaces that one leaf, and everything else stays.
 
-Lists are the exception, and it is an important one. `istioctl` matches list entries by their `name`, and it adds an entry whose name matches nothing as a new entry.
+Lists are the exception, and it is an important one. A list in your document, such as `components.ingressGateways`, replaces the profile's list as a whole. `istioctl` does not merge the entries, so a gateway you leave out of your list is not rendered.
 
 ## What a profile renders to
 
@@ -144,15 +144,16 @@ kubectl -n istio-system get deploy -o custom-columns='NAME:.metadata.name,CPU-RE
 The output looks like this:
 
 ```text
-(neither key is present)
-
+accessLogFile: /dev/stdout
 NAME                   CPU-REQ
 istio-egressgateway    10m
-istiod                 500m
 istio-ingressgateway   10m
+istiod                 10m
 ```
 
-The missing keys tell you something. The built-in `demo` profile sets neither `accessLogFile` nor `outboundTrafficPolicy`, so the built-in defaults apply. When those two keys appear later, you know your own document took effect. The CPU requests come from the profile's `components.*.k8s.resources` blocks: a `components` setting, visible on an ordinary Deployment.
+The `demo` profile already turns on access logging: it sets `accessLogFile: /dev/stdout` in `meshConfig`. It does not set `outboundTrafficPolicy`, so the built-in default (`ALLOW_ANY`) applies. When that key appears later, you know your own document took effect.
+
+The CPU requests are also set by the profile. In Istio 1.30 the `demo` profile is a set of Helm values (`pilot.resources`, `gateways.istio-ingressgateway.resources` and so on), so they arrive through the `values` layer. The profile keeps every request small, so that the whole mesh fits on a laptop. A `components.*.k8s.resources` block in your own document would override them for one component.
 
 You now know that `components` decides what exists and how big it is, `meshConfig` decides how it behaves, and `values` is the fallback for anything else. You also know that none of them is the right place for something a runtime resource can express. The open question is how a `meshConfig` setting gets from your file to a running proxy, and how to check each step on the way.
 
