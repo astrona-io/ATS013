@@ -31,22 +31,32 @@ You can see this in your playground. `helm search repo` lists the charts in the 
 <!-- astrona:playground:renew -->
 
 ```sh
-helm search repo istio --versions | head -8
+helm search repo istio
 helm show chart istio/base | head -6
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
-NAME                    CHART VERSION   APP VERSION     DESCRIPTION
-istio/base              1.30.5          1.30.5          Helm chart for deploying Istio cluster resources
-istio/cni               1.30.5          1.30.5          Helm chart for Istio CNI components
-istio/gateway           1.30.5          1.30.5          Helm chart for deploying Istio gateways
-istio/istiod            1.30.5          1.30.5          Helm chart for istio control plane
-istio/ztunnel           1.30.5          1.30.5          Helm chart for Istio ztunnel components
+NAME               	CHART VERSION	APP VERSION	DESCRIPTION                                       
+istio/istiod       	1.30.5       	1.30.5     	Helm chart for istio control plane                
+istio/istiod-remote	1.23.6       	1.23.6     	Helm chart for a remote cluster using an extern...
+istio/ambient      	1.30.5       	1.30.5     	Helm umbrella chart for ambient                   
+istio/base         	1.30.5       	1.30.5     	Helm chart for deploying Istio cluster resource...
+istio/cni          	1.30.5       	1.30.5     	Helm chart for istio-cni components               
+istio/gateway      	1.30.5       	1.30.5     	Helm chart for deploying Istio gateways           
+istio/ztunnel      	1.30.5       	1.30.5     	Helm chart for istio ztunnel components           
+apiVersion: v2
+appVersion: 1.30.5
+description: Helm chart for deploying Istio cluster resources and CRDs
+icon: https://istio.io/latest/favicons/android-192x192.png
+keywords:
+- istio
 ```
 
-There are five charts, all on the same version. There is no umbrella chart that pulls in the others, and Istio leaves it out on purpose. The pieces have different lifecycles, and in a real organisation they often have different owners.
+The five charts from the table are all on the same version. The list has two more entries. `istio/ambient` is an umbrella chart: a chart that only pulls in other charts (`base`, `cni`, `istiod` and `ztunnel`), and it is for ambient mode only. `istio/istiod-remote` is an old chart, still on `1.23.6`, for a cluster that uses a control plane in another cluster. For sidecar mode there is no umbrella chart, and Istio leaves it out on purpose. The pieces have different lifecycles, and in a real organisation they often have different owners.
+
+By default `helm search repo` shows only the newest version of each chart. Add `--versions` to list every published version; then each chart has many rows, newest first.
 
 ## The order is a dependency, not a habit
 
@@ -54,17 +64,16 @@ Knowing the three charts is not enough; you also need to know why they go in tha
 
 ### Why base comes first
 
-The `istiod` chart creates objects of kinds that the `base` chart defines. A `CustomResourceDefinition` tells the API server what a kind *is*. Until it exists, the API server rejects every object of that kind, with an error that names the missing resource. Helm does not reject the object; the API server does.
+The `istiod` chart itself creates only built-in kinds: a Deployment, Services, a ConfigMap, roles and webhook configurations. So the API server accepts it even when no Istio CRD exists, and `helm install istiod` reports `STATUS: deployed`. `istiod` even starts and reports ready. The failure comes later, and from somewhere else: every Istio object you apply is rejected, because a `CustomResourceDefinition` tells the API server what a kind *is*, and until it exists, the API server knows no `VirtualService`.
 
-That difference matters when you read the error. A wrong order does not produce a Helm dependency warning. It produces an API error that looks like a broken chart:
+That difference matters when you read the error. A wrong order does not produce a Helm error or a Helm dependency warning. It produces an API error from `kubectl` when you first apply Istio configuration, and it looks like a broken file. This is what `kubectl apply` printed for a `VirtualService` in a file called `vs.yaml`, on a cluster with the `istiod` release and no `istio-base` release (the file path in the output is shortened):
 
 ```text
-Error: INSTALLATION FAILED: unable to build kubernetes objects from release manifest:
-resource mapping not found for name: "istio-validator-istio-system" ...
+error: resource mapping not found for name: "test" namespace: "default" from "vs.yaml": no matches for kind "VirtualService" in version "networking.istio.io/v1"
 ensure CRDs are installed first
 ```
 
-The last clause is the whole diagnosis. Read the kind in the error before you assume anything else is wrong.
+The last line is the whole diagnosis: install the `istio-base` release. Read the kind in the error before you assume anything else is wrong.
 
 ### Why gateway comes after istiod
 
@@ -95,22 +104,32 @@ helm template my-edge istio/gateway -n istio-ingress \
   | grep -E '^kind:|^  name:|    app:|    istio:' | head -20
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 kind: ServiceAccount
   name: my-edge
-kind: Deployment
+    app: my-edge
+    istio: my-edge
+kind: Role
   name: my-edge
     app: my-edge
     istio: my-edge
+kind: RoleBinding
+  name: my-edge
+    app: my-edge
+    istio: my-edge
+  name: my-edge
+  name: my-edge
 kind: Service
   name: my-edge
     app: my-edge
     istio: my-edge
+    app: my-edge
+    istio: my-edge
 ```
 
-Every name and label here came from the release name `my-edge`. If you change the release name, all of them change with it, including the `istio:` label that a `Gateway` resource selects.
+`head -20` stops the list here. Without it, the list goes on with a `Deployment` and a `HorizontalPodAutoscaler`, both named `my-edge` with the same `app` and `istio` labels. Every name and label here came from the release name `my-edge`. If you change the release name, all of them change with it, including the `istio:` label that a `Gateway` resource selects.
 
 ## Where the values tree comes from
 

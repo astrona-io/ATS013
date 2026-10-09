@@ -34,17 +34,16 @@ kubectl get crd | grep -c istio.io
 kubectl -n istio-system get pods
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: the release notes that `helm install` prints are left out):
 
 ```text
-NAME            NAMESPACE       REVISION    STATUS      CHART           APP VERSION
-istio-base      istio-system    1           deployed    base-1.30.5     1.30.5
-
+NAME      	NAMESPACE   	REVISION	UPDATED                              	STATUS  	CHART      	APP VERSION
+istio-base	istio-system	1       	2026-10-10 01:39:03.556136 +0200 CEST	deployed	base-1.30.5	1.30.5     
 15
 No resources found in istio-system namespace.
 ```
 
-There is one deployed release, fifteen CRDs and no pods. `base` contains only definitions. That is exactly why installing `istiod` first fails: the kinds it needs would not exist yet.
+There is one deployed release, fifteen CRDs and no pods. `base` contains only definitions. Without them, the API server rejects every Istio object you apply later, such as a `VirtualService`.
 
 ## istiod: where configuration enters
 
@@ -94,22 +93,25 @@ kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}' | head -12
 kubectl -n istio-system get deploy istiod -o jsonpath='{.spec.template.spec.containers[0].resources.requests.cpu}{"\n"}'
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 NAME     READY   UP-TO-DATE   AVAILABLE   AGE
-istiod   1/1     1            1           48s
-
+istiod   1/1     1            1           4s
 accessLogFile: /dev/stdout
 defaultConfig:
   discoveryAddress: istiod.istio-system.svc:15012
-  proxyMetadata: {}
-...
+defaultProviders:
+  metrics:
+  - prometheus
+enablePrometheusMerge: true
 outboundTrafficPolicy:
   mode: ALLOW_ANY
-
-100m
+rootNamespace: istio-system
+trustDomain: cluster.local100m
 ```
+
+The mesh configuration does not end with a newline, so the `100m` from the third command lands on the same line as `trustDomain: cluster.local`.
 
 The `mesh` key in the `istio` ConfigMap is the live `meshConfig`: not what you typed, but what the cluster runs. When a mesh-wide setting "is not working", this answers the first question: did the setting ever arrive? The `100m` proves that the `pilot` block reached the Deployment.
 
@@ -134,15 +136,14 @@ kubectl -n istio-ingress get pod -l app=istio-ingressgateway \
   -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/istio-ingressgateway   1/1     1            1           35s
+deployment.apps/istio-ingressgateway   1/1     1            1           6s
 
-NAME                           TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)
-service/istio-ingressgateway   LoadBalancer   10.96.148.22   <pending>     15021:31...,80:31...,443:31...
-
+NAME                           TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                                      AGE
+service/istio-ingressgateway   LoadBalancer   10.96.234.204   <pending>     15021:31519/TCP,80:31088/TCP,443:32370/TCP   6s
 istio-proxy
 ```
 

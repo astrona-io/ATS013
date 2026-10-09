@@ -31,14 +31,13 @@ kubectl -n istio-system get secret -l owner=helm,name=istiod \
 The output looks like this:
 
 ```text
-NAME                                 TYPE                 DATA   AGE
-sh.helm.release.v1.istio-base.v1     helm.sh/release.v1   1      6m
-sh.helm.release.v1.istiod.v1         helm.sh/release.v1   1      5m
-
-{"name":"istiod","owner":"helm","status":"deployed","version":"1"}
+NAME                               TYPE                 DATA   AGE
+sh.helm.release.v1.istio-base.v1   helm.sh/release.v1   1      41s
+sh.helm.release.v1.istiod.v1       helm.sh/release.v1   1      27s
+{"modifiedAt":"1791589161","name":"istiod","owner":"helm","status":"deployed","version":"1"}
 ```
 
-The Secret name holds the release name and the revision. `version: "1"` is the revision number, not the chart version; keep that difference in mind when you read `helm history`. If you delete these Secrets to "clean up" a namespace, you also delete your rollback path and your only way to recover the values.
+The Secret name holds the release name and the revision. `modifiedAt` is the time Helm last wrote the record, in seconds since 1970. `version: "1"` is the revision number, not the chart version; keep that difference in mind when you read `helm history`. If you delete these Secrets to "clean up" a namespace, you also delete your rollback path and your only way to recover the values.
 
 ## The read commands
 
@@ -58,14 +57,13 @@ helm ls -A
 helm get values istiod -n istio-system
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
-NAME                    NAMESPACE       REVISION  STATUS    CHART           APP VERSION
-istio-base              istio-system    1         deployed  base-1.30.5     1.30.5
-istio-ingressgateway    istio-ingress   1         deployed  gateway-1.30.5  1.30.5
-istiod                  istio-system    1         deployed  istiod-1.30.5   1.30.5
-
+NAME                	NAMESPACE    	REVISION	UPDATED                              	STATUS  	CHART         	APP VERSION
+istio-base          	istio-system 	1       	2026-10-10 01:39:03.556136 +0200 CEST	deployed	base-1.30.5   	1.30.5     
+istio-ingressgateway	istio-ingress	1       	2026-10-10 01:39:21.708271 +0200 CEST	deployed	gateway-1.30.5	1.30.5     
+istiod              	istio-system 	1       	2026-10-10 01:39:16.916769 +0200 CEST	deployed	istiod-1.30.5 	1.30.5     
 USER-SUPPLIED VALUES:
 global:
   proxy:
@@ -75,7 +73,14 @@ global:
         memory: 64Mi
 meshConfig:
   accessLogFile: /dev/stdout
-...
+  outboundTrafficPolicy:
+    mode: ALLOW_ANY
+pilot:
+  autoscaleEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
 ```
 
 `USER-SUPPLIED VALUES` is exactly the `istiod-values.yaml` file you installed with, read back out of the cluster.
@@ -87,29 +92,28 @@ meshConfig:
 
 The read commands all report `STATUS: deployed`, and it is tempting to stop there. `deployed` means that Helm rendered its templates and the API server accepted every object. It says nothing about whether those objects do their job.
 
-For Istio, the key question is whether the mutating admission webhook from the `istiod` chart really serves injection requests. A **mutating admission webhook** is a call the Kubernetes API server makes while it creates an object, so that another service (here `istiod`) can change the object before it is stored. The only honest test is to create a pod in a namespace with injection turned on and count its containers. That test checks the whole chain at once: the CRDs from `base`, the webhook configuration from `istiod`, the `istiod` process behind it, and the network path from the API server to that process.
+For Istio, the key question is whether the mutating admission webhook from the `istiod` chart really serves injection requests. A **mutating admission webhook** is a call the Kubernetes API server makes while it creates an object, so that another service (here `istiod`) can change the object before it is stored. The only honest test is to create a pod in a namespace with injection turned on and list its containers. That test checks the whole chain at once: the CRDs from `base`, the webhook configuration from `istiod`, the `istiod` process behind it, and the network path from the API server to that process.
 
-Prove the install works from end to end. The commands label the `default` namespace for injection, create a pod, wait for it, print its container names, and then list the proxies that `istiod` serves:
+Prove the install works from end to end. The commands label the `default` namespace for injection, create a pod, wait for it, print the names of its init containers and its containers, and then list the proxies that `istiod` serves:
 
 ```sh
 kubectl label namespace default istio-injection=enabled --overwrite
 kubectl run tester --image=nginx
 kubectl wait --for=condition=Ready pod/tester --timeout=120s
-kubectl get pod tester -o jsonpath='{.spec.containers[*].name}{"\n"}'
+kubectl get pod tester -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}{"\n"}'
 istioctl proxy-status
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: the first three lines, from `kubectl label`, `kubectl run` and `kubectl wait`, are left out):
 
 ```text
-nginx istio-proxy
-
-NAME                                   CLUSTER      CDS      LDS      EDS      RDS        ISTIOD
-istio-ingressgateway-...istio-ingress  Kubernetes   SYNCED   SYNCED   SYNCED   NOT SENT   istiod-...
-tester.default                         Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED     istiod-...
+istio-init istio-proxy tester
+NAME                                                    CLUSTER        ISTIOD                     VERSION     SUBSCRIBED TYPES
+istio-ingressgateway-556fd5bc7b-mv6hc.istio-ingress     Kubernetes     istiod-ff9c4ff46-8vlbv     1.30.5      3 (CDS,LDS,EDS)
+tester.default                                          Kubernetes     istiod-ff9c4ff46-8vlbv     1.30.5      4 (CDS,LDS,EDS,RDS)
 ```
 
-`nginx istio-proxy` proves that the webhook added the sidecar proxy. `istioctl proxy-status` lists every proxy connected to `istiod`; `SYNCED` in the `CDS`, `LDS`, `EDS` and `RDS` columns means the proxy accepted the latest configuration of that xDS type, and `NOT SENT` means there is nothing of that type to send. Seeing both the pod and the gateway here proves that the proxies reach the control plane and that `istiod` pushes configuration to them. Either check alone is weaker than people think: a pod can be injected by a webhook whose backend stopped later.
+`istio-init istio-proxy tester` proves that the webhook added the sidecar proxy. The pod you created has one container, `tester`. The webhook added `istio-init`, which sets up the traffic redirection and exits, and `istio-proxy`, the sidecar proxy. Both are init containers: Istio 1.30 runs the proxy as a native sidecar, an init container with `restartPolicy: Always` that keeps running beside the application. `istioctl proxy-status` lists every proxy connected to `istiod`, with the `istiod` pod it uses, its version, and the xDS types it receives (`CDS`, `LDS`, `EDS`, `RDS`). The gateway does not receive `RDS` yet, because no `Gateway` resource gives it any routes. Seeing both the pod and the gateway here proves that the proxies reach the control plane and that `istiod` pushes configuration to them. Either check alone is weaker than people think: a pod can be injected by a webhook whose backend stopped later.
 
 This is also where `istioctl` earns its place on a cluster installed with Helm. `version`, `proxy-status`, `proxy-config` and `analyze` only read from the running control plane. Using them does not make `istioctl` an owner of the install. Only `istioctl install` and `istioctl uninstall` do that.
 

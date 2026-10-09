@@ -39,19 +39,23 @@ helm ls -A
 kubectl get crd | grep -c istio.io
 ```
 
-The output looks like this:
+The output looks like this (shortened: the list of kept CRDs has fifteen lines):
 
 ```text
 release "istio-ingressgateway" uninstalled
 release "istiod" uninstalled
+These resources were kept due to the resource policy:
+[CustomResourceDefinition] trafficextensions.extensions.istio.io
+[CustomResourceDefinition] workloadentries.networking.istio.io
+...
+[CustomResourceDefinition] virtualservices.networking.istio.io
+
 release "istio-base" uninstalled
-
-NAME    NAMESPACE   REVISION    STATUS  CHART   APP VERSION
-
+NAME	NAMESPACE	REVISION	UPDATED	STATUS	CHART	APP VERSION
 15
 ```
 
-No releases are left, and all fifteen CRDs are still installed. A cluster in this state looks clean to `helm` but is not clean for Istio. The next install starts on top of old definitions, which is exactly what `istioctl x precheck` warns about.
+Helm says it itself: it kept the CRDs because of their resource policy, the `helm.sh/resource-policy: keep` annotation. No releases are left, and all fifteen CRDs are still installed. A cluster in this state looks clean to `helm` but is not clean for Istio. The next install starts on top of old definitions, which is exactly what `istioctl x precheck` warns about.
 
 ## Finish the removal by hand
 
