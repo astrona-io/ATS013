@@ -1,5 +1,5 @@
 ---
-estimated_duration: 3m
+estimated_duration: 20m
 ---
 
 # Remove An Istio Helm Install Completely

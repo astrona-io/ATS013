@@ -1,5 +1,5 @@
 ---
-estimated_duration: 3m
+estimated_duration: 40m
 ---
 
 # Install And Onboard A Mesh

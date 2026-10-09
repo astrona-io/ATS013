@@ -1,5 +1,5 @@
 ---
-estimated_duration: 3m
+estimated_duration: 45m
 ---
 
 # Section 030 Capstone: A Complete Canary Migration
