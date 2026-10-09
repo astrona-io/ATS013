@@ -21,7 +21,7 @@ The diagram shows the removal order, and that a manual cleanup step still follow
 
 Some things survive a `helm uninstall` on purpose. Each one has a reason, and each one needs its own step if you want a clean cluster.
 
-**The CRDs are not deleted.** Helm leaves the Istio CRDs in place when you uninstall `istio-base`. This is deliberate. Deleting a CRD deletes every custom resource of that kind in the whole cluster, including objects that other teams depend on. So `helm uninstall istio-base` leaves the whole `networking.istio.io` API group installed, together with every `VirtualService` in it.
+**The CRDs are not deleted.** Helm leaves the Istio CRDs in place when you uninstall `istio-base`. This is deliberate: every Istio CRD in the `base` chart carries the annotation `helm.sh/resource-policy: keep`, which tells Helm to skip that object when it uninstalls the release. Deleting a CRD deletes every custom resource of that kind in the whole cluster, including objects that other teams depend on. So `helm uninstall istio-base` leaves the whole `networking.istio.io` API group installed, together with every `VirtualService` in it.
 
 **Namespace labels are not touched.** `istio-injection=enabled` sits on your namespace object, and no release owns that object. The label does nothing while no injection webhook exists. It takes effect again the moment Istio is installed again.
 
