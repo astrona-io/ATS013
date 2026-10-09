@@ -1,10 +1,11 @@
 # Course manifest for ATS013 - Installation, Upgrade And Configuration
 # (Istio Certified Associate).
 #
-# One entry per section under `modules:`. Each section lists, in order: its
+# The Introduction (`module-intro`) comes first. Then one entry per section
+# under `modules:`. Each section lists, in order: its
 # README, then for each module the landing page (course.md), its parts
 # (course-0N-*.md), and right after the part a lab tests, the lab's
-# question.md reading and the `type: lab` entry. The module's wrap-up page
+# question.md reading and the `type: lab` entry. The module's summary page
 # comes last. The section quiz and then the section capstone close the
 # section. Playgrounds are not listed: the landing page's playground marker
 # shows them. Never list a lab's solution.md here.
