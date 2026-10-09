@@ -1,8 +1,8 @@
 # Canary Upgrade With Revisions And Revision Tags
 
-Astronaut, upgrading a service mesh means changing the thing every signal already depends on: mission control. The safe way to do that is not to change it at all. You build a second mission control next to the first, move one planet over, watch, and move the rest only once you trust it. If something goes wrong, the old mission control is still running and still healthy.
+Upgrading Istio means changing `istiod`, the control plane that every sidecar proxy in the mesh depends on. `istiod` turns Istio resources into proxy configuration and sends it, together with certificates, to every proxy. The safe way to upgrade it is to leave the running `istiod` alone, install a second one next to it, move one namespace over, check it, and only then move the rest. If something goes wrong, the old `istiod` still runs and still serves its proxies.
 
-That is a **canary upgrade**, and it is one of the most tested upgrade topics on the exam. It rests on two ideas. A **revision** is a named mission control, so two can run side by side. A **revision tag** is a call sign that points at one of them. Under both sits one blunt fact from sidecar injection: nothing moves until a pod is created again.
+That method is a **canary upgrade**, and it is one of the most tested upgrade topics on the exam. It rests on two ideas. A **revision** is a named, independent copy of the control plane, so two of them can run side by side. A **revision tag** is a second name that points at one revision, so namespaces can follow the tag instead of a fixed revision. Under both sits one fact about sidecar injection: no workload moves until its pod is created again.
 
 ## Learning objectives
 
@@ -17,41 +17,35 @@ After this module you can:
 
 ## Before you start
 
-Every mission starts with a pre-flight check, astronaut. Make sure you have the knowledge this module expects, and know what is waiting in your playground.
+This module expects you to know how sidecar injection works and how a Deployment replaces its pods.
 
 ### What you should already know
 
-- **Sidecar injection.** A webhook (a dock inspector) adds the `istio-proxy` sidecar to a pod when the pod is created. The namespace label `istio-injection=enabled` turns this on for a whole namespace. Pods that were already running are not changed.
-- **Upgrades leave proxies behind.** Upgrading the control plane does not touch running proxies. Each one keeps the image it was injected with until its pod is recreated.
+- **Sidecar injection.** A mutating admission webhook adds the `istio-proxy` sidecar container to a pod when the pod is created. The namespace label `istio-injection=enabled` turns this on for a whole namespace. Pods that were already running do not change.
+- **Upgrades leave proxies behind.** Upgrading the control plane does not touch running proxies. Each proxy keeps the image it was injected with until its pod is created again.
 - **Kubernetes basics.** Namespaces, labels, Deployments and `kubectl rollout restart`.
 
 ### What is in your playground
 
-Your playground is a training solar system: one `kind` cluster with:
+The playground is one single-node `kind` cluster with:
 
-- **Two `istioctl` binaries**, so an upgrade has to be on purpose. Plain `istioctl` is **1.29.8**, the installed version. `istioctl-1.30.5` is the upgrade target.
+- **Two `istioctl` binaries**, so an upgrade only happens when you choose it. Plain `istioctl` is **1.29.8**, the installed version. `istioctl-1.30.5` is the upgrade target.
 - **Istio 1.29.8, installed with the `demo` profile as the default control plane with no revision name.** There is one `istiod` Deployment and one injection webhook.
 - The namespace **`canary-demo`**, labelled `istio-injection=enabled`, with one Deployment, `notification-service-v1`, whose pod has a sidecar.
 
-Every command runs from your normal shell, with `kubectl` already pointing at the cluster.
+You run every command from your normal shell, and `kubectl` already points at the cluster.
 
-Launch your playground now, and keep it running next to you while you read the parts:
+Start your playground now, and keep it running while you read the parts:
 
 <!-- astrona:playground -->
 
 ## The parts of this module
 
-Work through the parts in this order. The mission comes right after the part it practises.
+Read the parts in this order:
 
-1. [Revisions: A Named Control Plane](./course-01-revisions-a-named-control-plane.md): what `--set revision=` creates, how two control planes live side by side, and why installing one changes nothing for running pods.
-2. [Moving A Namespace To A Revision](./course-02-moving-a-namespace-to-a-revision.md): the two labels that pick a control plane, which one wins, and the restart that really moves a workload.
-3. [Revision Tags](./course-03-revision-tags.md): a call sign that points at a revision, so the next upgrade and any rollback is one command instead of one per namespace.
-   - Mission: [Canary Upgrade With Revisions And Tags](./labs/lab-01/question.md)
-4. [Retiring The Old Revision](./course-04-retiring-the-old-revision.md): the safe order for removing the old control plane, why `--purge` is the wrong tool, and how gateways move.
-5. [Wrap-Up: Mission Debrief](./course-05-wrap-up.md)
+1. **Revisions: A Named Control Plane:** what `--set revision=` creates, how two control planes run side by side, and why installing one changes nothing for running pods.
+2. **Moving A Namespace To A Revision:** the two labels that pick a control plane, which one wins, and the restart that really moves a workload.
+3. **Revision Tags:** a second name that points at a revision, so the next upgrade and any rollback is one command instead of one per namespace. The graded lab "Canary Upgrade With Revisions And Tags" follows this part.
+4. **Retiring The Old Revision:** the safe order for removing the old control plane, why `--purge` is the wrong tool, and how gateways move. The graded lab "Retire The Old Control Plane Revision" follows this part.
 
-## Why this matters
-
-There are two upgrade strategies. An **in-place** upgrade replaces the one mission control; it is simpler, but going back means a second full round of restarts. A **canary** upgrade costs a second mission control for a while, and in return going back is a label change. That is why production clusters usually start here.
-
-Canary upgrades are normally done with `istioctl`, because revisions and tags have no direct Helm command of their own. Learn how a revision is named, how a planet picks one, and when the ships really move, and an upgrade becomes something you can stop and reverse at any point.
+A summary closes the module.

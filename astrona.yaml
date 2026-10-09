@@ -462,8 +462,28 @@ modules:
         title: "Retiring The Old Revision"
         path: sections/section-030/module-02/course-04-retiring-the-old-revision.md
       - type: reading
-        title: "Wrap-Up: Mission Debrief"
-        path: sections/section-030/module-02/course-05-wrap-up.md
+        title: Question
+        path: sections/section-030/module-02/labs/lab-02/question.md
+      - type: lab
+        title: "Retire The Old Control Plane Revision Lab"
+        path: sections/section-030/module-02/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: canary-upgrade
+        task_kind: migration
+        tags: [canary, revisions, revision-tags, default-revision, uninstall, rollout-restart, proxy-status]
+        learning_goals:
+          - Find every namespace and proxy still served by the old control plane
+          - Move the missed namespace onto the prod tag and restart its workload
+          - Remove the default revision by name and prove traffic still flows from tester
+        resources:
+          - name: "Canary upgrades"
+            url: https://istio.io/latest/docs/setup/upgrade/canary/
+          - name: "istioctl command reference"
+            url: https://istio.io/latest/docs/reference/commands/istioctl/
+      - type: reading
+        title: "Summary"
+        path: sections/section-030/module-02/course-05-summary.md
 
       - type: reading
         title: "In-Place Upgrade Of The Control Plane"

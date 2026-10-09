@@ -1,12 +1,12 @@
 ---
-estimated_duration: 3m
+estimated_duration: 30m
 ---
 
 # Canary Upgrade With Revisions And Tags
 
-Welcome to a canary mission, astronaut. Istio 1.29.8 runs as the single default mission control, with no revision name. The planet `canary-demo` reports to it.
+Istio 1.29.8 runs as the single default control plane (`istiod`), with no revision name. The namespace `canary-demo` and its one workload are injected by it.
 
-Your job is to build a second mission control at 1.30.5 next to the first, give it the call sign `prod` with a revision tag, and move `canary-demo` and its one workload across through that tag, without touching the old control plane.
+The learner installs a second control plane at 1.30.5 as revision `1-30-5`, points the revision tag `prod` at it, and moves `canary-demo` and its workload onto it through that tag, without touching the old control plane.
 
 ## Launching the Lab
 
