@@ -4,9 +4,9 @@ estimated_duration: 3m
 
 # In-Place Upgrade
 
-Welcome to an in-place mission, astronaut. Istio 1.29.8 runs as a single mission control with the `default` profile, and the planet `inplace-demo` has three ships with communications officers on board.
+Istio 1.29.8 runs as a single control plane (`istiod`) with the `default` profile. The namespace `inplace-demo` runs `notification-service-v1` at two replicas and a `tester` pod, all with sidecar proxies.
 
-Your job is to check the cluster with the target version's binary, replace mission control with 1.30.5 in the same building (no second revision), keep the profile's ingress gateway, and relaunch every ship, the gateway included, so nothing is left on the old version.
+The learner checks the cluster with the target version's `istioctl` binary, upgrades the control plane to 1.30.5 in place (no second revision), keeps the profile's ingress gateway, and restarts every workload, the gateway included, so no proxy is left on the old version.
 
 ## Launching the Lab
 

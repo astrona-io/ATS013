@@ -409,8 +409,8 @@ modules:
         title: "Replacing The Control Plane"
         path: sections/section-030/module-03/course-01-replacing-the-control-plane.md
       - type: reading
-        title: "Skew, Completion And The Cost Of Reverting"
-        path: sections/section-030/module-03/course-02-skew-completion-and-reverting.md
+        title: "Version Skew And Finishing The Upgrade"
+        path: sections/section-030/module-03/course-02-version-skew-and-finishing-the-upgrade.md
       - type: reading
         title: Question
         path: sections/section-030/module-03/labs/lab-01/question.md
@@ -434,8 +434,11 @@ modules:
           - name: "Install with istioctl"
             url: https://istio.io/latest/docs/setup/install/istioctl/
       - type: reading
-        title: "Wrap-Up: Mission Debrief"
-        path: sections/section-030/module-03/course-03-wrap-up.md
+        title: "The Cost Of Going Back"
+        path: sections/section-030/module-03/course-03-the-cost-of-going-back.md
+      - type: reading
+        title: "Summary"
+        path: sections/section-030/module-03/course-04-summary.md
 
       - type: reading
         title: "Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)"
