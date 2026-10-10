@@ -30,7 +30,7 @@ The sequence of an in-place upgrade is fixed, and it has three steps, not two:
 
 People often drop step 3. The mesh keeps working well enough without it that the gap can last for months.
 
-Before you change anything, record the starting point. Run these four commands to see the versions, the image of `istiod`, the `uid` of the `istiod` Deployment and the proxy status. The `uid` is the unique ID that Kubernetes gives an object when it creates it; it never changes while the object exists. `istioctl proxy-status` lists every proxy that is connected to `istiod`, and shows whether it accepted the latest configuration.
+Before you change anything, record the starting point. Run these four commands to see the versions, the image of `istiod`, the `uid` of the `istiod` Deployment and the proxy status. The `uid` is the unique ID that Kubernetes gives an object when it creates it; it never changes while the object exists. `istioctl proxy-status` lists every proxy that is connected to `istiod`, with the `istiod` pod it uses, its own version and the configuration types it receives.
 
 <!-- astrona:playground:renew -->
 
@@ -41,21 +41,22 @@ kubectl -n istio-system get deploy istiod -o jsonpath='{.metadata.uid}{"\n"}'
 istioctl proxy-status
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 client version: 1.29.8
 control plane version: 1.29.8
-data plane version: 1.29.8 (3 proxies)
-
+data plane version: 1.29.8 (4 proxies)
 docker.io/istio/pilot:1.29.8
-4b1e9c2a-3d77-4f21-9c8e-2a1f6d4b8e03
-
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS        ISTIOD
-istio-ingressgateway-...istio-system     Kubernetes   SYNCED   SYNCED   SYNCED   NOT SENT   istiod-...
-notification-service-v1-...inplace-demo  Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED     istiod-...
-notification-service-v1-...inplace-demo  Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED     istiod-...
+a09cffc8-faa9-419b-be74-5a9e4b0a44ad
+NAME                                                      CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+istio-ingressgateway-75d6fcbb78-rcdmz.istio-system        Kubernetes     istiod-587b649545-mm8z5     1.29.8      3 (CDS,LDS,EDS)
+notification-service-v1-746cd97ddb-b9sxn.inplace-demo     Kubernetes     istiod-587b649545-mm8z5     1.29.8      4 (CDS,LDS,EDS,RDS)
+notification-service-v1-746cd97ddb-mpkcl.inplace-demo     Kubernetes     istiod-587b649545-mm8z5     1.29.8      4 (CDS,LDS,EDS,RDS)
+tester-577d497fbd-jlnc4.inplace-demo                      Kubernetes     istiod-587b649545-mm8z5     1.29.8      4 (CDS,LDS,EDS,RDS)
 ```
+
+There are four proxies: the ingress gateway, the two replicas of `notification-service-v1` and the `tester` pod. Every one runs `1.29.8` and is connected to the one `istiod` pod.
 
 Write down the `uid` as well as the version. After the upgrade, the image will be different and the `uid` will not. That turns "in place" into something you can check instead of something you take on trust.
 
@@ -83,7 +84,7 @@ The output looks like this:
 
 ```text
 ✔ No issues found when checking the cluster. Istio is safe to install or upgrade!
-  To get started, check out https://istio.io/v1.30/docs/setup/getting-started/
+  To get started, check out https://istio.io/latest/docs/setup/getting-started/.
 ```
 
 On a clean playground this check passes easily. On a cluster with real history it rarely does, and the warnings are the useful part. They name configuration that will stop working after the upgrade, while the old version still runs and you can still change your plan. Read every line: a warning is advice, and it does not block the install.
@@ -122,18 +123,18 @@ kubectl -n istio-system get pods -l app=istiod
 The output looks like this:
 
 ```text
-✔ Istio core installed
-✔ Istiod installed
-✔ Ingress gateways installed
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
+✔ Ingress gateways installed 🛬
+- Pruning removed resources
 ✔ Installation complete
-
-docker.io/istio/pilot:1.30.5
-4b1e9c2a-3d77-4f21-9c8e-2a1f6d4b8e03
+registry.istio.io/release/pilot:1.30.5
+a09cffc8-faa9-419b-be74-5a9e4b0a44ad
 NAME                      READY   STATUS    RESTARTS   AGE
-istiod-5f4c9d8b7c-w8t4n   1/1     Running   0          38s
+istiod-5497897698-wrmkc   1/1     Running   0          15s
 ```
 
-The image is new, the `uid` is the same one you wrote down, and the pod is newly created. Nobody deleted and created the Deployment again: `istioctl` updated it, and Kubernetes rolled its pods. A canary upgrade would instead have added a second Deployment with a different name.
+The install also prints a logo and progress lines; they are left out here. The image is new, and it comes from a new registry: Istio 1.30 images are published under `registry.istio.io/release`, and 1.29 images under `docker.io/istio`. The `uid` is the same one you wrote down, and the pod is newly created. Nobody deleted and created the Deployment again: `istioctl` updated it, and Kubernetes rolled its pods. A canary upgrade would instead have added a second Deployment with a different name.
 
 ## The short gap without a control plane
 

@@ -14,10 +14,11 @@ So right after the upgrade, the mesh looks like this:
 flowchart LR
     I["istiod 1.30.5"] -->|"xDS"| P1["replica 1: proxy 1.29.8"]
     I -->|"xDS"| P2["replica 2: proxy 1.29.8"]
-    I -->|"xDS"| P3["gateway: proxy 1.29.8"]
+    I -->|"xDS"| P3["tester: proxy 1.29.8"]
+    I -->|"xDS"| P4["gateway: proxy 1.30.5"]
 ```
 
-The diagram shows a new `istiod` sending configuration to three old proxies: the two `notification-service-v1` replicas in `inplace-demo` and the ingress gateway.
+The diagram shows a new `istiod` sending configuration to three old sidecar proxies, the two `notification-service-v1` replicas and the `tester` pod in `inplace-demo`, and to the ingress gateway. The gateway is already new: `istioctl install` renders the gateway Deployment too, its pod template changed with the version, and Kubernetes replaced its pod during the install.
 
 xDS is the protocol `istiod` uses to push configuration to the proxies while they run. Each proxy keeps the image it was injected with, and keeps receiving xDS configuration from the new `istiod`, until its pod is created again.
 
@@ -42,21 +43,21 @@ kubectl -n inplace-demo exec deploy/tester -c tester -- \
   curl -s -o /dev/null -w '%{http_code}\n' http://notification-service/
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 client version: 1.30.5
 control plane version: 1.30.5
-data plane version: 1.29.8 (3 proxies)
-
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...inplace-demo  Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-5f4c9d8b7c-w8t4n
-...
-
+data plane version: 1.29.8 (3 proxies), 1.30.5 (1 proxies)
+NAME                                                      CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+istio-ingressgateway-8cd96656f-fj7vb.istio-system         Kubernetes     istiod-5497897698-wrmkc     1.30.5      3 (CDS,LDS,EDS)
+notification-service-v1-746cd97ddb-b9sxn.inplace-demo     Kubernetes     istiod-5497897698-wrmkc     1.29.8      4 (CDS,LDS,EDS,RDS)
+notification-service-v1-746cd97ddb-mpkcl.inplace-demo     Kubernetes     istiod-5497897698-wrmkc     1.29.8      4 (CDS,LDS,EDS,RDS)
+tester-577d497fbd-jlnc4.inplace-demo                      Kubernetes     istiod-5497897698-wrmkc     1.29.8      4 (CDS,LDS,EDS,RDS)
 200
 ```
 
-`control plane version: 1.30.5` and `data plane version: 1.29.8` on one screen: that is the skew. Every proxy still shows `SYNCED`, which means it accepted the latest configuration from `istiod`. The old proxies reconnected to the new control plane and accept its configuration, and the request still returns `200`. Nothing is broken. The upgrade is simply not finished.
+`control plane version: 1.30.5` and a `data plane version` with `1.29.8` on one screen: that is the skew. The `VERSION` column of `proxy-status` names the three old proxies, and the `ISTIOD` column shows that they reconnected to the new `istiod` pod. To see that they also accepted its configuration, `istioctl-1.30.5 proxy-status -v 1` prints `SYNCED` for each configuration type. The request still returns `200`. Nothing is broken. The upgrade is simply not finished.
 
 ## Restarting the workloads
 
@@ -64,7 +65,7 @@ A proxy gets a new image the only way any container does: Kubernetes replaces th
 
 The two replicas of `notification-service-v1` let you watch this happen instead of guessing. During the rollout, `istioctl proxy-status` lists pods on both versions at the same time.
 
-Gateways need the same restart, and people forget them most often. The ingress gateway runs the same Envoy image as a sidecar proxy, in its own Deployment in `istio-system`. The control plane upgrade does not restart it, and it is the workload whose old version is most visible from outside the cluster.
+Gateways need the same care, and people forget them most often. The ingress gateway runs the same Envoy image as a sidecar proxy, in its own Deployment in `istio-system`. Here `istioctl install` already replaced its pod, but a gateway installed another way (with Helm, or from your own manifest) is not touched by the control plane upgrade. Restart it anyway: it is the workload whose old version is most visible from outside the cluster, and a restart costs little.
 
 Restart the application, read the proxy status in the middle of the rollout, then restart `tester` and the gateway, and read the versions:
 
@@ -78,28 +79,35 @@ kubectl -n inplace-demo rollout status deployment tester --timeout=180s
 istioctl-1.30.5 version
 ```
 
-The second command, run while the rollout is still going, prints something like this (shortened):
+The second command runs right after the restart, so it usually still shows the old pods only:
 
 ```text
-notification-service-v1-5d9f...  Kubernetes  SYNCED  SYNCED  SYNCED  SYNCED  istiod-5f4c9d8b7c-w8t4n
-notification-service-v1-7a2b...  Kubernetes  SYNCED  SYNCED  SYNCED  SYNCED  istiod-5f4c9d8b7c-w8t4n
-notification-service-v1-7a2b...  Kubernetes  SYNCED  SYNCED  SYNCED  SYNCED  istiod-5f4c9d8b7c-w8t4n
+notification-service-v1-746cd97ddb-b9sxn.inplace-demo     Kubernetes     istiod-5497897698-wrmkc     1.29.8      4 (CDS,LDS,EDS,RDS)
+notification-service-v1-746cd97ddb-mpkcl.inplace-demo     Kubernetes     istiod-5497897698-wrmkc     1.29.8      4 (CDS,LDS,EDS,RDS)
+tester-577d497fbd-jlnc4.inplace-demo                      Kubernetes     istiod-5497897698-wrmkc     1.29.8      4 (CDS,LDS,EDS,RDS)
 ```
 
-The last command prints:
+Run `istioctl-1.30.5 proxy-status | grep inplace-demo` again a few seconds later, while the rollout is still going, and you see three `notification-service-v1` entries where there were two: an old pod and a new one overlap for a moment, and the new one shows `1.30.5` in the `VERSION` column.
+
+The last command prints `data plane version: 1.29.8 (1 proxies), 1.30.5 (5 proxies)` if old pods are still shutting down. Run it again a few seconds later:
 
 ```text
 client version: 1.30.5
 control plane version: 1.30.5
-data plane version: 1.30.5 (3 proxies)
+data plane version: 1.30.5 (4 proxies)
 ```
 
-There are three entries in the middle of the rollout where there were two, because the old pod and the new ones overlap for a moment. At the end, a single `data plane version` that matches the control plane means the upgrade is complete. If two versions are still listed, a workload was not restarted, and `istioctl proxy-status` names it.
+At the end, a single `data plane version` that matches the control plane means the upgrade is complete. If two versions are still listed, a workload was not restarted, and `istioctl proxy-status` names it.
 
 On a cluster with many namespaces, you need the list of workloads to restart. This command lists every namespace with the injection label:
 
 ```sh
 kubectl get ns -l istio-injection=enabled
+```
+
+```text
+NAME           STATUS   AGE
+inplace-demo   Active   80s
 ```
 
 Every namespace in that list needs a restart. Workloads that joined the mesh through a label on the pod, not on the namespace, do not appear in that list. `istioctl proxy-status` stays the complete list of proxies.
@@ -113,7 +121,7 @@ You now know that version skew is the normal state right after an in-place upgra
 >
 > **Stopping after the control plane.** The mesh keeps working in skew, so nothing reports a problem. `istioctl version` and `istioctl proxy-status` are the checks that show it.
 >
-> **Forgetting the gateways.** They are Envoy workloads in `istio-system`, and no namespace label in your application namespaces covers them. Restart them yourself.
+> **Forgetting the gateways.** They are Envoy workloads in `istio-system`, and no namespace label in your application namespaces covers them. Check their version with `istioctl version`, and restart any that are still old.
 >
 > **Restarting only the application.** Every Deployment with a sidecar proxy needs a restart, including client pods such as `tester`. `kubectl -n <namespace> rollout restart deployment` with no name restarts every Deployment in the namespace.
 
