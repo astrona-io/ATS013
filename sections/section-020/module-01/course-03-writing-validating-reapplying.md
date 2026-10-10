@@ -186,7 +186,7 @@ Three objects are removed and nothing else: exactly the one component you turned
 
 The comparison works because the file is the full description of the installation, and `istioctl install` treats it that way. It does not add to what is already there. It makes the cluster match the document you pass, and takes away Istio objects and settings the document no longer describes.
 
-Here is what that means field by field. Install `istio-custom.yaml`, then run `istioctl install --set profile=demo -y` with no file. The egress gateway comes back, access logging disappears, and the CPU request drops back to the profile's value. Nothing warns you: you asked for `demo`, and `demo` is what you got.
+Here is what that means field by field. Install `istio-custom.yaml`, then run `istioctl install --set profile=demo -y` with no file. The egress gateway comes back, `outboundTrafficPolicy` disappears (so the mesh is back to `ALLOW_ANY`), and the CPU request drops back to the profile's value. Access logging stays on only because the `demo` profile itself turns it on. Nothing warns you: you asked for `demo`, and `demo` is what you got.
 
 The rule follows directly: **one file per control plane, passed on every install, kept in version control.** `--set` is fine for a one-off test on a throwaway cluster. Anywhere else it is a liability, because the state it creates exists only in someone's shell history.
 
@@ -194,7 +194,7 @@ The rule follows directly: **one file per control plane, passed on every install
 
 These habits come straight from the failures above. Each one costs seconds.
 
-**Validate, render, compare, apply, in that order.** The first three only read. They catch schema errors, list names that match nothing, and unexpected deletions, and none of them needs a cluster you are willing to break.
+**Validate, render, compare, apply, in that order.** The first three only read. They catch schema errors, gateway lists that leave out a gateway, and unexpected deletions, and none of them needs a cluster you are willing to break.
 
 **Keep the file next to the cluster's other manifests.** A committed `IstioOperator` file is not about tidiness. Comparing rendered manifests needs a previous version to compare against.
 
