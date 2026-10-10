@@ -37,7 +37,7 @@ The diagram shows that a pod template label `sidecar.istio.io/inject: "false"` b
 
 For the second question, *which* control plane, the pod's own `istio.io/rev` label comes first. Then comes the namespace's `istio-injection` label, then the namespace's `istio.io/rev` label. Most confusion comes from answering the second question while the first one has already said no.
 
-Two rules come out of this order. **The pod label beats the namespace, in both directions.** `"false"` pulls a workload out of an injected namespace, and `"true"` pushes one into a namespace without injection. They are the two webhook entries, with selectors that complement each other.
+Two rules come out of this order. **The pod label beats the namespace, in both directions.** `"false"` pulls a workload out of an injected namespace, and `"true"` pushes one into a namespace without injection. They are the `namespace` and `object` webhook entries, with selectors that complement each other.
 
 **`istio-injection` beats `istio.io/rev` on the same namespace.** If both are present, the workload uses the *default* control plane, and Istio ignores the revision label. There is no warning and no error. This trap makes canary upgrades look as if they do nothing. Removing the old label is part of moving a namespace to a revision, not an optional tidy-up.
 
@@ -64,7 +64,7 @@ Note the quotes. Kubernetes label values are always strings. An unquoted `false`
 
 With the rule clear, you can fix the playground. The namespace label put a sidecar on every pod in `inject-demo`, including the log shipper. The commands below need `inject-demo` labelled with `istio-injection=enabled` and all three pods restarted with a sidecar.
 
-Patch the label into the pod template of `logging-agent`, wait for the rollout, and list the containers:
+Patch the label into the pod template of `logging-agent`, wait for the rollout, and list the init containers and containers:
 
 <!-- astrona:playground:renew -->
 
@@ -72,19 +72,19 @@ Patch the label into the pod template of `logging-agent`, wait for the rollout, 
 kubectl -n inject-demo patch deployment logging-agent -p \
   '{"spec":{"template":{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}}}}}'
 kubectl -n inject-demo rollout status deployment logging-agent --timeout=120s
-kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: the `patched` and `rollout status` lines are left out, and so is the old `logging-agent` pod, which takes up to 30 seconds to stop; run the last command again until only three pods are listed):
 
 ```text
-POD                        CONTAINERS
-batch-job-...              batch-job,istio-proxy
-logging-agent-...          logging-agent
-notification-service-...   notification-service,istio-proxy
+POD                                     INIT                     CONTAINERS
+batch-job-7fb8f97445-wcq6f              istio-init,istio-proxy   batch-job
+logging-agent-6d5d6dd6fc-l2lnr          <none>                   logging-agent
+notification-service-74f46b78d7-hkf2k   istio-init,istio-proxy   notification-service
 ```
 
-`logging-agent` is back to one container. A change to the pod template changes its hash, and the Deployment controller starts a rollout by itself, so you did not need a separate `rollout restart`. Remember the difference: a label change *in the template* restarts the workload for you, and a label change on the *namespace* does not.
+`logging-agent` is back to one container and no init containers. A change to the pod template changes its hash, and the Deployment controller starts a rollout by itself, so you did not need a separate `rollout restart`. Remember the difference: a label change *in the template* restarts the workload for you, and a label change on the *namespace* does not.
 
 The same label one level too high shows why the field matters. Put the label on the Deployment metadata of `batch-job` on purpose, restart it, and check the pod and the Deployment:
 
@@ -93,15 +93,14 @@ kubectl -n inject-demo patch deployment batch-job -p \
   '{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}}}'
 kubectl -n inject-demo rollout restart deployment batch-job
 kubectl -n inject-demo rollout status deployment batch-job --timeout=120s
-kubectl -n inject-demo get pod -l app=batch-job -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'
+kubectl -n inject-demo get pod -l app=batch-job -o jsonpath='{.items[0].spec.initContainers[*].name} {.items[0].spec.containers[*].name}{"\n"}'
 kubectl -n inject-demo get deployment batch-job -o jsonpath='{.metadata.labels}{"\n"}'
 ```
 
-The output looks like this:
+The output looks like this (shortened: the `patched`, `restarted` and `rollout status` lines are left out):
 
 ```text
-batch-job istio-proxy
-
+istio-init istio-proxy batch-job
 {"app":"batch-job","sidecar.istio.io/inject":"false"}
 ```
 
@@ -123,21 +122,19 @@ kubectl -n inject-demo patch deployment batch-job -p \
 kubectl label namespace inject-demo istio-injection-
 kubectl -n inject-demo rollout restart deployment batch-job notification-service
 kubectl -n inject-demo rollout status deployment batch-job --timeout=120s
-kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: only the last command is shown, after the old pods have stopped):
 
 ```text
-namespace/inject-demo unlabeled
-
-POD                        CONTAINERS
-batch-job-...              batch-job,istio-proxy
-logging-agent-...          logging-agent
-notification-service-...   notification-service
+POD                                     INIT                     CONTAINERS
+batch-job-85577f8686-ccllb              istio-init,istio-proxy   batch-job
+logging-agent-6d5d6dd6fc-l2lnr          <none>                   logging-agent
+notification-service-8569f95c5f-hjdf9   <none>                   notification-service
 ```
 
-`notification-service` left the mesh when the namespace label went away and the pod restarted, because no pod label overrides the namespace for it. `batch-job` stayed in because of its own `"true"` label. The second webhook entry matched on that pod label and never needed the namespace.
+`notification-service` left the mesh when the namespace label went away and the pod restarted, because no pod label overrides the namespace for it. `batch-job` stayed in because of its own `"true"` label. The `object.sidecar-injector.istio.io` entry matched on that pod label and never needed the namespace.
 
 Put the namespace label back, so the namespace is injected again:
 

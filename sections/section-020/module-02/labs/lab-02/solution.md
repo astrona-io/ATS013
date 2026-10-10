@@ -6,16 +6,23 @@ Follow these steps to preview the change with `istioctl kube-inject`, set the ex
 
 ## Step 1: Check the starting state
 
-Sidecar injection adds the `istio-proxy` container, the Envoy sidecar proxy, and the `istio-init` init container to each new pod in an injected namespace. `istio-init` runs `istio-iptables`, which writes `iptables` rules that send all outbound traffic of the pod to the proxy on port `15001`.
+Sidecar injection adds two init containers to each new pod in an injected namespace: `istio-init` and `istio-proxy`, the Envoy sidecar proxy. Istio 1.30 runs `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always` that keeps running beside the application. `istio-init` runs `istio-iptables`, which writes `iptables` rules that send all outbound traffic of the pod to the proxy on port `15001`.
 
 Confirm that the namespace is injected and that the pod has its sidecar:
 
 ```sh
 kubectl get ns inject-demo --show-labels
-kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
-The namespace shows the label `istio-injection=enabled`, and the `notification-service` pod lists both `notification-service` and `istio-proxy`.
+```text
+NAME          STATUS   AGE   LABELS
+inject-demo   Active   6s    istio-injection=enabled,kubernetes.io/metadata.name=inject-demo
+POD                                     INIT                     CONTAINERS
+notification-service-76f869bb97-gfc4v   istio-init,istio-proxy   notification-service
+```
+
+The namespace has the label `istio-injection=enabled`, and the `notification-service` pod has `istio-init` and `istio-proxy`. `istio-init` is the first init container, so `initContainers[0]` in the next command reads its arguments.
 
 Now look for an outbound port exclusion in the current `istio-init` arguments:
 
@@ -24,7 +31,7 @@ kubectl -n inject-demo get pod -l app=notification-service \
   -o jsonpath='{.items[0].spec.initContainers[0].args}{"\n"}' | tr ',' '\n' | grep -A1 -- '-o'
 ```
 
-The command prints nothing. There is no `-o` argument yet, so the rules capture every outbound port, including `5432`.
+The command prints nothing, because `grep` finds no match. There is no `-o` argument yet, so the rules capture every outbound port, including `5432`.
 
 ---
 
@@ -46,10 +53,36 @@ spec:
         traffic.sidecar.istio.io/excludeOutboundPorts: "5432"
 ```
 
-Then render it and read the `istio-init` arguments:
+Then render it and read the `istio-init` arguments. The fields of each container are sorted by name, so the `args` list comes before `name: istio-init`; print it from the `initContainers:` line:
 
 ```sh
-istioctl kube-inject -f notification-service.yaml | grep -A12 'name: istio-init'
+istioctl kube-inject -f notification-service.yaml | grep -A22 'initContainers:'
+```
+
+```text
+      initContainers:
+      - args:
+        - istio-iptables
+        - -p
+        - "15001"
+        - -z
+        - "15006"
+        - -u
+        - "1337"
+        - -m
+        - REDIRECT
+        - -i
+        - '*'
+        - -x
+        - ""
+        - -b
+        - '*'
+        - -d
+        - 15090,15021,15020
+        - -o
+        - "5432"
+        - --log_output_level=default:info
+        image: registry.istio.io/release/proxyv2:1.30.5
 ```
 
 The arguments now include `-o` followed by `"5432"`, next to `-p "15001"` and `-z "15006"`. Nothing in the cluster has changed yet; this step only shows what injection would write.
@@ -64,6 +97,13 @@ Patch the pod template of the running Deployment:
 kubectl -n inject-demo patch deployment notification-service -p \
   '{"spec":{"template":{"metadata":{"annotations":{"traffic.sidecar.istio.io/excludeOutboundPorts":"5432"}}}}}'
 kubectl -n inject-demo rollout status deployment notification-service --timeout=180s
+```
+
+```text
+deployment.apps/notification-service patched
+Waiting for deployment "notification-service" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "notification-service" rollout to finish: 1 old replicas are pending termination...
+deployment "notification-service" successfully rolled out
 ```
 
 Look at the patch path: `spec`, then `template`, then `metadata`, then `annotations`. That is the **pod template**. A change to the template changes its hash, so the Deployment controller starts a rollout by itself, and you do not need `kubectl rollout restart`. The new pod passes through the injection webhook, and `istiod` turns the annotation into an argument for `istio-iptables`.
@@ -91,11 +131,20 @@ The `-o 5432` argument tells `istio-iptables` to leave outbound port `5432` out 
 Then check that the workload is still in the mesh:
 
 ```sh
-kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 istioctl proxy-status
 ```
 
-The pod still lists `notification-service` and `istio-proxy`, and `istioctl proxy-status` still lists the `notification-service` proxy in `inject-demo`. Every port other than `5432` still goes through the proxy, with mTLS, policy and telemetry.
+```text
+POD                                     INIT                     CONTAINERS
+notification-service-5f49dccbcc-5grcs   istio-init,istio-proxy   notification-service
+notification-service-76f869bb97-gfc4v   istio-init,istio-proxy   notification-service
+NAME                                                  CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+istio-ingressgateway-8cd96656f-xfzwh.istio-system     Kubernetes     istiod-5497897698-qvpg7     1.30.5      3 (CDS,LDS,EDS)
+notification-service-5f49dccbcc-5grcs.inject-demo     Kubernetes     istiod-5497897698-qvpg7     1.30.5      4 (CDS,LDS,EDS,RDS)
+```
+
+The old pod is still listed for a few seconds while it stops; run the first command again and only the new pod is left. The new pod still has `istio-proxy`, and `istioctl proxy-status` lists its proxy in `inject-demo`, connected to `istiod`. Every port other than `5432` still goes through the proxy, with mTLS, policy and telemetry.
 
 ---
 

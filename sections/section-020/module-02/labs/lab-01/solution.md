@@ -6,41 +6,48 @@ Follow these steps to opt the namespace in, set both pod template overrides, res
 
 ## Step 1: Confirm the starting state
 
-Check the namespace labels and the containers in each pod:
+Check the namespace labels and the init containers and containers in each pod:
 
 ```sh
 kubectl get ns inject-demo --show-labels
-kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
 ```text
-NAME          STATUS   AGE    LABELS
-inject-demo   Active   4m2s   kubernetes.io/metadata.name=inject-demo
-
-POD                        CONTAINERS
-batch-job-...              batch-job
-logging-agent-...          logging-agent
-notification-service-...   notification-service
+NAME          STATUS   AGE   LABELS
+inject-demo   Active   8s    kubernetes.io/metadata.name=inject-demo
+POD                                     INIT     CONTAINERS
+batch-job-67ffdd7b96-8gg22              <none>   batch-job
+logging-agent-c98f89996-mwv4b           <none>   logging-agent
+notification-service-76f869bb97-vj7t8   <none>   notification-service
 ```
 
-No injection label, and one container each. Now read the webhook that will make the decisions:
+No injection label, one container each, and no init containers. Now read the webhook that will make the decisions. `istioctl install` creates two mutating webhook configurations with the same entries, `istio-sidecar-injector` and `istio-revision-tag-default`. While the revision tag `default` exists, the entries in `istio-sidecar-injector` carry a selector that never matches, so read the active copy:
 
 ```sh
-kubectl get mutatingwebhookconfiguration istio-sidecar-injector \
+kubectl get mutatingwebhookconfiguration istio-revision-tag-default \
   -o jsonpath='{range .webhooks[*]}{.name}{"\n  ns: "}{.namespaceSelector}{"\n  obj: "}{.objectSelector}{"\n\n"}{end}'
 ```
 
 ```text
+rev.namespace.sidecar-injector.istio.io
+  ns: {"matchExpressions":[{"key":"istio.io/rev","operator":"In","values":["default"]},{"key":"istio-injection","operator":"DoesNotExist"}]}
+  obj: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"NotIn","values":["false"]}]}
+
+rev.object.sidecar-injector.istio.io
+  ns: {"matchExpressions":[{"key":"istio.io/rev","operator":"DoesNotExist"},{"key":"istio-injection","operator":"DoesNotExist"}]}
+  obj: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"NotIn","values":["false"]},{"key":"istio.io/rev","operator":"In","values":["default"]}]}
+
 namespace.sidecar-injector.istio.io
-  ns: {"matchExpressions":[{"key":"istio-injection","operator":"In","values":["enabled"]},...]}
+  ns: {"matchExpressions":[{"key":"istio-injection","operator":"In","values":["enabled"]}]}
   obj: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"NotIn","values":["false"]}]}
 
 object.sidecar-injector.istio.io
-  ns: {"matchExpressions":[{"key":"istio-injection","operator":"NotIn","values":["enabled"]},...]}
-  obj: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"In","values":["true"]}]}
+  ns: {"matchExpressions":[{"key":"istio-injection","operator":"DoesNotExist"},{"key":"istio.io/rev","operator":"DoesNotExist"}]}
+  obj: {"matchExpressions":[{"key":"sidecar.istio.io/inject","operator":"In","values":["true"]},{"key":"istio.io/rev","operator":"DoesNotExist"}]}
 ```
 
-Two entries with selectors that complement each other. The first says "the namespace opted in, and the pod did not opt out". The second says "the namespace did not opt in, but the pod opted in". Together they cover all four combinations: that is the whole precedence rule, written as label selectors.
+Four entries. The `namespace` and `object` entries have selectors that complement each other. The first says "the namespace has `istio-injection=enabled`, and the pod did not opt out". The second says "the namespace has no injection label, but the pod opted in with `sidecar.istio.io/inject: \"true\"`". The two `rev.` entries do the same for the `istio.io/rev` label. Together they are the whole precedence rule, written as label selectors.
 
 `obj:` is checked against the **Pod**. That is why the override has to be on the pod template.
 
@@ -52,16 +59,15 @@ Label the namespace, then look at the pods:
 
 ```sh
 kubectl label namespace inject-demo istio-injection=enabled
-kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
 ```text
 namespace/inject-demo labeled
-
-POD                        CONTAINERS
-batch-job-...              batch-job
-logging-agent-...          logging-agent
-notification-service-...   notification-service
+POD                                     INIT     CONTAINERS
+batch-job-67ffdd7b96-8gg22              <none>   batch-job
+logging-agent-c98f89996-mwv4b           <none>   logging-agent
+notification-service-76f869bb97-vj7t8   <none>   notification-service
 ```
 
 Still one container each. The label is on and nothing happened, because injection is decided when a pod is *created*. These pods were stored before the webhook applied to them.
@@ -114,25 +120,34 @@ kubectl -n inject-demo rollout status deployment --timeout=180s
 ```
 
 ```text
+deployment.apps/notification-service restarted
+Waiting for deployment "batch-job" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "batch-job" rollout to finish: 1 old replicas are pending termination...
+deployment "batch-job" successfully rolled out
+deployment "logging-agent" successfully rolled out
 deployment "notification-service" successfully rolled out
 ```
+
+Without a name, `kubectl rollout status deployment` waits for every Deployment in the namespace, one after the other.
 
 ---
 
 ## Step 5: Check the result
 
-Look at the containers in each pod:
+Look at the init containers and containers in each pod. Old pods can take up to 30 seconds to stop; run the command again until only three pods are listed:
 
 ```sh
-kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n inject-demo get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
 ```text
-POD                             CONTAINERS
-batch-job-...                   batch-job,istio-proxy
-logging-agent-...               logging-agent
-notification-service-...        notification-service,istio-proxy
+POD                                     INIT                     CONTAINERS
+batch-job-55c9488f69-mr2jw              istio-init,istio-proxy   batch-job
+logging-agent-688976f57d-qqfn9          <none>                   logging-agent
+notification-service-5f787b7c54-2d7cp   istio-init,istio-proxy   notification-service
 ```
+
+`istio-proxy` is listed under `INIT` because Istio 1.30 runs it as a native sidecar: an init container with `restartPolicy: Always` that keeps running beside the application. `istio-init` sets up the traffic redirection and exits.
 
 Three workloads, three different results, one namespace. Confirm the labels are on the pod templates:
 
@@ -156,8 +171,8 @@ istioctl proxy-status | grep inject-demo
 ```
 
 ```text
-batch-job-...inject-demo              Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-...
-notification-service-...inject-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-...
+batch-job-55c9488f69-mr2jw.inject-demo                Kubernetes     istiod-5497897698-wh97k     1.30.5      4 (CDS,LDS,EDS,RDS)
+notification-service-5f787b7c54-2d7cp.inject-demo     Kubernetes     istiod-5497897698-wh97k     1.30.5      4 (CDS,LDS,EDS,RDS)
 ```
 
 Two entries, not three. Counting containers tells you what the pod spec says. `istioctl proxy-status` lists every proxy that is connected to `istiod` and receiving configuration from it. A workload in one list but not the other is a real problem.
@@ -172,14 +187,16 @@ This step is optional, and it is the fastest way to feel the precedence rule. Re
 kubectl label namespace inject-demo istio-injection-
 kubectl -n inject-demo rollout restart deployment batch-job
 kubectl -n inject-demo rollout status deployment batch-job --timeout=180s
-kubectl -n inject-demo get pod -l app=batch-job -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'
+kubectl -n inject-demo get pod -l app=batch-job -o jsonpath='{.items[0].spec.initContainers[*].name} {.items[0].spec.containers[*].name}{"\n"}'
 ```
+
+The output looks like this (shortened: the `unlabeled`, `restarted` and `rollout status` lines are left out):
 
 ```text
-batch-job istio-proxy
+istio-init istio-proxy batch-job
 ```
 
-It still has its sidecar: the second webhook entry matched on the pod label alone.
+It still has its sidecar: the `object.sidecar-injector.istio.io` entry matched on the pod label alone.
 
 **Put the namespace label back before you submit**, because the grader requires it:
 

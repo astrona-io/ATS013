@@ -48,26 +48,22 @@ You do not have to take this list on trust. `istioctl kube-inject` makes the sam
 
 To do that, it reads the cluster's live injection settings: the `istio-sidecar-injector` ConfigMap and the mesh configuration. So its output shows what *your* control plane would do, not a generic template. It has two practical uses. It shows exactly what injection would do before it happens, and it produces manifests for a cluster where the webhook is unavailable or not used on purpose.
 
-Save the `notification-service` Deployment to a file, run it through `kube-inject`, and pick out the containers and the `istio-init` arguments:
+Save the `notification-service` Deployment to a file and run it through `kube-inject`. The second command sends the injected manifest to `kubectl create --dry-run=client`, which only parses it, and prints the names of the init containers and the containers. The third prints the start of the `initContainers` list, where the `istio-init` arguments are:
 
 <!-- astrona:playground:renew -->
 
 ```sh
 kubectl -n inject-demo get deployment notification-service -o yaml > notification-service.yaml
-istioctl kube-inject -f notification-service.yaml | grep -E '^\s+- name: (istio-proxy|istio-init|notification-service)$'
-istioctl kube-inject -f notification-service.yaml | grep -A8 'name: istio-init'
+istioctl kube-inject -f notification-service.yaml | kubectl create --dry-run=client -f - -o jsonpath='{.spec.template.spec.initContainers[*].name} {.spec.template.spec.containers[*].name}{"\n"}'
+istioctl kube-inject -f notification-service.yaml | grep -A10 'initContainers:'
 ```
 
 The output looks like this:
 
 ```text
-      - name: notification-service
-      - name: istio-proxy
-      - name: istio-init
-
-      - name: istio-init
-        image: docker.io/istio/proxyv2:1.30.5
-        args:
+istio-init istio-proxy notification-service
+      initContainers:
+      - args:
         - istio-iptables
         - -p
         - "15001"
@@ -79,9 +75,11 @@ The output looks like this:
         - REDIRECT
 ```
 
+Injection adds two init containers. `istio-init` runs first, writes the traffic rules and exits. `istio-proxy` is the sidecar proxy itself. It runs as a native sidecar: an init container with `restartPolicy: Always`, so Kubernetes starts it before the application container and keeps it running beside it. In the YAML, the fields of each container are sorted by name, so `args` comes before `name: istio-init`.
+
 `-p 15001` is the outbound capture port and `-z 15006` is the inbound one: the two numbers from the diagram, passed to the command that writes the rules. `-u 1337` is the user ID Envoy runs as. The rules leave that user's traffic out of the redirect, so the proxy's own outgoing connections do not loop back into itself.
 
-The init container uses the *same* `proxyv2` image as the sidecar. It is one image with several entry points.
+The `istio-init` container uses the *same* `proxyv2` image as the sidecar (`registry.istio.io/release/proxyv2:1.30.5`). It is one image with several entry points.
 
 ## The exclusions you can set
 
@@ -151,7 +149,7 @@ You now know what injection writes into a pod: the `istio-proxy` container, the 
 >
 > **Turning off injection to fix one port.** `sidecar.istio.io/inject: "false"` takes every port out of the mesh. An exclusion annotation takes out only the port you name.
 >
-> **Applications that connect the moment they start.** An injected pod has one more container to pull and start, and an application that connects right away can race the proxy. `meshConfig.defaultConfig.holdApplicationUntilProxyReady: true` fixes it at the cost of slower starts. It is an installation setting in the `meshConfig` layer of the `IstioOperator` document.
+> **Adding a start-up delay that is no longer needed.** An application that connects the moment it starts used to race the proxy. With native sidecars, Kubernetes starts `istio-proxy` first and waits for its startup probe (`/healthz/ready` on port `15021`) before it starts the application container. Only on a cluster without native sidecars do you need `meshConfig.defaultConfig.holdApplicationUntilProxyStarts: true` for the same order.
 >
 > **Expecting `istioctl kube-inject` output to work everywhere.** It renders against the live cluster's settings, so output from one cluster is not portable to another one that runs a different version.
 >

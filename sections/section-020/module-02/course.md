@@ -11,7 +11,7 @@ This module has few new ideas and needs a lot of precision. Almost every injecti
 After this module you can:
 
 - Follow a pod through mutating admission, and explain why labelling a namespace never changes pods that already exist.
-- Name the two webhook entries Istio registers, and say which decision each one makes.
+- Name the webhook entries Istio registers, and say which decision each one makes.
 - Give the order in which the namespace label, the pod template label and the revision label are read, and predict the result when two of them disagree.
 - Exclude one workload from an injected namespace and force one workload into a namespace without injection, with the label on the correct object.
 - Describe the containers and ports injection adds, and explain how traffic is sent into the proxy.
@@ -46,7 +46,7 @@ Start your playground now, and keep it running while you read the parts:
 
 Read the parts in this order:
 
-1. **Injection As Admission Control:** the path a pod takes through the Kubernetes API server, the two webhook entries that decide, and why the timing of that decision explains most injection surprises.
+1. **Injection As Admission Control:** the path a pod takes through the Kubernetes API server, the webhook entries that decide, and why the timing of that decision explains most injection surprises.
 2. **The Precedence Rules:** the namespace label, the pod label and the revision label, the order Istio reads them in, what wins when they disagree, and the one field a `sidecar.istio.io/inject` label must sit on. The graded lab "Control Sidecar Injection" follows this part.
 3. **What Injection Writes Into The Pod:** the containers, ports and traffic rules injection adds, how to read them with `istioctl kube-inject`, how to exclude a port from capture, and how the Istio CNI plugin changes the picture. The graded lab "Exclude A Port From Sidecar Traffic Capture" follows this part.
 
