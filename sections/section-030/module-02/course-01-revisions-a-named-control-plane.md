@@ -1,135 +1,149 @@
-# Part 1 — Revisions: A Named Control Plane
+# Revisions: A Named Control Plane
 
-> Prerequisite: [the module landing page](./course.md). Next: [Part 2 — Selecting, Moving And Retiring A Revision](./course-02-selecting-moving-retiring.md).
-
-A canary upgrade works because two Istio control planes can run in one cluster without noticing each other. That is not a special mode — it falls out of how revisions name and scope every object an install creates. This part settles what a revision is at the object level, so that Part 2's label work is obviously correct rather than something to memorise.
+A canary upgrade needs two Istio control planes in one cluster at the same time, and they must not get in each other's way. The control plane is `istiod`: it turns Istio resources into proxy configuration and sends it, together with certificates, to every sidecar proxy. Two copies of it can run side by side because of how a **revision** names the objects an install creates. This part shows what a revision is at the level of Kubernetes objects, so that the label work which follows makes sense and is not just something to memorise.
 
 ## What `--set revision=` changes
 
-Concretely, compare two installs:
+The quickest way to understand a revision is to compare what two installs create. After that comparison, the rule and the three facts that follow from it are easy to state.
 
-```text
-istioctl install --set profile=minimal -y
-  ├─ Deployment   istiod
-  ├─ Service      istiod
-  └─ MutatingWebhookConfiguration  istio-sidecar-injector
+### Two installs side by side
 
-istioctl install --set profile=minimal --set revision=1-30-5 -y
-  ├─ Deployment   istiod-1-30-5
-  ├─ Service      istiod-1-30-5
-  └─ MutatingWebhookConfiguration  istio-sidecar-injector-1-30-5
+Compare `istioctl install --set profile=minimal` with the same command plus `--set revision=1-30-5`:
+
+```mermaid
+flowchart TB
+    A["no revision"] -->|"Deployment"| A1["istiod"]
+    A -->|"Service"| A2["istiod"]
+    A -->|"webhook"| A3["istio-sidecar-injector"]
+    B["revision=1-30-5"] -->|"Deployment"| B1["istiod-1-30-5"]
+    B -->|"Service"| B2["istiod-1-30-5"]
+    B -->|"webhook"| B3["istio-sidecar-injector-1-30-5"]
 ```
 
-The general rule: **a revision is a named, independent instance of the control plane, and every namespaced object it owns carries the name as a suffix.** Without a revision name, an install is "the default revision" — which is why the existing `istiod` has no suffix and its webhook does not either.
+The diagram shows the same three objects twice: once plain, and once with the revision name added as a suffix.
 
-Three properties follow, and together they are the whole canary mechanism:
+A revision is a naming scheme. The same render produces the same objects, and each one gets the revision name added to its name. That is why two control planes can run side by side, and why one install never touches the objects of the other.
 
-**Names do not collide.** Two Deployments, two Services, two webhook configurations. Kubernetes has no reason to object.
+The general rule is this: **a revision is a named, independent copy of the control plane, and every namespaced object it owns carries the name as a suffix.** An install without a revision name is called "the default revision". That is why the existing `istiod` has no suffix, and its webhook has none either.
 
-**Reconciliation is revision-scoped.** [Part 4 of the section 010 istioctl module](../../section-010/module-01/course-04-reconciliation-and-removal.md) covered the ownership labels Istio prunes by. Those labels include `istio.io/rev`, so an install of `1-30-5` lists and prunes only objects owned by `1-30-5`. It cannot see the default revision's objects, so it cannot delete them.
+### Three facts that make the canary work
 
-**Webhook selectors do not overlap.** The default webhook matches namespaces labelled `istio-injection=enabled`; the revisioned one matches `istio.io/rev=1-30-5`. A namespace satisfies one or the other, and Part 2 covers what happens when someone makes it satisfy both.
+The suffix leads to three facts. Together they make it safe to run a second control plane.
 
-Some cluster-scoped objects are genuinely shared — the CRDs from the `base` component are installed once and used by every revision. That is fine, because CRDs are definitions, and it is also why `istioctl uninstall --purge` is so destructive during a canary: removing the shared definitions takes both control planes down.
+**Names do not collide.** There are two Deployments, two Services and two webhook configurations, so Kubernetes has no reason to object.
+
+**Each install only manages its own revision.** `istioctl install` finds and removes the objects it owns by their ownership labels, and those labels include `istio.io/rev`. So an install of `1-30-5` lists and prunes only objects owned by `1-30-5`. It cannot see the objects of the default revision, so it cannot delete them.
+
+**The webhooks select different namespaces.** A mutating webhook is a call that the Kubernetes API server makes to change an object before it stores it; Istio uses one to add the sidecar to new pods. The default webhook matches namespaces labelled `istio-injection=enabled`. The webhook of the revision matches `istio.io/rev=1-30-5`. A namespace meets one selector or the other.
+
+### What the revisions share
+
+Some cluster-wide objects really are shared. The CRDs (Custom Resource Definitions, which add Istio's object kinds such as `VirtualService` to the Kubernetes API) are installed once and used by every revision. That is fine, because CRDs are only definitions and run nothing. It is also why `istioctl uninstall --purge` is so destructive during a canary upgrade: removing the shared definitions takes both control planes down.
 
 ## Revision names are DNS labels
 
-Revision names become part of Kubernetes object names, so they must be valid DNS labels: lowercase alphanumerics and dashes, starting and ending with an alphanumeric, no dots.
+Because the revision name becomes part of Kubernetes object names, it must be a valid DNS label. A DNS label may hold lowercase letters, digits and dashes, must start and end with a letter or a digit, and may not contain dots.
 
-That is why the convention is `1-30-5` rather than `1.30.5`. Any name works — `canary`, `next`, `blue` — but encoding the version makes `kubectl get pods` self-documenting, and makes it obvious months later which revision is the old one.
+That is why the habit is `1-30-5` and not `1.30.5`. Any valid name works, such as `canary`, `next` or `blue`. But a name that holds the version makes `kubectl get pods` easy to read, and months later it is clear which revision is the old one.
 
-A dotted name does not produce a helpful error at the point you make the mistake; it produces an invalid object name deeper in the install. Getting into the habit of writing dashes costs nothing.
+A dotted name does not give a helpful error at the moment you type it. Instead, it produces an object name that is not valid, deeper inside the install. Writing dashes from the start avoids that.
 
 ## Install `minimal` for a canary control plane
 
-The canary install below uses the `minimal` profile, which installs `istiod` and nothing else. That is deliberate and worth the sentence: a canary needs a second **control plane**, not a second copy of the gateways.
+With the naming rule clear, the next choice is the profile. The canary install uses the `minimal` profile, which installs `istiod` and nothing else. That choice is on purpose: a canary upgrade needs a second **control plane**, not a second set of gateways.
 
-Gateways are not selected by a namespace injection label — they are standalone Envoy Deployments created by the profile. Installing a full profile as a canary means two gateway Deployments contending for the same names and the same Service, which is a different and much messier problem than the one you are trying to solve. Gateways are migrated separately, as their own rollout, once the control plane is proven.
+A gateway is a standalone Envoy Deployment that handles traffic entering or leaving the mesh, such as the ingress gateway. No namespace injection label picks a control plane for it; the profile creates it. If you install a full profile as the canary, you get two gateway Deployments that compete for the same names and the same Service. That is a different and much messier problem. You move the gateways separately, as their own rollout, once the new control plane has proved itself.
 
-> [!TIP]
-> **Try it — a second control plane, side by side**
->
-> ```sh
-> istioctl-1.30.5 install --set profile=minimal --set revision=1-30-5 -y
-> kubectl -n istio-system get pods -l app=istiod
-> kubectl -n istio-system get svc | grep istiod
-> kubectl get mutatingwebhookconfigurations | grep istio
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME                             READY   STATUS    RESTARTS   AGE
-> istiod-1-30-5-6b9c8f7d4b-xk2p9   1/1     Running   0          41s
-> istiod-77d5f6c8b9-qr4tz          1/1     Running   0          12m
->
-> istiod           ClusterIP   10.96.31.4    <none>   15010/TCP,15012/TCP,443/TCP,15014/TCP
-> istiod-1-30-5    ClusterIP   10.96.88.17   <none>   15010/TCP,15012/TCP,443/TCP,15014/TCP
->
-> istio-revision-tag-default            ...   12m
-> istio-sidecar-injector                ...   12m
-> istio-sidecar-injector-1-30-5         ...   41s
-> ```
->
-> Two `istiod` pods, two Services, and a suffixed webhook configuration. The two Services matter more than they look: a sidecar's `discoveryAddress` points at one of them, which is how a proxy ends up permanently attached to one control plane rather than the other.
+Now install the 1.30.5 revision with the new binary. Then list the control plane pods, the Services and the webhook configurations:
+
+<!-- astrona:playground:renew -->
+
+```sh
+istioctl-1.30.5 install --set profile=minimal --set revision=1-30-5 -y
+kubectl -n istio-system get pods -l app=istiod
+kubectl -n istio-system get svc | grep istiod
+kubectl get mutatingwebhookconfigurations | grep istio
+```
+
+The output looks like this (shortened: the logo and progress lines of the install are left out):
+
+```text
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
+✔ Installation complete
+NAME                            READY   STATUS    RESTARTS   AGE
+istiod-1-30-5-67fd8d4b8-6tmgd   1/1     Running   0          11s
+istiod-68b5bc79c8-27k2j         1/1     Running   0          39s
+istiod                        ClusterIP      10.96.133.159   <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP                                        39s
+istiod-1-30-5                 ClusterIP      10.96.60.22     <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP                                        11s
+istiod-revision-tag-default   ClusterIP      10.96.61.115    <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP                                        21s
+istio-revision-tag-default      4          21s
+istio-sidecar-injector          4          39s
+istio-sidecar-injector-1-30-5   2          11s
+```
+
+You see two `istiod` pods, a Service for each, and a webhook configuration with the suffix. The `istiod-revision-tag-default` Service and the `istio-revision-tag-default` webhook belong to the revision tag `default`, which points at the default revision. The new webhook configuration has two entries, both for the `istio.io/rev=1-30-5` label: one checks the namespace label and one checks the pod label. The two Services matter more than they look. The `discoveryAddress` setting of a sidecar proxy points at one of them, and that is how each proxy stays connected to one control plane and not the other.
 
 ## Installing a revision moves nothing
 
-This is the part people find surprising, and it follows directly from injection. The new control plane has a webhook, but no namespace is labelled for it — and even a relabelled namespace only affects pods created afterwards. Your running workload was injected against the old control plane, points at the old control plane's Service, and stays there.
+The new control plane runs, but it has no clients yet. This surprises people, and it follows straight from injection. The new control plane has a webhook, but no namespace is labelled for it. Even a relabelled namespace only affects pods created afterwards.
 
-`istioctl proxy-status` is where this becomes checkable. Its last column, `ISTIOD`, names the control plane *pod* each proxy is connected to, which is the only authoritative answer to "which control plane is serving this workload?"
+Your running workload was injected by the old control plane, points at the Service of the old control plane, and stays there. `istioctl proxy-status` lets you check this. It lists every proxy that `istiod` knows about. Its `ISTIOD` column names the control plane *pod* each proxy is connected to. That column is the only reliable answer to the question "which control plane serves this workload?".
 
-> [!TIP]
-> **Try it — nothing has changed for the workload**
->
-> ```sh
-> kubectl -n canary-demo get pods
-> istioctl proxy-status | grep -E 'NAME|canary-demo'
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME                                       READY   STATUS    RESTARTS   AGE
-> notification-service-v1-5d9f8b7c6d-p2mzq   2/2     Running   0          13m
->
-> NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-> notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-77d5f6c8b9-qr4tz
-> ```
->
-> The pod's `AGE` predates the canary install and `RESTARTS` is still 0. The `ISTIOD` column names the *old*, unsuffixed control plane pod. Installing a revision is completely non-disruptive — which is exactly the property that makes canary upgrades safe to start.
+List the pods in `canary-demo`, then the proxy status for that namespace:
 
-Confirm the other half of the claim while you are here: the new control plane is running and serving nobody.
+```sh
+kubectl -n canary-demo get pods
+istioctl proxy-status | grep -E 'NAME|canary-demo'
+```
 
-> [!TIP]
-> **Try it — a control plane with no clients**
->
-> ```sh
-> istioctl-1.30.5 proxy-status --revision 1-30-5
-> kubectl -n istio-system logs deploy/istiod-1-30-5 --tail=5 | grep -i 'push\|ads' || echo '(no pushes logged)'
-> ```
->
-> Expect something like:
->
-> ```text
-> No proxies connected to the control plane.
->
-> (no pushes logged)
-> ```
->
-> A healthy, running `istiod` with zero connected proxies. It has computed nothing and pushed nothing, because no workload has been told to talk to it. That idle second control plane is the entire cost of a canary upgrade until you start moving namespaces.
+The output looks like this:
+
+```text
+NAME                                       READY   STATUS    RESTARTS   AGE
+notification-service-v1-746cd97ddb-rl5nw   2/2     Running   0          20s
+NAME                                                     CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+notification-service-v1-746cd97ddb-rl5nw.canary-demo     Kubernetes     istiod-68b5bc79c8-27k2j     1.29.8      4 (CDS,LDS,EDS,RDS)
+```
+
+The pod was created before the canary install, and `RESTARTS` is still 0. The `ISTIOD` column names the *old* control plane pod, the one without a suffix, and `VERSION` shows the proxy still runs `1.29.8`. and `RESTARTS` is still 0. The `ISTIOD` column names the *old* control plane pod, the one without a suffix. Installing a revision disturbs nothing, and that is exactly what makes a canary upgrade safe to start.
+
+The other half of the picture is the new control plane: it runs and serves nobody. Ask the 1.30.5 binary for the proxies of revision `1-30-5`, and look for pushes in the log of the new `istiod`:
+
+```sh
+istioctl-1.30.5 proxy-status --revision 1-30-5
+kubectl -n istio-system logs deploy/istiod-1-30-5 --tail=5 | grep -i 'push\|ads' || echo '(no pushes logged)'
+```
+
+The output looks like this (the long log lines are as `istiod` prints them):
+
+```text
+NAME     CLUSTER     ISTIOD     VERSION     SUBSCRIBED TYPES
+2026-10-10T00:41:40.640839Z	info	ads	Push debounce stable[2] 1 for config ServiceEntry/istio-system/istiod-1-30-5.istio-system.svc.cluster.local: 101.195922ms since last change, 101.195839ms since last push, full=false
+2026-10-10T00:41:40.640970Z	info	ads	XDS: Incremental Pushing ConnectedEndpoints:0 Version:2026-10-10T00:41:37Z/1
+2026-10-10T00:41:42.788153Z	info	ads	ADS: new connection for node:test-1.default-1
+2026-10-10T00:41:42.788277Z	info	ads	istio.io/debug/syncz: PUSH for node:test-1.default resources:0 size:0B
+```
+
+`proxy-status` prints only its header: no proxy is connected to revision `1-30-5`. This is a healthy, running `istiod` with no connected proxies. A push is `istiod` sending new configuration to proxies over xDS, the protocol `istiod` uses to send configuration to proxies while they run. The log shows that this `istiod` does build pushes, but `ConnectedEndpoints:0` says there is nobody to send them to. The `node:test-1.default` connection is not a workload: it is the `istioctl proxy-status` command you just ran, which asked `istiod` for its sync status (`istio.io/debug/syncz`) and got zero resources back.
 
 ## What this costs
 
-Two control planes run for the whole migration. On a small cluster that is noticeable — `istiod`'s default request in the `demo` profile is 500m CPU and 2Gi memory, and the canary is a second copy of that.
+The idle second control plane is the whole cost of a canary upgrade until you start moving namespaces. Two control planes run for the whole migration, and on a small cluster you notice it. In the `minimal` and `default` profiles, `istiod` requests 500m CPU and 2Gi of memory, and the canary is a second copy of it.
 
-It is also the price of a rollback that is a label change rather than a reinstall. The in-place module makes the comparison explicit; the number to hold onto here is that the overlap is temporary and bounded by how quickly you restart workloads.
+That is the price of a rollback that is a label change instead of a reinstall. The overlap is temporary: it lasts only as long as you take to restart the workloads.
 
-> *A revision suffixes every namespaced object it owns, which is why two control planes coexist, why reconciliation cannot cross between them, and why installing one changes nothing for running pods.*
+You now know that a revision adds a suffix to every namespaced object it owns. That suffix is why two control planes can run side by side, why one install cannot touch the other, and why installing a revision changes nothing for running pods. The open question is how to tell a namespace, and its pods, to use the new control plane.
 
-## Reference
+## Common pitfalls
 
-- [Canary upgrades](https://istio.io/v1.30/docs/setup/upgrade/canary/) — Istio's own procedure and the revision model.
-- [Installation configuration profiles](https://istio.io/v1.30/docs/setup/additional-setup/config-profiles/) — what `minimal` installs, and why it suits a canary control plane.
-- [Diagnostic tools](https://istio.io/v1.30/docs/ops/diagnostic-tools/proxy-cmd/) — reading the `ISTIOD` column and the `--revision` flag.
-- `istioctl install --help` — confirm the `revision` overlay key on the version you have.
+> [!WARNING]
+> **Expecting a revision install to move workloads.** It creates a second control plane and nothing else. Nothing moves until you relabel a namespace and create its pods again.
+>
+> **Using a revision name that is not a DNS label.** Dots and underscores are not allowed. That is why versions appear as `1-30-5` and not `1.30.5`.
+>
+> **Forgetting that the second control plane costs resources.** Two `istiod` Deployments run until you retire one.
+>
+> **Assuming the default revision is special.** It is simply the one with no suffix, and it can be the older of the two.
+>
+> **Installing a full profile as the canary.** Two sets of gateways compete for the same names. Install `minimal` and move the gateways separately.

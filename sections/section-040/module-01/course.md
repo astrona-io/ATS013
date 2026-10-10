@@ -1,46 +1,53 @@
 # Install Istio In Ambient Mode
 
-<!-- astrona:playground -->
-> [!NOTE]
-> 🧪 **Hands-on playground for this module** — a clean, throwaway machine to explore on. No task, no grading. Folder: [`playground/`](https://github.com/astrona-io/ATS013/tree/main/sections/section-040/module-01/playground)
->
-> ```sh
-> astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-040/module-01/playground
-> astrona destroy ats-013-playground-040-01
-> ```
+In sidecar mode, Istio adds a proxy container to every pod in the mesh. **Ambient mode** is a second data plane that removes that container. The data plane is the set of proxies that carry the traffic between workloads. In ambient mode, one shared proxy per node, called `ztunnel`, carries the traffic for every pod on that node that is part of the mesh.
 
-Everything up to this point put a proxy inside the pod. Ambient mode does not. The mesh moves down to the node, mutual TLS and L4 authorization happen there, and your pod specs are never touched — which means joining the mesh costs a label instead of a rolling restart of every workload in the namespace.
+The control plane does not change. `istiod` is Istio's control plane: it turns Istio resources into proxy configuration and sends it, together with certificates, to every proxy. What changes is daily work. A namespace joins the mesh with one label, and no pod has to be created again. Mutual TLS (mTLS, where both sides of a connection check each other's certificate and the traffic is encrypted) still happens, but ztunnel does it on the node instead of a proxy inside the pod.
 
-That single difference changes the operational story more than it changes the concepts. The control plane is the same `istiod`, issuing the same certificates; what moved is where the proxying happens and how much of it you pay for.
-
-## How this module is organised
-
-1. **[Part 1 — The Ambient Data Plane](./course-01-the-ambient-data-plane.md)** — what the `ambient` profile installs, why `istio-cni` and `ztunnel` are DaemonSets rather than sidecars, and how traffic reaches a node-level proxy without the pod being modified.
-2. **[Part 2 — Enrollment, Verification And The L4 Boundary](./course-02-enrollment-and-the-l4-boundary.md)** — the enrollment label and why no restart is needed, checking membership when container counts no longer help, reading HBONE identities out of ztunnel's logs, and exactly where ztunnel's capabilities stop.
+The split of work is the main idea of this module. ztunnel does the layer 4 work for every pod in the mesh: who is talking, on which port, and encryption. A separate proxy, called a waypoint, does layer 7 work (reading HTTP), and you add it only where you need it. A cluster can run both data planes side by side, but one namespace uses only one of them.
 
 ## Learning objectives
 
 After this module you can:
 
-- Name the components the `ambient` profile adds beyond `istiod` and say what each is responsible for.
-- Explain how traffic reaches ztunnel without any change to the pod, and contrast that with the sidecar init container.
-- Enroll and un-enroll a namespace with `istio.io/dataplane-mode`, and explain why no pod is recreated.
-- Verify mesh membership and transport protocol with `istioctl ztunnel-config`, and say why `kubectl get pod` cannot answer that question here.
-- Describe HBONE and read a workload identity out of a ztunnel access log.
-- State which capabilities ztunnel provides alone and which require a waypoint proxy.
+- Name the components the `ambient` profile installs next to `istiod`, and say what each one does.
+- Explain how a pod's traffic reaches ztunnel without any change to the pod, and compare that with the sidecar's init container.
+- Add a namespace to the mesh and remove it again with the `istio.io/dataplane-mode` label, and explain why no pod is created again.
+- Check mesh membership with `istioctl ztunnel-config workload`, and say why `kubectl get pod` cannot answer that question in ambient mode.
+- Describe HBONE (HTTP-Based Overlay Network Environment) and read a workload identity from a ztunnel access log.
+- Say what ztunnel can do on its own and what needs a waypoint proxy.
 
 ## Before you start
 
-You should understand sidecar injection and what the sidecar does for a workload — [section 020's injection module](../../section-020/module-02/course.md) covers both, and its Part 3 on traffic capture is the direct contrast Part 1 here builds on. Ambient mode is most easily understood as a redistribution of those same responsibilities.
+This module expects some Kubernetes knowledge and a basic picture of sidecar mode, because it keeps comparing the two data planes.
 
-The playground gives you a single-node `kind` cluster with **`istioctl` 1.30.5** and **Istio 1.30.5 installed with the `ambient` profile**. Namespace **`ambient-demo` is not yet enrolled** and runs `notification-service` (nginx) plus a `tester` pod. Both pods have exactly one container and will still have exactly one container at the end of this module.
+### What you should already know
 
-All commands run from your normal shell with `kubectl` pointed at the cluster.
+- **Kubernetes basics.** Namespaces, Deployments, Services, DaemonSets, and `kubectl logs` and `kubectl exec`.
+- **Sidecar injection.** In sidecar mode, Istio adds an `istio-proxy` container to each new pod in a labelled namespace, and an init container (or the Istio CNI plugin) sends the pod's traffic through that proxy. Pods that were already running need a restart to get one.
 
-## Where this fits
+### What is in your playground
 
-Sidecar mode and ambient mode are two data planes for the same control plane. `istiod` is the same process, issuing the same certificates and serving the same Istio APIs; what differs is where the proxying happens.
+The playground is a single-node `kind` cluster with **`istioctl` 1.30.5** and **Istio 1.30.5 installed with the `ambient` profile**. You run every command from your normal shell, and `kubectl` already points at the cluster.
 
-In sidecar mode, one Envoy per pod does everything: mTLS, L4 policy, HTTP routing, retries, L7 authorization. In ambient mode that work is split. A per-node proxy called **ztunnel** handles the L4 half for every enrolled pod on that node. The L7 half is opt-in: you add a **waypoint proxy** for the namespaces or services that need HTTP-aware behaviour, and pay for Envoy only there — the next module.
+The namespace **`ambient-demo`** is **not yet part of the mesh**. It runs two workloads:
 
-The practical consequence is worth remembering as a sentence: ambient mode lets you get mesh identity and encryption across a whole cluster cheaply, then add L7 features selectively. A namespace can be in either mode, and both modes can coexist in one cluster — but not in one namespace.
+| Workload | What it is |
+| --- | --- |
+| `notification-service` (Deployment `notification-service-v1`, nginx) | A web server that answers every request, behind the `notification-service` Service on port `80` |
+| `tester` (curl) | A client pod; you send every test request from here |
+
+Both pods have exactly one container, and they still have exactly one container at the end of this module.
+
+Start your playground now, and keep it running while you read the parts:
+
+<!-- astrona:playground -->
+
+## The parts of this module
+
+Read the parts in this order:
+
+1. **The Ambient Data Plane:** what the `ambient` profile installs, why `istio-cni-node` and `ztunnel` run once per node, and how traffic reaches a proxy that is not inside the pod.
+2. **Enrollment, Verification And The L4 Boundary:** the label that adds a namespace to the mesh and why nothing restarts, how to check membership when container counts no longer help, how to read identities from ztunnel's log, and where ztunnel's abilities stop. The graded lab "Install Istio In Ambient Mode" follows this part.
+
+A summary closes the module.

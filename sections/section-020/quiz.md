@@ -28,9 +28,9 @@ A task says "every sidecar in the mesh should request 20m of CPU". Which key con
 ---
 
 ### Question 2
-You install `istio-custom.yaml`, which disables the egress gateway and sets `accessLogFile`. A week later a colleague runs `istioctl install --set profile=demo -y` to "refresh" the install. What is the result?
+You install `istio-custom.yaml`, which disables the egress gateway and sets `outboundTrafficPolicy.mode: REGISTRY_ONLY`. A week later a colleague runs `istioctl install --set profile=demo -y` to "refresh" the install. What is the result?
 *   **A)** Nothing changes; the second install is a no-op because the same profile is already in use.
-*   **B)** The egress gateway comes back and `accessLogFile` disappears, because `istioctl install` reconciles the cluster to the document it was given.
+*   **B)** The egress gateway comes back and `outboundTrafficPolicy` disappears, because `istioctl install` reconciles the cluster to the document it was given.
 *   **C)** The two documents are merged, so both sets of settings are live.
 *   **D)** The command fails with a conflict against the existing installation.
 
@@ -39,7 +39,7 @@ You install `istio-custom.yaml`, which disables the egress gateway and sets `acc
 
 **Correct Answer: B**
 
-*   **Why B is correct:** `istioctl install` is declarative — it renders a complete desired state and reconciles the cluster to it. The stock `demo` profile enables the egress gateway and sets no `accessLogFile`, so both of your deviations revert. Nothing warns you, because from Istio's point of view the colleague asked for `demo` and got `demo`. This is the argument for one committed file per control plane, passed on every run.
+*   **Why B is correct:** `istioctl install` is declarative — it renders a complete desired state and reconciles the cluster to it. The stock `demo` profile enables the egress gateway and sets no `outboundTrafficPolicy`, so both of your deviations revert, and the mesh is back to `ALLOW_ANY`. Nothing warns you, because from Istio's point of view the colleague asked for `demo` and got `demo`. This is the argument for one committed file per control plane, passed on every run.
 *   **Why others are incorrect:**
     *   *Option A* assumes the profile name is the whole input; the previous overrides were part of a different document.
     *   *Option C* describes a merge that does not happen — values from previous runs are not carried over.
@@ -49,22 +49,22 @@ You install `istio-custom.yaml`, which disables the egress gateway and sets `acc
 ---
 
 ### Question 3
-Your `IstioOperator` contains `name: istio-egress-gw` under `components.egressGateways` with `enabled: false`. The install succeeds and the egress gateway is still running. Why?
-*   **A)** Gateways cannot be disabled once installed; they must be deleted with `kubectl`.
-*   **B)** Component lists are matched by `name`. The profile's gateway is called `istio-egressgateway`, so your entry defined a *second*, disabled gateway and left the original alone.
-*   **C)** `enabled: false` only prevents future upgrades of that component.
-*   **D)** The field should be `disabled: true`.
+Your `IstioOperator` builds on the `demo` profile and contains one entry under `components.ingressGateways`: `name: internal-gateway` with `enabled: true`. After the install, `internal-gateway` runs, but `istio-ingressgateway` is gone. Why?
+*   **A)** Two ingress gateways cannot run in one cluster, so `istioctl` keeps only the newest one.
+*   **B)** A gateway list in your document replaces the profile's list as a whole. Your list holds only `internal-gateway`, so `istio-ingressgateway` is no longer in the render, and the install removes it.
+*   **C)** `enabled: true` on one entry turns every other entry off.
+*   **D)** The `demo` profile does not include an ingress gateway.
 
 <details>
 <summary><b>Reveal Correct Answer & Teacher's Explanation</b></summary>
 
 **Correct Answer: B**
 
-*   **Why B is correct:** `components.ingressGateways` and `components.egressGateways` are lists, because a cluster can run several of each, and entries are joined to the profile's entries by the `name` field. An unmatched name is not an error — it is a new list entry. `istioctl manifest generate -f <file>` reveals this immediately: the original egress gateway objects are still in the rendered manifest.
+*   **Why B is correct:** `components.ingressGateways` and `components.egressGateways` are lists, because a cluster can run several of each. In Istio 1.30, `istioctl` does not merge your list with the profile's list entry by entry: your list replaces it. To keep the default gateway, list `istio-ingressgateway` next to `internal-gateway`. `istioctl manifest generate -f <file>` shows this before the install: the rendered manifest has no `istio-ingressgateway` objects.
 *   **Why others are incorrect:**
-    *   *Option A* is false; disabling a component through the document is exactly how it is removed.
-    *   *Option C* invents semantics for `enabled`.
-    *   *Option D* invents a field name.
+    *   *Option A* is false; a cluster can run as many gateways as you list.
+    *   *Option C* invents semantics for `enabled`; each entry has its own.
+    *   *Option D* is false; `demo` installs both an ingress and an egress gateway.
 </details>
 
 ---
@@ -165,7 +165,7 @@ Which command would have caught an indentation error that put `meshConfig` under
 
 **Correct Answer: B**
 
-*   **Why B is correct:** A misplaced key becomes an *unknown field*, and an unknown field does not stop an install. `istioctl validate -f` catches many schema problems, but `profile dump -f` is the stronger check because it shows the fully rendered document — if your override is not in the output, it did not take, whatever the reason.
+*   **Why B is correct:** A misplaced key becomes an *unknown field*, and an unknown field does not stop an install. `istioctl validate -f` catches many schema problems, but `istioctl manifest generate -f` is the stronger check because it shows the fully rendered result — if your override is not in the output, it did not take, whatever the reason.
 *   **Why others are incorrect:**
     *   *Option A* validates against Kubernetes API schemas; an `IstioOperator` file passed to `istioctl` is not applied that way.
     *   *Option C* inspects running proxies, long after the mistake.
@@ -174,8 +174,6 @@ Which command would have caught an indentation error that put `meshConfig` under
 
 ---
 
-## Ready for the Labs?
+## What comes next
 
-*   **[Module 1 Lab: Customize An Istio Installation](./module-01/labs/lab-01)**
-*   **[Module 2 Lab: Control Sidecar Injection](./module-02/labs/lab-01)**
-*   **[Section 020 Capstone: Shape The Install, Then Choose Who Joins](./capstone/labs/lab-01)**
+The section capstone lab comes next. It combines the skills of the whole section in one task on a live cluster.

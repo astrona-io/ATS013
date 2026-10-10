@@ -1,154 +1,163 @@
-# Part 1 — Replacing The Control Plane
+# Replacing The Control Plane
 
-> Prerequisite: [the module landing page](./course.md). Next: [Part 2 — Skew, Completion And The Cost Of Reverting](./course-02-skew-completion-and-reverting.md).
+"In place" is an exact statement about which Kubernetes objects keep their identity. It is not a vague word about style. An in-place upgrade replaces the image of the control plane, `istiod`, and keeps every object name the same. This part shows which objects change and which stay, runs the check that makes the upgrade safe, and then performs the upgrade. It also shows the one mistake that throws away a cluster's custom settings without any warning.
 
-"In place" is a precise statement about object identity, not a vague one about style. This part pins down exactly which objects are replaced and which keep their names, runs the pre-flight check that makes the upgrade survivable, and performs it — including the one flag mistake that quietly discards a cluster's customisation.
+## What "in place" means for the objects
 
-## What "in place" means at the object level
+There are two ways to upgrade Istio, and the clearest way to tell them apart is to look at what each one does to the objects in `istio-system`. A **revision** is a named installation of the control plane. Its objects carry the revision name as a suffix, for example `istiod-1-30-5`. The default revision has no suffix. A **canary upgrade** installs the new version as a second revision next to the old one, and moves workloads over one namespace at a time. An **in-place upgrade** reuses the existing revision.
 
-Compare the two strategies by what they do to the cluster's objects:
-
-```text
-  IN-PLACE                                CANARY
-  ────────                                ──────
-  Deployment  istiod         (updated)    Deployment  istiod          (untouched)
-  Service     istiod         (untouched)  Deployment  istiod-1-30-5   (new)
-  Webhook     istio-sidecar-injector      Service     istiod-1-30-5   (new)
-                             (updated)    Webhook     istio-sidecar-injector-1-30-5
-                                                                      (new)
-  → one control plane, new image          → two control planes, both running
+```mermaid
+flowchart TB
+    I["in-place"] -->|"same object, new image"| I1["Deployment: istiod"]
+    I -->|"untouched"| I2["Service: istiod"]
+    I -->|"updated"| I3["webhook"]
+    C["canary"] -->|"untouched"| C1["Deployment: istiod"]
+    C -->|"new object"| C2["Deployment: istiod-1-30-5"]
+    C -->|"new, with suffix"| C3["Service and webhook"]
 ```
 
-An in-place upgrade **reuses the same revision**, so every object keeps its name and Istio's reconciliation updates it rather than creating a sibling. Kubernetes then rolls the `istiod` Deployment the way it rolls any Deployment: new pod up, old pod down, one object throughout.
+The diagram shows that an in-place upgrade changes the objects you already have, while a canary upgrade adds a second set next to them.
 
-That single fact explains both the appeal and the risk. There is nothing to relabel, because no name changed. There is also nothing to fall back to, because the old control plane's Deployment no longer exists in its old form.
+Because an in-place upgrade reuses the same revision, every object keeps its name. `istioctl install` updates each object instead of creating a second one. Kubernetes then rolls the `istiod` Deployment like any other Deployment: it starts a new pod, then stops the old one, and the Deployment object stays the same throughout.
 
-The sequence is fixed and has **three** steps, not two:
+That one fact explains both the appeal and the risk. There is nothing to relabel, because no name changed. There is also nothing to fall back to, because the old version of the `istiod` Deployment no longer exists. This is why a canary upgrade can be undone by changing a label, and an in-place upgrade cannot.
 
-1. **Pre-check** with the target version, to find conditions that would make the upgrade fail.
+The sequence of an in-place upgrade is fixed, and it has three steps, not two:
+
+1. **Pre-check** with the target version, to find anything that would make the upgrade fail.
 2. **Install** the new version over the existing revision.
-3. **Restart** every injected workload so the data plane catches up.
+3. **Restart** every workload with a sidecar proxy, so the data plane catches up.
 
-Step 3 is the one people drop, and the mesh keeps working well enough afterwards that the omission can survive for months. Part 2 is largely about it.
+People often drop step 3. The mesh keeps working well enough without it that the gap can last for months.
 
-> [!TIP]
-> **Try it — establish the baseline you will compare against**
->
-> ```sh
-> istioctl version
-> kubectl -n istio-system get deploy istiod -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-> kubectl -n istio-system get deploy istiod -o jsonpath='{.metadata.uid}{"\n"}'
-> istioctl proxy-status
-> ```
->
-> Expect something like:
->
-> ```text
-> client version: 1.29.8
-> control plane version: 1.29.8
-> data plane version: 1.29.8 (3 proxies)
->
-> docker.io/istio/pilot:1.29.8
-> 4b1e9c2a-3d77-4f21-9c8e-2a1f6d4b8e03
->
-> NAME                                     CLUSTER      CDS      LDS      EDS      RDS        ISTIOD
-> istio-ingressgateway-...istio-system     Kubernetes   SYNCED   SYNCED   SYNCED   NOT SENT   istiod-...
-> notification-service-v1-...inplace-demo  Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED     istiod-...
-> notification-service-v1-...inplace-demo  Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED     istiod-...
-> ```
->
-> Write down the Deployment's `uid` as well as the version. After the upgrade the image will have changed and the `uid` will not — that is "in place" made checkable, rather than taken on trust.
+Before you change anything, record the starting point. Run these four commands to see the versions, the image of `istiod`, the `uid` of the `istiod` Deployment and the proxy status. The `uid` is the unique ID that Kubernetes gives an object when it creates it; it never changes while the object exists. `istioctl proxy-status` lists every proxy that is connected to `istiod`, with the `istiod` pod it uses, its own version and the configuration types it receives.
 
-## What `x precheck` inspects, and why the binary matters
+<!-- astrona:playground:renew -->
 
-`istioctl x precheck` is a read-only audit run against the cluster's API server. It is not a syntax check on your configuration; it asks whether *this cluster* can accept *this version* of Istio. Concretely it examines:
+```sh
+istioctl version
+kubectl -n istio-system get deploy istiod -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+kubectl -n istio-system get deploy istiod -o jsonpath='{.metadata.uid}{"\n"}'
+istioctl proxy-status
+```
 
-- **The Kubernetes version**, against the target release's supported range.
-- **Existing Istio CRDs**, for schemas the target version cannot work with.
-- **Existing webhook configurations**, because a stale mutating webhook pointing at a dead service will intercept and fail the install's own pod creations.
+The output looks like this:
+
+```text
+client version: 1.29.8
+control plane version: 1.29.8
+data plane version: 1.29.8 (4 proxies)
+docker.io/istio/pilot:1.29.8
+a09cffc8-faa9-419b-be74-5a9e4b0a44ad
+NAME                                                      CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+istio-ingressgateway-75d6fcbb78-rcdmz.istio-system        Kubernetes     istiod-587b649545-mm8z5     1.29.8      3 (CDS,LDS,EDS)
+notification-service-v1-746cd97ddb-b9sxn.inplace-demo     Kubernetes     istiod-587b649545-mm8z5     1.29.8      4 (CDS,LDS,EDS,RDS)
+notification-service-v1-746cd97ddb-mpkcl.inplace-demo     Kubernetes     istiod-587b649545-mm8z5     1.29.8      4 (CDS,LDS,EDS,RDS)
+tester-577d497fbd-jlnc4.inplace-demo                      Kubernetes     istiod-587b649545-mm8z5     1.29.8      4 (CDS,LDS,EDS,RDS)
+```
+
+There are four proxies: the ingress gateway, the two replicas of `notification-service-v1` and the `tester` pod. Every one runs `1.29.8` and is connected to the one `istiod` pod.
+
+Write down the `uid` as well as the version. After the upgrade, the image will be different and the `uid` will not. That turns "in place" into something you can check instead of something you take on trust.
+
+## The pre-upgrade check
+
+With the starting point recorded, the next step is to ask whether the cluster can accept the new version at all. `istioctl x precheck` answers that question. The `x` stands for `experimental`, a group of `istioctl` subcommands whose interface Istio has not promised to keep stable.
+
+`istioctl x precheck` only reads from the Kubernetes API server. It does not check the syntax of your configuration. It checks whether *this cluster* can accept *this version* of Istio, and it looks at:
+
+- **The Kubernetes version**, against the range the target release supports.
+- **Existing Istio CRDs (Custom Resource Definitions)**, which add Istio's object kinds to the Kubernetes API, for schemas the target version cannot work with.
+- **Existing webhook configurations.** An old mutating webhook that points at a missing Service can block the pods the install creates.
 - **Existing Istio configuration objects**, for fields the target version has deprecated or removed.
-- **Cluster permissions** the install needs — creating CRDs, cluster roles, webhook configurations.
+- **Cluster permissions** the install needs, such as the right to create CRDs, cluster roles and webhook configurations.
 
-Run it with the **new** binary. The check is about compatibility with the version you are moving *to*, and only that binary carries the target version's requirements and deprecation list. Running `istioctl x precheck` with the currently-installed binary answers a question you already know the answer to.
+The binary you run it with matters. The check is about the version you are moving *to*, and only that binary knows the target version's requirements and its list of deprecated fields. Running `istioctl x precheck` with the installed 1.29.8 binary answers a question you already know the answer to.
 
-> [!TIP]
-> **Try it — ask the target version whether the cluster is ready**
->
-> ```sh
-> istioctl-1.30.5 x precheck
-> ```
->
-> Expect something like:
->
-> ```text
-> ✔ No issues found when checking the cluster. Istio is safe to install or upgrade!
->   To get started, check out https://istio.io/v1.30/docs/setup/getting-started/
-> ```
->
-> On a clean playground this passes trivially. On a cluster with real history it rarely does, and the warnings are the valuable output: they name configuration that will stop working after the upgrade, while the old version is still running and you still have options. Read every line — `precheck` warnings are advisory, so a non-zero finding does not block the install.
+Ask the target version whether the cluster is ready:
 
-A related command is worth pairing with it. `istioctl analyze` asks a different question — not "can this cluster take the new version?" but "is the Istio configuration currently in it coherent?". Run `precheck` before the upgrade and `analyze` after, and you have covered both directions.
+```sh
+istioctl-1.30.5 x precheck
+```
+
+The output looks like this:
+
+```text
+✔ No issues found when checking the cluster. Istio is safe to install or upgrade!
+  To get started, check out https://istio.io/latest/docs/setup/getting-started/.
+```
+
+On a clean playground this check passes easily. On a cluster with real history it rarely does, and the warnings are the useful part. They name configuration that will stop working after the upgrade, while the old version still runs and you can still change your plan. Read every line: a warning is advice, and it does not block the install.
+
+`istioctl analyze` asks a different question: "is the Istio configuration in the cluster right now consistent?" Run `precheck` before the upgrade and `analyze` after it, and you have checked both directions.
 
 ## Performing the upgrade
 
-The upgrade is `istioctl install` run with the newer binary. There is also an `istioctl upgrade` command, and on 1.30 its help text says plainly that it **is an alias for the install command** — same flags, same behaviour. Use whichever reads better in your runbook; they do the same thing, and neither one restarts your workloads.
+Once the check passes, the upgrade itself is `istioctl install`, run with the newer binary. There is also an `istioctl upgrade` command. In 1.30 its help text says that it is an alias for the install command, with the same flags and the same behaviour. Neither command restarts your workloads.
 
-Because `install` reconciles the cluster to the document you give it — [Part 4 of the section 010 istioctl module](../../section-010/module-01/course-04-reconciliation-and-removal.md) covers the mechanism — **you must pass the same configuration you installed with**.
-
-This is the in-place equivalent of the Helm module's missing-`-f` incident, and it fails the same way: silently, with a success message. A bare `istioctl install -y` during an upgrade does not mean "keep everything and change the version". It means "make the cluster match the default profile", which reverts every customisation the cluster had.
+`istioctl install` makes the cluster match the configuration you give it, and removes or resets anything that configuration does not contain. So you must pass the same configuration you installed with. A bare `istioctl install -y` during an upgrade does not mean "keep everything and change the version". It means "make the cluster match the `default` profile". On a cluster with custom settings, that reverts every one of them, and the command still reports success.
 
 | How you installed | How you upgrade |
 | --- | --- |
 | `istioctl install -f istio.yaml` | `istioctl-<new> install -f istio.yaml -y` |
 | `istioctl install --set profile=demo` | `istioctl-<new> install --set profile=demo -y` |
-| Nobody remembers | Recover it first — see below |
+| Nobody remembers | Recover the configuration first |
 
-If nobody knows how the cluster was installed, recover before upgrading rather than after. Istio has no "what is installed" command, so the reconstruction comes from the cluster: the `istio` ConfigMap holds the effective `meshConfig`, `kubectl -n istio-system get deploy` shows which components exist, and each Deployment's pod spec shows its resource settings. Write that into a file, then diff `istioctl manifest generate -f <your file>` against `istioctl manifest generate --set profile=default` to see the deviations, and upgrade with the file.
+When nobody knows how the cluster was installed, recover the configuration before the upgrade, not after. Istio has no command that prints the installed configuration, so you rebuild it from the cluster:
 
-This playground was installed with `--set profile=default`, so that is what the upgrade repeats.
+- the `istio` ConfigMap in `istio-system` holds the `meshConfig` in effect, which is the mesh-wide configuration `istiod` applies to every proxy;
+- `kubectl -n istio-system get deploy` shows which components exist;
+- the pod spec of each Deployment shows its resource settings.
 
-> [!TIP]
-> **Try it — replace the control plane, and prove it was in place**
+Write that into a file. Then compare `istioctl manifest generate -f <your file>` with `istioctl manifest generate --set profile=default` to see where the cluster differs from the default, and upgrade with the file.
+
+The playground was installed with `--set profile=default`, so the upgrade repeats that. Replace the control plane with the 1.30.5 binary, then check the image, the `uid` and the pod:
+
+```sh
+istioctl-1.30.5 install --set profile=default -y
+kubectl -n istio-system get deploy istiod -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+kubectl -n istio-system get deploy istiod -o jsonpath='{.metadata.uid}{"\n"}'
+kubectl -n istio-system get pods -l app=istiod
+```
+
+The output looks like this:
+
+```text
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
+✔ Ingress gateways installed 🛬
+- Pruning removed resources
+✔ Installation complete
+registry.istio.io/release/pilot:1.30.5
+a09cffc8-faa9-419b-be74-5a9e4b0a44ad
+NAME                      READY   STATUS    RESTARTS   AGE
+istiod-5497897698-wrmkc   1/1     Running   0          15s
+```
+
+The install also prints a logo and progress lines; they are left out here. The image is new, and it comes from a new registry: Istio 1.30 images are published under `registry.istio.io/release`, and 1.29 images under `docker.io/istio`. The `uid` is the same one you wrote down, and the pod is newly created. Nobody deleted and created the Deployment again: `istioctl` updated it, and Kubernetes rolled its pods. A canary upgrade would instead have added a second Deployment with a different name.
+
+## The short gap without a control plane
+
+The rollout you just ran has one side effect worth knowing. While Kubernetes rolls the `istiod` Deployment, there is a short time with no ready `istiod` pod, or with one that is still starting. During that time:
+
+- **Existing proxies keep carrying traffic.** Each proxy keeps the last configuration it received, and it does not need `istiod` to forward a request.
+- **Configuration changes wait.** The Kubernetes API server stores an object you apply during the gap, but `istiod` does not push it to the proxies until the new pod is ready.
+- **New pods in namespaces with injection fail to start.** The injection webhook has `failurePolicy: Fail`, so the API server rejects a new pod when it cannot reach `istiod`, instead of creating the pod without a sidecar proxy. That is the right behaviour, and it means a deployment during the gap fails with an error.
+- **Certificate signing pauses.** `istiod` is also the certificate authority that signs the proxies' certificates. A pause of a few seconds does not matter. It matters if the control plane stays down.
+
+With a single `istiod` replica on a small cluster, the gap lasts a few seconds. Running `istiod` with two or more replicas removes it. That is the usual production setting, and it belongs in place before you need it.
+
+You now know that an in-place upgrade keeps every object name and `uid` and changes only the image, that you run `istioctl x precheck` with the target binary, and that you upgrade with the same configuration you installed with. The open question is what happens to the proxies, which still run the old version after the control plane is new.
+
+## Common pitfalls
+
+> [!WARNING]
+> **Upgrading with the wrong `istioctl`.** The binary renders the objects, so its version decides what you install. Check the binary before you check the cluster.
 >
-> ```sh
-> istioctl-1.30.5 install --set profile=default -y
-> kubectl -n istio-system get deploy istiod -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-> kubectl -n istio-system get deploy istiod -o jsonpath='{.metadata.uid}{"\n"}'
-> kubectl -n istio-system get pods -l app=istiod
-> ```
+> **Running a bare `istioctl install` during the upgrade.** It makes the cluster match the `default` profile and drops custom settings without a warning. Pass the same `-f` file or `--set` flags you installed with.
 >
-> Expect something like:
+> **Skipping `x precheck`, or running it with the old binary.** It is your one cheap chance to see what the new version rejects while the old one still runs.
 >
-> ```text
-> ✔ Istio core installed
-> ✔ Istiod installed
-> ✔ Ingress gateways installed
-> ✔ Installation complete
+> **Expecting no gap.** With one `istiod` replica, there is a short time with no ready control plane: existing proxies keep working, but new pods and configuration pushes wait.
 >
-> docker.io/istio/pilot:1.30.5
-> 4b1e9c2a-3d77-4f21-9c8e-2a1f6d4b8e03
-> NAME                      READY   STATUS    RESTARTS   AGE
-> istiod-5f4c9d8b7c-w8t4n   1/1     Running   0          38s
-> ```
->
-> New image, **same `uid`** as the one you noted earlier, and a freshly created pod. The Deployment object was never deleted and recreated — Istio updated it and Kubernetes rolled its pods. That is exactly what distinguishes this from the canary module, where a second Deployment with a different name appeared.
-
-## The brief control plane gap
-
-Rolling the `istiod` Deployment means there is a short window with no ready control plane pod, or with one that is still starting. What happens during it is worth knowing so it does not alarm you:
-
-- **Existing proxies keep serving traffic.** They hold their last-received configuration and do not need `istiod` to forward a request.
-- **Configuration changes do not propagate.** An `apply` during the gap is stored but not pushed until the new control plane is up.
-- **New pods in injected namespaces fail to start.** The injection webhook's `failurePolicy` is `Fail`, so admission rejects them rather than creating un-injected pods. This is the correct behaviour and it does mean a deployment attempted during the gap will error.
-- **Certificate signing pauses.** Irrelevant over seconds; relevant if the control plane stays down.
-
-For a single-replica `istiod` on a small cluster the gap is a few seconds. Running `istiod` with two or more replicas removes it entirely, which is the usual production setting and worth having in place before you need it.
-
-> *In place means the same objects with a new image — same names, same uid, nothing to relabel and nothing to fall back to.*
-
-## Reference
-
-- [In-place upgrades](https://istio.io/v1.30/docs/setup/upgrade/in-place/) — Istio's own procedure.
-- [istioctl x precheck](https://istio.io/v1.30/docs/reference/commands/istioctl/#istioctl-experimental-precheck) — what the check covers.
-- [Upgrade overview](https://istio.io/v1.30/docs/setup/upgrade/) — how Istio frames the choice between in-place and canary.
-- `istioctl install --help` — confirm that `upgrade` has been folded into `install` on the version you have.
+> **Treating an in-place upgrade as easy to undo.** Going back is another in-place upgrade with the same gap. No second control plane is waiting to take over.

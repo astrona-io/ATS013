@@ -1,26 +1,67 @@
+# Course manifest for ATS013 - Installation, Upgrade And Configuration
+# (Istio Certified Associate).
+#
+# The Introduction (`module-intro`) comes first. Then one entry per section
+# under `modules:`. Each section lists, in order: its
+# README, then for each module the landing page (course.md), its parts
+# (course-0N-*.md), and right after the part a lab tests, the lab's
+# question.md reading and the `type: lab` entry. The module's summary page
+# comes last. The section quiz and then the section capstone close the
+# section. Playgrounds are not listed: the landing page's playground marker
+# shows them. Never list a lab's solution.md here.
+#
+# Every `path:` is relative to this file.
+
 training:
   id: ATS013
   title: "ICA: Installation, Upgrade And Configuration"
   description: >
     Training material covering the Istio Certified Associate (ICA)
-    Installation, Upgrade And Configuration domain — installing with istioctl
+    Installation, Upgrade And Configuration domain: installing with istioctl
     and Helm, customizing the installation, controlling sidecar injection,
     canary and in-place upgrades, and ambient mode with waypoint proxies.
-    Each module pairs a layered reader with an ungraded hands-on playground.
+    Each module pairs a layered reader with an ungraded hands-on playground
+    and a graded practice lab. Each section closes with a knowledge check
+    and an integration capstone.
+    Built and verified against Istio 1.30.5.
 
   certification:
     name: Istio Certified Associate
     code: ICA
     provider: CNCF / Linux Foundation
     domain: Installation, Upgrade And Configuration
+    weight: 20
 
 modules:
+
+  - id: module-intro
+    title: "Introduction"
+    description: >
+      Start here. What this course trains you to do, how it is laid out, how
+      to get your machine ready with the astrona command-line tool, how the
+      content is written and checked, who maintains it, and how to report a
+      mistake.
+
+    content:
+      - type: reading
+        title: Introduction
+        path: sections/intro/README.md
+      - type: reading
+        title: "Welcome To The Course"
+        path: sections/intro/course-01-welcome.md
+      - type: reading
+        title: "Get Your Machine Ready"
+        path: sections/intro/course-02-get-your-machine-ready.md
+      - type: reading
+        title: "How This Course Is Made"
+        path: sections/intro/course-03-how-this-course-is-made.md
+
   - id: module-010
     title: "Section 010: Installing Istio With istioctl Or Helm"
     description: >
-      Get an Istio control plane onto a cluster by both supported methods — the
-      istioctl CLI and the Helm charts — and understand what each one creates,
-      owns and leaves behind.
+      Get an Istio control plane onto a cluster by both supported methods, the
+      istioctl command-line tool and the Helm charts, and understand what each
+      one creates, owns and leaves behind.
 
     content:
       - type: reading
@@ -28,77 +69,161 @@ modules:
         path: sections/section-010/README.md
 
       - type: reading
-        title: "Module 1: Install Istio With istioctl"
+        title: "Install Istio With istioctl"
         path: sections/section-010/module-01/course.md
       - type: reading
-        title: "Module 1.1: The Render-And-Apply Pipeline"
+        title: "The Render-And-Apply Pipeline"
         path: sections/section-010/module-01/course-01-render-and-apply-pipeline.md
       - type: reading
-        title: "Module 1.2: Profiles And The Objects They Produce"
+        title: "Profiles And The Objects They Produce"
         path: sections/section-010/module-01/course-02-profiles-and-installed-objects.md
       - type: reading
-        title: "Module 1.3: Injection And The Version Triad"
+        title: "Injection And The Version Triad"
         path: sections/section-010/module-01/course-03-injection-and-version-alignment.md
-      - type: reading
-        title: "Module 1.4: Reconciliation And Clean Removal"
-        path: sections/section-010/module-01/course-04-reconciliation-and-removal.md
-
       - type: reading
         title: Question
         path: sections/section-010/module-01/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-010/module-01/labs/lab-01/solution.md
       - type: lab
         title: "Install Istio With istioctl Lab"
         path: sections/section-010/module-01/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 20m
+        topic: istioctl-install
+        task_kind: build
+        tags: [istioctl, precheck, profiles, crds, injection-webhook, namespace-injection, rollout-restart, version-skew]
+        learning_goals:
+          - Install a demo-profile control plane on an empty cluster after a clean pre-install check
+          - Bring an already-running workload into the mesh by labelling its namespace and recreating its pod
+          - Prove with istioctl that the control plane and the data plane run the same version
+        resources:
+          - name: "Install with istioctl"
+            url: https://istio.io/latest/docs/setup/install/istioctl/
+          - name: "Configuration profiles"
+            url: https://istio.io/latest/docs/setup/additional-setup/config-profiles/
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+      - type: reading
+        title: "Reconciliation And Clean Removal"
+        path: sections/section-010/module-01/course-04-reconciliation-and-removal.md
+      - type: reading
+        title: Question
+        path: sections/section-010/module-01/labs/lab-02/question.md
+      - type: lab
+        title: "Remove Istio Completely With istioctl Lab"
+        path: sections/section-010/module-01/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 15m
+        topic: istioctl-install
+        task_kind: build
+        tags: [istioctl, uninstall, crds, injection-webhook, namespace-injection, rollout-restart]
+        learning_goals:
+          - Remove every Istio revision and the Istio CRDs with istioctl uninstall --purge and delete the istio-system namespace
+          - Clear what an uninstall leaves behind by removing the namespace injection label and recreating pods that still carry a sidecar
+          - Prove the cleanup with a 200 from the tester pod and no istio-proxy container left in the namespace
+        resources:
+          - name: "Install with istioctl"
+            url: https://istio.io/latest/docs/setup/install/istioctl/
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+      - type: reading
+        title: "Summary"
+        path: sections/section-010/module-01/course-05-summary.md
 
       - type: reading
-        title: "Module 2: Install Istio With Helm"
+        title: "Install Istio With Helm"
         path: sections/section-010/module-02/course.md
       - type: reading
-        title: "Module 2.1: The Chart Model And Its Ordering"
+        title: "The Chart Model And Its Ordering"
         path: sections/section-010/module-02/course-01-chart-model-and-ordering.md
       - type: reading
-        title: "Module 2.2: Installing The Three Releases"
+        title: "Installing The Three Releases"
         path: sections/section-010/module-02/course-02-installing-the-releases.md
       - type: reading
-        title: "Module 2.3: Release State, Verification And Cleanup"
+        title: "Release State And Verification"
         path: sections/section-010/module-02/course-03-release-state-and-verification.md
-
       - type: reading
         title: Question
         path: sections/section-010/module-02/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-010/module-02/labs/lab-01/solution.md
       - type: lab
         title: "Install Istio With Helm Lab"
         path: sections/section-010/module-02/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 25m
+        topic: helm-install
+        task_kind: build
+        tags: [helm, helm-base, helm-istiod, helm-gateway, helm-values, access-logging, namespace-injection, helm-get-values]
+        learning_goals:
+          - Install the base, istiod and gateway charts as three pinned releases in the right order
+          - Drive mesh settings from a values file and read them back from the live configuration
+          - Bring a running workload into the mesh and prove its proxy matches the control plane version
+        resources:
+          - name: "Install with Helm"
+            url: https://istio.io/latest/docs/setup/install/helm/
+          - name: "Installing gateways"
+            url: https://istio.io/latest/docs/setup/additional-setup/gateway/
+          - name: "Global mesh options"
+            url: https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
+      - type: reading
+        title: "Uninstall And Clean Removal"
+        path: sections/section-010/module-02/course-04-uninstall-and-clean-removal.md
+      - type: reading
+        title: Question
+        path: sections/section-010/module-02/labs/lab-02/question.md
+      - type: lab
+        title: "Remove An Istio Helm Install Completely Lab"
+        path: sections/section-010/module-02/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: helm-install
+        task_kind: build
+        tags: [helm, helm-release, uninstall, crds, namespace-injection, rollout-restart, sidecar-injection]
+        learning_goals:
+          - Remove three Istio Helm releases and the CRDs and namespaces that helm uninstall leaves behind
+          - Delete only the Istio CRDs and keep the CRDs of other teams in place
+          - Bring a running workload out of the mesh by removing its injection label and restarting it
+        resources:
+          - name: "Install with Helm"
+            url: https://istio.io/latest/docs/setup/install/helm/
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+      - type: reading
+        title: "Summary"
+        path: sections/section-010/module-02/course-05-summary.md
 
       - type: reading
         title: "Section 010 Knowledge Check: Installing Istio With istioctl Or Helm"
         path: sections/section-010/quiz.md
-
       - type: reading
         title: Question
         path: sections/section-010/capstone/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-010/capstone/labs/lab-01/solution.md
       - type: lab
         title: "Install And Onboard A Mesh Capstone Lab"
         path: sections/section-010/capstone/labs/lab-01
         difficulty: advanced
+        estimated_duration: 40m
+        topic: helm-install
+        task_kind: build
+        tags: [helm, helm-values, helm-gateway, nodeport, meshconfig, proxy-resources, namespace-injection, version-skew]
+        learning_goals:
+          - Install Istio as three pinned Helm releases with a NodePort gateway in its own namespace
+          - Set mesh-wide and sidecar-default settings from one values file and prove they reached the proxies
+          - Mesh one namespace fully while leaving another deliberately outside the mesh
+        resources:
+          - name: "Install with Helm"
+            url: https://istio.io/latest/docs/setup/install/helm/
+          - name: "Installing gateways"
+            url: https://istio.io/latest/docs/setup/additional-setup/gateway/
+          - name: "Global mesh options"
+            url: https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
 
   - id: module-020
     title: "Section 020: Customizing Your Istio Installation"
     description: >
       Shape an installation to a cluster's needs through the IstioOperator
-      configuration layers, and decide precisely which pods join the mesh via
-      sidecar injection.
+      configuration layers, and decide exactly which pods join the mesh
+      through sidecar injection.
 
     content:
       - type: reading
@@ -106,74 +231,133 @@ modules:
         path: sections/section-020/README.md
 
       - type: reading
-        title: "Module 1: Customize An Istio Installation"
+        title: "Customize An Istio Installation"
         path: sections/section-020/module-01/course.md
       - type: reading
-        title: "Module 1.1: The Four Configuration Layers"
+        title: "The Four Configuration Layers"
         path: sections/section-020/module-01/course-01-the-four-configuration-layers.md
       - type: reading
-        title: "Module 1.2: meshConfig: From File To ConfigMap To Proxy"
+        title: "meshConfig: From File To ConfigMap To Proxy"
         path: sections/section-020/module-01/course-02-meshconfig-from-file-to-proxy.md
       - type: reading
-        title: "Module 1.3: Writing, Validating And Re-applying The Document"
+        title: "Writing, Validating And Re-applying The Document"
         path: sections/section-020/module-01/course-03-writing-validating-reapplying.md
-
       - type: reading
         title: Question
         path: sections/section-020/module-01/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-020/module-01/labs/lab-01/solution.md
       - type: lab
         title: "Customize An Istio Installation Lab"
         path: sections/section-020/module-01/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 25m
+        topic: customization
+        task_kind: build
+        tags: [istiooperator, component-overlay, egress-gateway, istiod, meshconfig, access-logging, outbound-traffic-policy]
+        learning_goals:
+          - Remove one gateway from the demo profile without switching to another profile
+          - Size istiod and set mesh-wide access logging and outbound policy in one IstioOperator file
+          - Prove each change reached the live cluster and the mesh ConfigMap
+        resources:
+          - name: "Customizing the installation configuration"
+            url: https://istio.io/latest/docs/setup/additional-setup/customize-installation/
+          - name: "IstioOperator options"
+            url: https://istio.io/latest/docs/reference/config/istio.operator.v1alpha1/
+          - name: "Global mesh options"
+            url: https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
+      - type: reading
+        title: "Summary"
+        path: sections/section-020/module-01/course-04-summary.md
 
       - type: reading
-        title: "Module 2: Control Sidecar Injection"
+        title: "Control Sidecar Injection"
         path: sections/section-020/module-02/course.md
       - type: reading
-        title: "Module 2.1: Injection As Admission Control"
+        title: "Injection As Admission Control"
         path: sections/section-020/module-02/course-01-injection-as-admission-control.md
       - type: reading
-        title: "Module 2.2: The Precedence Rules"
+        title: "The Precedence Rules"
         path: sections/section-020/module-02/course-02-the-precedence-rules.md
-      - type: reading
-        title: "Module 2.3: What Injection Writes Into The Pod"
-        path: sections/section-020/module-02/course-03-what-injection-writes.md
-
       - type: reading
         title: Question
         path: sections/section-020/module-02/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-020/module-02/labs/lab-01/solution.md
       - type: lab
         title: "Control Sidecar Injection Lab"
         path: sections/section-020/module-02/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 20m
+        topic: sidecar-injection
+        task_kind: build
+        tags: [sidecar-injection, namespace-injection, pod-injection, injection-precedence, rollout-restart]
+        learning_goals:
+          - Opt a namespace into the mesh with the label for the default control plane
+          - Exclude one workload and force-include another with the pod-level inject label
+          - Recreate the pods so each one ends up with the container count you intended
+        resources:
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+          - name: "Resource annotations and labels"
+            url: https://istio.io/latest/docs/reference/config/annotations/
+      - type: reading
+        title: "What Injection Writes Into The Pod"
+        path: sections/section-020/module-02/course-03-what-injection-writes.md
+      - type: reading
+        title: Question
+        path: sections/section-020/module-02/labs/lab-02/question.md
+      - type: lab
+        title: "Exclude A Port From Sidecar Traffic Capture Lab"
+        path: sections/section-020/module-02/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 15m
+        topic: sidecar-injection
+        task_kind: build
+        tags: [sidecar-injection, pod-injection, injection-webhook, proxy-status]
+        learning_goals:
+          - Exclude one outbound port from traffic capture with an annotation on the pod template
+          - Keep the workload in the mesh instead of turning injection off for it
+          - Prove the exclusion from the istio-init arguments of the new pod
+        resources:
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+          - name: "Resource annotations"
+            url: https://istio.io/latest/docs/reference/config/annotations/
+      - type: reading
+        title: "Summary"
+        path: sections/section-020/module-02/course-04-summary.md
 
       - type: reading
         title: "Section 020 Knowledge Check: Customizing Your Istio Installation"
         path: sections/section-020/quiz.md
-
       - type: reading
         title: Question
         path: sections/section-020/capstone/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-020/capstone/labs/lab-01/solution.md
       - type: lab
         title: "Shape The Install, Then Choose Who Joins Capstone Lab"
         path: sections/section-020/capstone/labs/lab-01
         difficulty: advanced
+        estimated_duration: 40m
+        topic: customization
+        task_kind: build
+        tags: [istiooperator, component-overlay, meshconfig, proxy-resources, outbound-traffic-policy, namespace-injection, pod-injection, injection-precedence]
+        learning_goals:
+          - Reshape a demo install: drop the egress gateway, size istiod and set mesh-wide policy
+          - Set a default sidecar resource request that every injected proxy receives
+          - Decide workload by workload which pods join the mesh and prove it from their containers
+        resources:
+          - name: "Customizing the installation configuration"
+            url: https://istio.io/latest/docs/setup/additional-setup/customize-installation/
+          - name: "IstioOperator options"
+            url: https://istio.io/latest/docs/reference/config/istio.operator.v1alpha1/
+          - name: "Global mesh options"
+            url: https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
 
   - id: module-030
     title: "Section 030: Upgrading Istio (Canary, In-Place)"
     description: >
-      Upgrade a mesh without losing configuration or stranding the data plane:
-      Helm value semantics, canary upgrades with revisions and tags, and the
-      in-place path with its skew window and rollback cost.
+      Upgrade a mesh without losing configuration or leaving the data plane
+      behind: Helm value handling, canary upgrades with revisions and tags,
+      and the in-place path with its skew window and the cost of going back.
 
     content:
       - type: reading
@@ -181,92 +365,197 @@ modules:
         path: sections/section-030/README.md
 
       - type: reading
-        title: "Module 1: Upgrade And Reconfigure Istio With Helm"
+        title: "Upgrade And Reconfigure Istio With Helm"
         path: sections/section-030/module-01/course.md
       - type: reading
-        title: "Module 1.1: Where A Release Lives"
+        title: "Where A Release Lives"
         path: sections/section-030/module-01/course-01-where-a-release-lives.md
       - type: reading
-        title: "Module 1.2: How `helm upgrade` Computes Values"
+        title: "How `helm upgrade` Computes Values"
         path: sections/section-030/module-01/course-02-how-upgrade-computes-values.md
       - type: reading
-        title: "Module 1.3: Executing And Reverting An Upgrade"
-        path: sections/section-030/module-01/course-03-executing-and-reverting.md
-
+        title: "Upgrading In Order And Finishing The Job"
+        path: sections/section-030/module-01/course-03-upgrading-in-order-and-finishing.md
       - type: reading
         title: Question
         path: sections/section-030/module-01/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-030/module-01/labs/lab-01/solution.md
       - type: lab
         title: "Upgrade And Reconfigure Istio With Helm Lab"
         path: sections/section-030/module-01/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 30m
+        topic: helm-upgrade
+        task_kind: migration
+        tags: [helm-upgrade, helm-get-values, reuse-values, helm-values, outbound-traffic-policy, version-skew, rollout-restart]
+        learning_goals:
+          - Recover a release's original values before changing anything
+          - Upgrade three Helm releases in the right order without losing a setting, while changing one mesh option
+          - Restart the data plane so no proxy is left on the old version
+        resources:
+          - name: "Upgrade with Helm"
+            url: https://istio.io/latest/docs/setup/upgrade/helm/
+          - name: "Supported releases"
+            url: https://istio.io/latest/docs/releases/supported-releases/
+          - name: "helm upgrade"
+            url: https://helm.sh/docs/helm/helm_upgrade/
+      - type: reading
+        title: "Rolling Back And A Safe Procedure"
+        path: sections/section-030/module-01/course-04-rolling-back-and-a-safe-procedure.md
+      - type: reading
+        title: Question
+        path: sections/section-030/module-01/labs/lab-02/question.md
+      - type: lab
+        title: "Roll Back A Helm Release Of istiod Lab"
+        path: sections/section-030/module-01/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: helm-upgrade
+        task_kind: troubleshooting
+        tags: [helm-rollback, helm-release, helm-istiod, helm-get-values, access-logging, proxy-resources, rollout-restart]
+        learning_goals:
+          - Find the last good revision of a Helm release from its history and values
+          - Roll istiod back with helm rollback and prove the original mesh settings are live again
+          - Restart the workload so its sidecar proxy follows the rolled-back control plane
+        resources:
+          - name: "Upgrade with Helm"
+            url: https://istio.io/latest/docs/setup/upgrade/helm/
+          - name: "helm rollback"
+            url: https://helm.sh/docs/helm/helm_rollback/
+      - type: reading
+        title: "Summary"
+        path: sections/section-030/module-01/course-05-summary.md
 
       - type: reading
-        title: "Module 2: Canary Upgrade With Revisions And Revision Tags"
+        title: "Canary Upgrade With Revisions And Revision Tags"
         path: sections/section-030/module-02/course.md
       - type: reading
-        title: "Module 2.1: Revisions: A Named Control Plane"
+        title: "Revisions: A Named Control Plane"
         path: sections/section-030/module-02/course-01-revisions-a-named-control-plane.md
       - type: reading
-        title: "Module 2.2: Selecting, Moving And Retiring A Revision"
-        path: sections/section-030/module-02/course-02-selecting-moving-retiring.md
-
+        title: "Moving A Namespace To A Revision"
+        path: sections/section-030/module-02/course-02-moving-a-namespace-to-a-revision.md
+      - type: reading
+        title: "Revision Tags"
+        path: sections/section-030/module-02/course-03-revision-tags.md
       - type: reading
         title: Question
         path: sections/section-030/module-02/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-030/module-02/labs/lab-01/solution.md
       - type: lab
         title: "Canary Upgrade With Revisions And Tags Lab"
         path: sections/section-030/module-02/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 30m
+        topic: canary-upgrade
+        task_kind: migration
+        tags: [canary, revisions, revision-tags, profiles, rollout-restart, proxy-status]
+        learning_goals:
+          - Install a second control plane as a named revision beside the running one
+          - Point a revision tag at it and move a namespace through the tag
+          - Restart the workload and prove its proxy now reports to the new revision
+        resources:
+          - name: "Canary upgrades"
+            url: https://istio.io/latest/docs/setup/upgrade/canary/
+          - name: "Installing the sidecar"
+            url: https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/
+          - name: "Resource annotations and labels"
+            url: https://istio.io/latest/docs/reference/config/annotations/
+      - type: reading
+        title: "Retiring The Old Revision"
+        path: sections/section-030/module-02/course-04-retiring-the-old-revision.md
+      - type: reading
+        title: Question
+        path: sections/section-030/module-02/labs/lab-02/question.md
+      - type: lab
+        title: "Retire The Old Control Plane Revision Lab"
+        path: sections/section-030/module-02/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: canary-upgrade
+        task_kind: migration
+        tags: [canary, revisions, revision-tags, default-revision, uninstall, rollout-restart, proxy-status]
+        learning_goals:
+          - Find every namespace and proxy still served by the old control plane
+          - Move the missed namespace onto the prod tag and restart its workload
+          - Remove the default revision by name and prove traffic still flows from tester
+        resources:
+          - name: "Canary upgrades"
+            url: https://istio.io/latest/docs/setup/upgrade/canary/
+          - name: "istioctl command reference"
+            url: https://istio.io/latest/docs/reference/commands/istioctl/
+      - type: reading
+        title: "Summary"
+        path: sections/section-030/module-02/course-05-summary.md
 
       - type: reading
-        title: "Module 3: In-Place Upgrade Of The Control Plane"
+        title: "In-Place Upgrade Of The Control Plane"
         path: sections/section-030/module-03/course.md
       - type: reading
-        title: "Module 3.1: Replacing The Control Plane"
+        title: "Replacing The Control Plane"
         path: sections/section-030/module-03/course-01-replacing-the-control-plane.md
       - type: reading
-        title: "Module 3.2: Skew, Completion And The Cost Of Reverting"
-        path: sections/section-030/module-03/course-02-skew-completion-and-reverting.md
-
+        title: "Version Skew And Finishing The Upgrade"
+        path: sections/section-030/module-03/course-02-version-skew-and-finishing-the-upgrade.md
       - type: reading
         title: Question
         path: sections/section-030/module-03/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-030/module-03/labs/lab-01/solution.md
       - type: lab
         title: "In-Place Upgrade Lab"
         path: sections/section-030/module-03/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 25m
+        topic: in-place-upgrade
+        task_kind: migration
+        tags: [in-place, precheck, profiles, ingress-gateway, version-skew, rollout-restart, istioctl-version]
+        learning_goals:
+          - Run the pre-upgrade check with the target version's istioctl
+          - Upgrade the single control plane in place while keeping its profile and gateway
+          - Close the skew window by restarting every proxy, the gateway included
+        resources:
+          - name: "In-place upgrades"
+            url: https://istio.io/latest/docs/setup/upgrade/in-place/
+          - name: "Supported releases"
+            url: https://istio.io/latest/docs/releases/supported-releases/
+          - name: "Install with istioctl"
+            url: https://istio.io/latest/docs/setup/install/istioctl/
+      - type: reading
+        title: "The Cost Of Going Back"
+        path: sections/section-030/module-03/course-03-the-cost-of-going-back.md
+      - type: reading
+        title: "Summary"
+        path: sections/section-030/module-03/course-04-summary.md
 
       - type: reading
         title: "Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)"
         path: sections/section-030/quiz.md
-
       - type: reading
         title: Question
         path: sections/section-030/capstone/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-030/capstone/labs/lab-01/solution.md
       - type: lab
         title: "A Complete Canary Migration Capstone Lab"
         path: sections/section-030/capstone/labs/lab-01
         difficulty: advanced
+        estimated_duration: 45m
+        topic: canary-upgrade
+        task_kind: migration
+        tags: [canary, revisions, revision-tags, rollout-restart, proxy-status, uninstall, version-skew]
+        learning_goals:
+          - Run a full canary: a new revision behind a tag, two namespaces moved and restarted
+          - Prove every proxy is on the new revision and version
+          - Retire the old control plane only after the workloads have left it, without a purge
+        resources:
+          - name: "Canary upgrades"
+            url: https://istio.io/latest/docs/setup/upgrade/canary/
+          - name: "Uninstall Istio"
+            url: https://istio.io/latest/docs/setup/install/istioctl/#uninstall-istio
+          - name: "Supported releases"
+            url: https://istio.io/latest/docs/releases/supported-releases/
 
   - id: module-040
     title: "Section 040: Installing Istio In Sidecar Or Ambient Mode"
     description: >
-      Install and operate the sidecar-less ambient data plane — ztunnel and the
-      Istio CNI plugin for L4 — and add waypoint proxies where HTTP-aware
-      behaviour is required.
+      Install and run the sidecar-less ambient data plane, ztunnel and the
+      Istio CNI plugin for layer 4, and add waypoint proxies where layer 7
+      (HTTP-aware) behaviour is needed.
 
     content:
       - type: reading
@@ -274,61 +563,119 @@ modules:
         path: sections/section-040/README.md
 
       - type: reading
-        title: "Module 1: Install Istio In Ambient Mode"
+        title: "Install Istio In Ambient Mode"
         path: sections/section-040/module-01/course.md
       - type: reading
-        title: "Module 1.1: The Ambient Data Plane"
+        title: "The Ambient Data Plane"
         path: sections/section-040/module-01/course-01-the-ambient-data-plane.md
       - type: reading
-        title: "Module 1.2: Enrollment, Verification And The L4 Boundary"
+        title: "Enrollment, Verification And The L4 Boundary"
         path: sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
-
       - type: reading
         title: Question
         path: sections/section-040/module-01/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-040/module-01/labs/lab-01/solution.md
       - type: lab
         title: "Install Istio In Ambient Mode Lab"
         path: sections/section-040/module-01/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 20m
+        topic: ambient
+        task_kind: build
+        tags: [ambient, ztunnel, istio-cni, hbone, ztunnel-config]
+        learning_goals:
+          - Enroll a namespace in ambient mode without recreating any pod
+          - Prove from ztunnel that both workloads are reached over HBONE
+          - Show that ambient enrollment leaves every pod with one container
+        resources:
+          - name: "Ambient mode overview"
+            url: https://istio.io/latest/docs/ambient/overview/
+          - name: "Add workloads to the mesh"
+            url: https://istio.io/latest/docs/ambient/usage/add-workloads/
+          - name: "ztunnel data plane"
+            url: https://istio.io/latest/docs/ambient/architecture/data-plane/
+      - type: reading
+        title: "Summary"
+        path: sections/section-040/module-01/course-03-summary.md
 
       - type: reading
-        title: "Module 2: Add A Waypoint Proxy For L7 In Ambient Mode"
+        title: "Add A Waypoint Proxy For L7 In Ambient Mode"
         path: sections/section-040/module-02/course.md
       - type: reading
-        title: "Module 2.1: What A Waypoint Is And How Traffic Reaches It"
+        title: "What A Waypoint Is And How Traffic Reaches It"
         path: sections/section-040/module-02/course-01-what-a-waypoint-is.md
       - type: reading
-        title: "Module 2.2: L7 Configuration Through A Waypoint"
+        title: "L7 Configuration Through A Waypoint"
         path: sections/section-040/module-02/course-02-l7-configuration-through-a-waypoint.md
-
       - type: reading
         title: Question
         path: sections/section-040/module-02/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-040/module-02/labs/lab-01/solution.md
       - type: lab
         title: "Waypoint Proxy For L7 Lab"
         path: sections/section-040/module-02/labs/lab-01
         difficulty: intermediate
+        estimated_duration: 25m
+        topic: ambient
+        task_kind: build
+        tags: [waypoint, use-waypoint, gateway-api, httproute, l7-policy, ambient]
+        learning_goals:
+          - Deploy a namespace waypoint and enroll the namespace to it
+          - Attach an HTTPRoute to a Service so the waypoint adds a response header
+          - Prove with a real request that layer 7 processing is in the path
+        resources:
+          - name: "Configure waypoint proxies"
+            url: https://istio.io/latest/docs/ambient/usage/waypoint/
+          - name: "Ambient layer 7 features"
+            url: https://istio.io/latest/docs/ambient/usage/l7-features/
+      - type: reading
+        title: "Scoping And Removing Waypoints"
+        path: sections/section-040/module-02/course-03-scoping-and-removing-waypoints.md
+      - type: reading
+        title: Question
+        path: sections/section-040/module-02/labs/lab-02/question.md
+      - type: lab
+        title: "Scope A Waypoint To One Service Lab"
+        path: sections/section-040/module-02/labs/lab-02
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: ambient
+        task_kind: migration
+        tags: [ambient, waypoint, use-waypoint, ztunnel-config, httproute, gateway-api]
+        learning_goals:
+          - Replace a namespace waypoint with a service waypoint that serves only one Service
+          - Remove the namespace enrollment so other Services stay on layer 4
+          - Prove with real requests that only the chosen Service passes through a waypoint
+        resources:
+          - name: "Configure waypoint proxies"
+            url: https://istio.io/latest/docs/ambient/usage/waypoint/
+      - type: reading
+        title: "Summary"
+        path: sections/section-040/module-02/course-04-summary.md
 
       - type: reading
         title: "Section 040 Knowledge Check: Installing Istio In Sidecar Or Ambient Mode"
         path: sections/section-040/quiz.md
-
       - type: reading
         title: Question
         path: sections/section-040/capstone/labs/lab-01/question.md
-      - type: reading
-        title: Solution Walkthrough
-        path: sections/section-040/capstone/labs/lab-01/solution.md
       - type: lab
         title: "An Ambient Mesh With Selective L7 Capstone Lab"
         path: sections/section-040/capstone/labs/lab-01
         difficulty: advanced
+        estimated_duration: 40m
+        topic: ambient
+        task_kind: build
+        tags: [ambient, ztunnel, waypoint, use-waypoint, httproute, authorizationpolicy, l7-policy]
+        learning_goals:
+          - Enroll a namespace in ambient mode with no pod recreated and no sidecar
+          - Add a waypoint, an HTTPRoute and a method-based AuthorizationPolicy for one Service
+          - Prove a GET is allowed with 200 and a DELETE is denied with 403
+        resources:
+          - name: "Add workloads to the mesh"
+            url: https://istio.io/latest/docs/ambient/usage/add-workloads/
+          - name: "Configure waypoint proxies"
+            url: https://istio.io/latest/docs/ambient/usage/waypoint/
+          - name: "Ambient layer 7 features"
+            url: https://istio.io/latest/docs/ambient/usage/l7-features/
 
   - id: final-exam
     title: "Final Domain Exam Simulator"

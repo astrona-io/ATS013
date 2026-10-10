@@ -71,7 +71,7 @@ if [[ -z "$mesh" ]]; then
   fail "the 'istio' ConfigMap in istio-system has no 'mesh' key"
 fi
 if ! grep -qE '^accessLogFile:[[:space:]]*/dev/stdout[[:space:]]*$' <<<"$mesh"; then
-  fail "meshConfig.accessLogFile is no longer /dev/stdout. A bare 'helm upgrade' with no -f and no --reuse-values resets everything to chart defaults - and reports success"
+  fail "meshConfig.accessLogFile is no longer /dev/stdout. A 'helm upgrade' with a --set but no -f resets every other value to chart defaults - and reports success"
 fi
 
 if kubectl -n istio-system get horizontalpodautoscaler istiod >/dev/null 2>&1; then

@@ -1,47 +1,53 @@
 # Control Sidecar Injection
 
-<!-- astrona:playground -->
-> [!NOTE]
-> 🧪 **Hands-on playground for this module** — a clean, throwaway machine to explore on. No task, no grading. Folder: [`playground/`](https://github.com/astrona-io/ATS013/tree/main/sections/section-020/module-02/playground)
->
-> ```sh
-> astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-020/module-02/playground
-> astrona destroy ats-013-playground-020-02
-> ```
+"Turn on Istio for this namespace" sounds like one switch. A real namespace is rarely that simple. It may hold a web service that belongs in the mesh, a log shipper that breaks if a proxy captures its traffic, and a batch job that must be in the mesh whatever the namespace says.
 
-"Enable Istio for this namespace" sounds like one switch. In practice a real namespace has a web service that belongs in the mesh, a log shipper that would break if its traffic were intercepted, and a batch job that must be meshed no matter what the namespace says. Getting each of those right is a matter of knowing exactly which label is read, on which object, and at what moment.
+**Sidecar injection** is the step that adds the sidecar proxy to a pod. The sidecar proxy is an Envoy container, `istio-proxy`, that handles all inbound and outbound traffic of the pod. Getting each workload right comes down to one question: which label does Istio read, on which object, and at what moment?
 
-This module is short on new concepts and long on precision, because almost every injection problem is one of two things: the label is in the wrong place, or the pod was never recreated. Both are consequences of the mechanism, so the mechanism comes first.
-
-## How this module is organised
-
-1. **[Part 1 — Injection As Admission Control](./course-01-injection-as-admission-control.md)** — the admission path a pod travels, the two webhook entries that make the decision, and why the timing of that decision explains most injection surprises.
-2. **[Part 2 — The Precedence Rules](./course-02-the-precedence-rules.md)** — namespace label, pod label and revision label: the exact order they are evaluated, what wins when they conflict, and the single field a `sidecar.istio.io/inject` label has to sit on.
-3. **[Part 3 — What Injection Writes Into The Pod](./course-03-what-injection-writes.md)** — the containers, ports and iptables rules that get added, reading them with `istioctl kube-inject`, and how the CNI variant changes the picture.
+This module has few new ideas and needs a lot of precision. Almost every injection problem is one of two things: the label is on the wrong object, or the pod was never created again after the change. Both follow from how injection works, so the module starts there.
 
 ## Learning objectives
 
 After this module you can:
 
-- Trace a pod through mutating admission and explain why labelling a namespace never affects pods that already exist.
-- Name the two webhook entries Istio registers and say which decision each one makes.
-- State the evaluation order of the namespace label, the pod-template label and the revision label, and predict the result when two of them conflict.
-- Exclude a single workload from an injected namespace and force a single workload into an uninjected one, putting the label on the correct object.
-- Describe the containers and ports injection adds, and explain how traffic is redirected into the proxy.
-- Produce and read an injected manifest with `istioctl kube-inject`.
+- Follow a pod through mutating admission, and explain why labelling a namespace never changes pods that already exist.
+- Name the webhook entries Istio registers, and say which decision each one makes.
+- Give the order in which the namespace label, the pod template label and the revision label are read, and predict the result when two of them disagree.
+- Exclude one workload from an injected namespace and force one workload into a namespace without injection, with the label on the correct object.
+- Describe the containers and ports injection adds, and explain how traffic is sent into the proxy.
+- Produce and read an injected manifest with `istioctl kube-inject`, and exclude one port from traffic capture with an annotation.
 
 ## Before you start
 
-You should be comfortable with Deployments and pod templates in `kubectl`, and know what a sidecar is. [Section 010's istioctl module](../../section-010/module-01/course.md) installs the control plane that serves the webhook, and its Part 3 introduces the admission path this module takes apart.
+This module expects some Kubernetes knowledge and a basic idea of what a sidecar is. The playground has everything else ready.
 
-The playground gives you a single-node `kind` cluster with **`istioctl` 1.30.5**, **Istio 1.30.5 installed with the `default` profile**, and a namespace **`inject-demo` that has no injection label**. It holds three Deployments with deliberately different needs:
+### What you should already know
 
-- `notification-service` — an nginx web server that should be in the mesh.
-- `logging-agent` — a busybox sleeper standing in for a log shipper that should stay out.
-- `batch-job` — a busybox sleeper that should be meshed regardless of the namespace label.
+- **Kubernetes basics.** Deployments, pod templates, labels and `kubectl rollout restart`.
+- **What a sidecar is.** A second container in the pod, next to the application. In Istio it is the `istio-proxy` container, an Envoy proxy that gets its configuration from `istiod`, the Istio control plane.
 
-Every pod currently has exactly one container. All commands run from your normal shell with `kubectl` pointed at the cluster.
+### What is in your playground
 
-## Where this fits
+The playground is one single-node `kind` cluster with **`istioctl` 1.30.5** and **Istio 1.30.5 installed with the `default` profile**. It has one namespace, **`inject-demo`, with no injection label**. The namespace holds three Deployments with different needs:
 
-Injection is the boundary between "Istio is installed" and "this workload is in the mesh", and it is a *sidecar-mode* boundary specifically. Section 040's ambient mode moves the proxy out of the pod entirely, which removes this whole decision — enrollment there is a label with no admission step and no restart. Knowing the sidecar mechanism well is what makes that contrast meaningful rather than just a different label name.
+| Deployment | What it is | What it needs |
+| --- | --- | --- |
+| `notification-service` | An nginx web server | Should be in the mesh |
+| `logging-agent` | A busybox container that stands in for a log shipper | Should stay out of the mesh |
+| `batch-job` | A busybox container that stands in for a batch job | Should be in the mesh, whatever the namespace label says |
+
+Every pod has exactly one container right now. You run every command from your normal shell, and `kubectl` already points at the cluster.
+
+Start your playground now, and keep it running while you read the parts:
+
+<!-- astrona:playground -->
+
+## The parts of this module
+
+Read the parts in this order:
+
+1. **Injection As Admission Control:** the path a pod takes through the Kubernetes API server, the webhook entries that decide, and why the timing of that decision explains most injection surprises.
+2. **The Precedence Rules:** the namespace label, the pod label and the revision label, the order Istio reads them in, what wins when they disagree, and the one field a `sidecar.istio.io/inject` label must sit on. The graded lab "Control Sidecar Injection" follows this part.
+3. **What Injection Writes Into The Pod:** the containers, ports and traffic rules injection adds, how to read them with `istioctl kube-inject`, how to exclude a port from capture, and how the Istio CNI plugin changes the picture. The graded lab "Exclude A Port From Sidecar Traffic Capture" follows this part.
+
+A summary closes the module.

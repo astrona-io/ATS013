@@ -1,41 +1,49 @@
 # Install Istio With Helm
 
-<!-- astrona:playground -->
-> [!NOTE]
-> 🧪 **Hands-on playground for this module** — a clean, throwaway machine to explore on. No task, no grading. Folder: [`playground/`](https://github.com/astrona-io/ATS013/tree/main/sections/section-010/module-02/playground)
->
-> ```sh
-> astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-010/module-02/playground
-> astrona destroy ats-013-playground-010-02
-> ```
+`istiod` is Istio's control plane: it turns Istio resources into proxy configuration and sends it, together with certificates, to every proxy in the mesh. The same `istiod` that `istioctl install` creates also ships as Helm charts. Helm is a package manager for Kubernetes, and it is how most production clusters really get Istio. A pipeline or a GitOps tool (a tool that keeps a cluster in line with files in a Git repository) can run `helm upgrade`, but it cannot sensibly drive an interactive command-line tool.
 
-The same control plane you installed with one `istioctl` command is also published as Helm charts — and that is how most clusters in production actually get Istio, because a pipeline or an ArgoCD `Application` can run `helm upgrade` but cannot sensibly run an interactive CLI.
+The syntax is not the hard part. Helm does not install "Istio" as one thing. It installs **three separate releases**, and their order is a dependency, not a habit. Helm also keeps the state of those releases in the cluster, not on your disk. Both facts decide how an upgrade or a removal behaves later.
 
-The interesting part is not the syntax. It is that Helm does not install "Istio"; it installs **three separate releases** whose order is a dependency rather than a convention, and that the state of those releases lives in the cluster rather than on your disk. Both facts decide how the upgrade module in section 030 behaves.
-
-## How this module is organised
-
-1. **[Part 1 — The Chart Model And Its Ordering](./course-01-chart-model-and-ordering.md)** — the five Istio charts, what each installs, why `base` must come first, and why a gateway is its own release in its own namespace.
-2. **[Part 2 — Installing The Three Releases](./course-02-installing-the-releases.md)** — running the installs in order, the values tree and how it maps onto `IstioOperator`, and what `--wait` and `defaultRevision` are doing.
-3. **[Part 3 — Release State, Verification And Cleanup](./course-03-release-state-and-verification.md)** — where Helm keeps what it applied, proving the webhook works end to end, and what `helm uninstall` leaves behind.
+`istioctl install` and Helm create the same objects from the same configuration tree, but each one becomes the *owner* of the objects it creates. A cluster where both were used has two sources of truth that overwrite each other, so pick one per cluster. This module uses Helm only.
 
 ## Learning objectives
 
 After this module you can:
 
-- Name the Istio charts, say what each one installs, and explain why the install order is a dependency rather than a style choice.
+- Name the Istio charts, say what each one installs, and explain why the install order is a dependency and not a style choice.
 - Install a complete control plane and an ingress gateway as three Helm releases, with mesh settings supplied from a values file.
-- Map a Helm value key onto the equivalent `IstioOperator` field, in both directions.
+- Map a Helm value key onto the matching `IstioOperator` field, in both directions.
 - Describe where Helm stores a release's state, and read back what a release applied with `helm ls`, `helm get values` and the live `istio` ConfigMap.
-- Prove an install is genuinely working by getting a pod injected, rather than trusting a `deployed` status.
-- Explain what `helm uninstall` does not remove, and finish the cleanup by hand.
+- Prove that an install really works by getting a pod injected, instead of trusting a `deployed` status.
+- Explain what `helm uninstall` does not remove, and finish the removal by hand.
 
 ## Before you start
 
-You should already know what a control plane, a sidecar and an injection webhook are — [Module 1](../module-01/course.md) covers them — and be comfortable with basic Helm vocabulary: a *chart* is the package, a *release* is one installation of that chart under a name, and a *values file* supplies the parameters.
+This module expects some Kubernetes knowledge and a little Istio and Helm vocabulary. It starts from a cluster with no Istio at all.
 
-The playground gives you a single-node `kind` cluster with **`helm` 3** and **`istioctl` 1.30.5** on your PATH, the **`istio` chart repository already added and updated**, and **nothing installed**: `helm ls -A` is empty and the cluster has no Istio CRDs. `istioctl` is present only so you can verify what the charts produced; the install itself is pure Helm. All commands run in your normal shell with `kubectl` pointed at the cluster.
+### What you should already know
 
-## Where this fits
+- **Kubernetes basics.** Namespaces, Deployments, Services and reading a pod spec with `kubectl`.
+- **What Istio installs.** `istiod` is the control plane. A sidecar proxy is the Envoy container that Istio adds to each pod; all traffic of the pod passes through it. The sidecar injection webhook is the part that adds that container when a pod is created.
+- **Basic Helm words.** A *chart* is a package of Kubernetes object templates. A *release* is one installation of a chart under a name. A *values file* is a YAML file that supplies the settings the templates use.
 
-`istioctl install` and Helm produce the same objects and read the same configuration tree, but they are two different *owners* of those objects. A cluster where both have been used has two sources of truth that will quietly overwrite each other, so pick one per cluster. Helm wins whenever the install must be reproducible without a human — CI, GitOps, or a fleet of clusters templated from one values file. `istioctl` wins for exploration and for the revision and tag workflow in section 030, which has no direct Helm equivalent.
+### What is in your playground
+
+The playground is one single-node `kind` cluster with **`helm` 3** and **`istioctl` 1.30.5** on your PATH, and the **`istio` chart repository already added and updated**. Nothing is installed: `helm ls -A` is empty and the cluster has no Istio CRDs (Custom Resource Definitions, which add new object kinds to the Kubernetes API).
+
+`istioctl` is there only so you can check what the charts produced. The install itself uses Helm only. You run every command from your normal shell, and `kubectl` already points at the cluster.
+
+Start your playground now, and keep it running while you read the parts:
+
+<!-- astrona:playground -->
+
+## The parts of this module
+
+Read the parts in this order:
+
+1. **The Chart Model And Its Ordering:** the five Istio charts, what each one installs, why `base` must come first, and why a gateway is its own release in its own namespace.
+2. **Installing The Three Releases:** running the installs in order, the values tree and how it maps onto `IstioOperator`, and what `--version`, `--wait` and `defaultRevision` do.
+3. **Release State And Verification:** where Helm keeps what it applied, the commands that read it back, and how to prove the injection webhook works from end to end. The graded lab "Install Istio With Helm" follows this part.
+4. **Uninstall And Clean Removal:** what `helm uninstall` removes, what it leaves in the cluster on purpose, and how to finish the removal by hand. The graded lab "Remove An Istio Helm Install Completely" follows this part.
+
+A summary closes the module.

@@ -1,157 +1,151 @@
-# Part 1 — Where A Release Lives
+# Where A Release Lives
 
-> Prerequisite: [the module landing page](./course.md). Next: [Part 2 — How `helm upgrade` Computes Values](./course-02-how-upgrade-computes-values.md).
-
-Every recovery in this module depends on one fact: Helm keeps its own history inside the cluster, and that history includes the values nobody committed. This part establishes what is stored, where, and how to get at it — so that Part 2 can lose configuration on purpose and Part 3 can roll it back.
+Before you upgrade anything, you need to know what the cluster runs now and how it was configured. With Helm, that answer is not on your disk. A **Helm release** is one installed copy of a chart, under a name you choose, with a numbered history of every install and upgrade. Helm keeps that history inside the cluster, and the history includes values that nobody saved anywhere else. This part shows what Helm stores, where it stores it, and how you read it back.
 
 ## The release record
 
-A Helm release's state is a **Secret** in the release's namespace, of type `helm.sh/release.v1`, named `sh.helm.release.v1.<release>.v<revision>`. Inside it, gzipped and base64-encoded twice, is a JSON document containing:
+Helm writes down every install and every upgrade of a release. The record is a set of Kubernetes Secrets in the release's namespace, and each one carries the label `owner=helm`. Start by looking at them directly.
 
-- the **rendered manifests** — the exact Kubernetes objects this revision applied;
-- the **chart metadata** — name, chart version, app version;
-- the **supplied values** — what you passed with `-f` and `--set`;
-- the **status and timestamps** — `deployed`, `superseded`, `failed`, and when.
+<!-- astrona:playground:renew -->
 
-Every `install` or `upgrade` writes a *new* Secret and increments the revision number, starting at 1. Old revisions are kept, which is what makes `helm history` and `helm rollback` possible at all.
+List the release Secrets in `istio-system`, and print the labels of the `istiod` record:
 
-Two consequences worth being explicit about:
+```sh
+kubectl -n istio-system get secret -l owner=helm
+kubectl -n istio-system get secret -l owner=helm,name=istiod \
+  -o jsonpath='{.items[0].metadata.labels}{"\n"}'
+```
 
-**The cluster is the source of truth for what Helm did.** Not your disk, not your CI logs. If a colleague installed with a values file on their laptop, the cluster still has it.
+The output looks like this:
 
-**That history is deletable.** These are ordinary Secrets. A namespace cleanup that removes them removes your rollback path and your ability to recover values, with no warning and no way back.
+```text
+NAME                               TYPE                 DATA   AGE
+sh.helm.release.v1.istio-base.v1   helm.sh/release.v1   1      20s
+sh.helm.release.v1.istiod.v1       helm.sh/release.v1   1      20s
+{"modifiedAt":"1791590665","name":"istiod","owner":"helm","status":"deployed","version":"1"}
+```
 
-> [!TIP]
-> **Try it — find the release records themselves**
->
-> ```sh
-> kubectl -n istio-system get secret -l owner=helm
-> kubectl -n istio-system get secret -l owner=helm,name=istiod \
->   -o jsonpath='{.items[0].metadata.labels}{"\n"}'
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME                               TYPE                 DATA   AGE
-> sh.helm.release.v1.istio-base.v1   helm.sh/release.v1   1      9m
-> sh.helm.release.v1.istiod.v1       helm.sh/release.v1   1      8m
->
-> {"name":"istiod","owner":"helm","status":"deployed","version":"1"}
-> ```
->
-> The `version` label is the **revision** number, not the chart version — a distinction that matters constantly when reading `helm history`, where both appear as columns. `status: deployed` marks the revision currently applied; earlier ones carry `superseded`.
+`modifiedAt` is the time Helm last wrote the record, in seconds since 1970. The `version` label is the **revision** number, not the chart version. A revision is one numbered entry in the release history. Keep the two numbers apart: `helm history` shows both as separate columns. `status: deployed` marks the revision that is applied now, and earlier revisions carry `superseded`.
 
-## The four read commands
+## What is inside a release Secret
 
-Everything you need comes from four commands, and knowing which one answers which question saves a lot of guessing.
+Those labels are only the outside of the record. Helm, not Istio, writes each release Secret. Its type is `helm.sh/release.v1`, and its name is `sh.helm.release.v1.<release>.v<revision>`. Inside it is a JSON document, compressed with gzip and then encoded with base64 twice. That document holds:
+
+- the **rendered manifests**: the exact Kubernetes objects this revision applied;
+- the **chart metadata**: name, chart version and app version;
+- the **supplied values**: what you passed with `-f` and `--set`;
+- the **status and timestamps**: `deployed`, `superseded`, `failed`, and when.
+
+Every `install` or `upgrade` writes a *new* Secret and adds one to the revision number, starting at 1. Helm keeps the old revisions. That is what makes `helm history` and `helm rollback` possible.
+
+Two results follow from this. First, the cluster is the source of truth for what Helm did, not your disk and not your pipeline logs. If a colleague installed with a values file on their laptop, the cluster still has a copy of it. Second, that history can be deleted. These are ordinary Secrets, so a namespace cleanup that removes them also removes your way back and your way to recover values. Kubernetes gives no warning and has no undo.
+
+## The read commands
+
+You rarely need to decode a release Secret by hand, because Helm has commands that read it for you. Four commands answer almost every question about a release:
 
 | Command | Answers |
 | --- | --- |
 | `helm ls -A` | What releases exist, at what chart version, on what revision |
-| `helm history <rel> -n <ns>` | Every revision of one release, and which to roll back to |
+| `helm history <rel> -n <ns>` | Every revision of one release, and which one to roll back to |
 | `helm get values <rel> -n <ns>` | What values *you supplied* for the current revision |
-| `helm get values <rel> -n <ns> --all` | The full effective value set, chart defaults included |
+| `helm get values <rel> -n <ns> --all` | The full set of values in effect, chart defaults included |
 
-`helm get values` also takes `--revision N`, which is the recovery path and the reason Part 2 is survivable.
+`helm get values` also takes `--revision N`, which reads the values of an older revision. That is the recovery path when an upgrade loses settings. A fifth command, `helm get manifest <rel> -n <ns>`, prints the rendered Kubernetes objects for a revision. If you compare its output for `--revision 1` and `--revision 2`, you see exactly what an upgrade changed in your cluster.
 
-There is a fifth worth knowing: `helm get manifest <rel> -n <ns>` prints the rendered Kubernetes objects for a revision. Diffing `--revision 1` against `--revision 2` of that output is the most direct answer to "what did this upgrade actually change in my cluster".
+Run the first three commands against your playground:
 
-> [!TIP]
-> **Try it — what the cluster knows that your disk does not**
->
-> ```sh
-> helm ls -A
-> helm history istiod -n istio-system
-> helm get values istiod -n istio-system
-> ```
->
-> Expect something like:
->
-> ```text
-> NAME                    NAMESPACE       REVISION  STATUS    CHART           APP VERSION
-> istio-base              istio-system    1         deployed  base-1.29.8     1.29.8
-> istio-ingressgateway    istio-ingress   1         deployed  gateway-1.29.8  1.29.8
-> istiod                  istio-system    1         deployed  istiod-1.29.8   1.29.8
->
-> REVISION  UPDATED       STATUS      CHART          APP VERSION  DESCRIPTION
-> 1         Mon Sep 27..  deployed    istiod-1.29.8  1.29.8       Install complete
->
-> USER-SUPPLIED VALUES:
-> global:
->   proxy:
->     resources:
->       requests:
->         cpu: 10m
->         memory: 64Mi
-> meshConfig:
->   accessLogFile: /dev/stdout
->   outboundTrafficPolicy:
->     mode: ALLOW_ANY
-> pilot:
->   autoscaleEnabled: false
->   resources:
->     requests:
->       cpu: 100m
->       memory: 256Mi
-> ```
->
-> `USER-SUPPLIED VALUES` is the file someone wrote and did not commit, read back out of a Secret. Note what is at stake in those twelve lines: mesh-wide access logging, the control plane's autoscaling and sizing, and every sidecar's resource requests.
+```sh
+helm ls -A
+helm history istiod -n istio-system
+helm get values istiod -n istio-system
+```
 
-## Reading `helm history` properly
+The output looks like this:
 
-`helm history` is the command you will use under pressure, so it is worth being able to read every column without thinking.
+```text
+NAME                	NAMESPACE    	REVISION	UPDATED                              	STATUS  	CHART         	APP VERSION
+istio-base          	istio-system 	1       	2026-10-10 02:04:15.769835 +0200 CEST	deployed	base-1.29.8   	1.29.8     
+istio-ingressgateway	istio-ingress	1       	2026-10-10 02:04:25.622133 +0200 CEST	deployed	gateway-1.29.8	1.29.8     
+istiod              	istio-system 	1       	2026-10-10 02:04:16.396044 +0200 CEST	deployed	istiod-1.29.8 	1.29.8     
+REVISION	UPDATED                 	STATUS  	CHART        	APP VERSION	DESCRIPTION     
+1       	Sat Oct 10 02:04:16 2026	deployed	istiod-1.29.8	1.29.8     	Install complete
+USER-SUPPLIED VALUES:
+global:
+  proxy:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+meshConfig:
+  accessLogFile: /dev/stdout
+  outboundTrafficPolicy:
+    mode: ALLOW_ANY
+pilot:
+  autoscaleEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+```
 
-- **`REVISION`** — the number `helm rollback` takes. Monotonic, never reused.
-- **`STATUS`** — `deployed` for the current one, `superseded` for earlier ones, `failed` for an upgrade that errored, `pending-upgrade` for one still running or abandoned mid-flight.
-- **`CHART`** — chart name and *chart* version. This is how you see a version bump.
-- **`APP VERSION`** — the Istio version that chart installs.
-- **`DESCRIPTION`** — free text: `Install complete`, `Upgrade complete`, `Rollback to 1`, or the error from a failure.
+`USER-SUPPLIED VALUES` is the file someone wrote and never saved, read back out of a Secret. Look at what depends on those lines. `meshConfig.accessLogFile` turns on access logging for every proxy in the mesh. The `pilot` block sets the size of `istiod` and switches off its autoscaling. The `global.proxy.resources` block sets the resource requests of every sidecar proxy that `istiod` injects.
 
-A `failed` revision still occupies a number. That is useful — the history is a record of what happened, not of what you intended — and it means revision numbers and "number of successful upgrades" are not the same count.
+## Reading `helm history`
 
-A `pending-upgrade` status that is not currently running means an upgrade was interrupted. Helm will refuse the next upgrade until it is resolved, normally with `helm rollback` to the last good revision.
+Of these commands, `helm history` is the one you use under pressure, when an upgrade went wrong and you must pick a revision to go back to. Learn to read every column:
 
-## Values in the release versus values in a file
+- **`REVISION`**: the number `helm rollback` takes. It only goes up and is never reused.
+- **`STATUS`**: `deployed` for the current one, `superseded` for earlier ones, `failed` for an upgrade that hit an error, `pending-upgrade` for one that is still running or was stopped halfway.
+- **`CHART`**: the chart name and *chart* version. This is where you see a version change.
+- **`APP VERSION`**: the Istio version that chart installs.
+- **`DESCRIPTION`**: free text, such as `Install complete`, `Upgrade complete`, `Rollback to 1`, or the error from a failure.
 
-Both Part 2 and the section 010 Helm module push the same habit — a complete values file, committed, passed with `-f` on every run — and Part 1 is where the reason becomes concrete.
+A `failed` revision still takes a number, because the history records what happened, not what you meant. So the revision number is not the same as the number of good upgrades. A `pending-upgrade` status on an upgrade that is no longer running means the upgrade was cut off. Helm refuses the next upgrade until you fix it, normally with `helm rollback` to the last good revision.
 
-| | Values in a committed file | Values only in the release |
+## Values in the release or values in a file
+
+Reading the history shows that recovery is possible. It does not make the release history a good place to keep your settings. The good habit is one complete values file, saved in version control and passed with `-f` on every run. This table shows why:
+
+| | Values in a saved file | Values only in the release |
 | --- | --- | --- |
-| Reviewable before applying | Yes, in a pull request | No |
-| Diffable between versions | Yes, `git diff` | Only via `helm get values --revision` |
-| Survives cluster loss | Yes | No |
+| Can be reviewed before applying | Yes, in a pull request | No |
+| Can be compared between versions | Yes, `git diff` | Only with `helm get values --revision` |
+| Survives losing the cluster | Yes | No |
 | Survives a Secret cleanup | Yes | No |
-| Recoverable after a bad upgrade | Yes, it is right there | Yes, until the history is pruned |
+| Can be recovered after a bad upgrade | Yes, it is right there | Yes, until the history is removed |
 
-The last row is why this is a recoverable mistake rather than a fatal one, and the row above it is why you should not rely on that.
+The last row is why this mistake can be fixed. The row above it is why you should not count on that.
 
-> [!TIP]
-> **Try it — reconstruct the file that should have been committed**
+Pull the values of revision 1 into a file, and look at the first lines:
+
+```sh
+helm get values istiod -n istio-system --revision 1 | tail -n +2 > istiod-values.yaml
+head -6 istiod-values.yaml
+```
+
+The output looks like this:
+
+```text
+global:
+  proxy:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+```
+
+`tail -n +2` drops the `USER-SUPPLIED VALUES:` header line, which is for people to read and is not part of the YAML. You now hold the file that should have existed all along. In a real recovery, the next step is to save it in version control. A file rebuilt from a release and left on your laptop sets the same trap again.
+
+You now know that Helm keeps one Secret per revision in the release's namespace, with the rendered objects and the supplied values inside, and that `helm ls`, `helm history` and `helm get values` read it back. That history can be the only copy of a setting nobody saved. The open question is what `helm upgrade` does with those stored values when you run it.
+
+## Common pitfalls
+
+> [!WARNING]
+> **Treating `helm get values` as the source of truth.** It is a recovery tool. The saved values file you pass on every run is the source of truth.
 >
-> ```sh
-> helm get values istiod -n istio-system --revision 1 | tail -n +2 > istiod-values.yaml
-> head -6 istiod-values.yaml
-> ```
+> **Deleting `sh.helm.release.v1.*` Secrets to tidy a namespace.** That is the release history. Rollback and value recovery go with it.
 >
-> Expect something like:
+> **Reading `STATUS: deployed` as a working mesh.** It means Helm applied the manifests, nothing more.
 >
-> ```text
-> global:
->   proxy:
->     resources:
->       requests:
->         cpu: 10m
->         memory: 64Mi
-> ```
->
-> `tail -n +2` drops the `USER-SUPPLIED VALUES:` header, which is a human-facing line and not part of the YAML. You now hold the artifact that should have existed all along — and in a real recovery the very next step is a commit, because a file reconstructed from a release and left uncommitted just recreates the same trap.
-
-> *Helm's history is a stack of Secrets in the cluster; it is the only copy of any value nobody committed, and it is one careless cleanup away from being gone.*
-
-## Reference
-
-- [Helm: release records](https://helm.sh/docs/topics/advanced/#storage-backends) — where release state is kept and how to change the backend.
-- [helm get values](https://helm.sh/docs/helm/helm_get_values/) — `--revision` and `--all`.
-- [helm history](https://helm.sh/docs/helm/helm_history/) — the status values and what each one means.
-- `helm get manifest --help` — the rendered objects for a revision, for diffing upgrades.
+> **Forgetting `--all`.** `helm get values` shows only what you supplied; `--all` shows the full set, chart defaults included.

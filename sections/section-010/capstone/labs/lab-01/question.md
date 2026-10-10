@@ -2,9 +2,9 @@
 
 Solve this question on: `terminal`
 
-You have been handed a clean cluster and a platform specification. `helm` 3 and `istioctl` 1.30.5 are on your PATH and the `istio` chart repository is registered. Two namespaces already exist with one running workload each: `payments/checkout-api` and `legacy/batch-runner`. Neither is meshed and neither namespace is labelled.
+You have been handed a clean cluster and a platform specification. `helm` 3 and `istioctl` 1.30.5 are on your PATH, and the `istio` chart repository is registered. Two namespaces already exist, each with one running workload: `payments/checkout-api` and `legacy/batch-runner`. Neither is in the mesh, and neither namespace has a label.
 
-Deliver the following. **Install with Helm** — the grader reads Helm's release records, and a cluster owned by both Helm and `istioctl` is a misconfiguration, not a shortcut.
+Deliver the following. **Install with Helm.** The grader reads Helm's release records, and a cluster owned by both Helm and `istioctl` is a mistake, not a shortcut.
 
 **Control plane**
 
@@ -13,7 +13,7 @@ Deliver the following. **Install with Helm** — the grader reads Helm's release
     *   `meshConfig.accessLogFile` to `/dev/stdout`
     *   `meshConfig.outboundTrafficPolicy.mode` to `ALLOW_ANY`
     *   `pilot.autoscaleEnabled` to `false`
-    *   the default sidecar resource requests — `global.proxy.resources.requests.cpu` of `10m` and `global.proxy.resources.requests.memory` of `64Mi`
+    *   the default sidecar resource requests: `global.proxy.resources.requests.cpu` of `10m` and `global.proxy.resources.requests.memory` of `64Mi`
 
 **Edge**
 
@@ -22,10 +22,12 @@ Deliver the following. **Install with Helm** — the grader reads Helm's release
 
 **Onboarding**
 
-5.  `payments` must be **fully meshed**: `checkout-api` running with an `istio-proxy` sidecar, and that sidecar must carry the CPU and memory requests from your values file — which is the proof the `global.proxy` block took effect rather than being silently ignored.
+5.  `payments` must be **fully meshed**: `checkout-api` running with an `istio-proxy` sidecar, and that sidecar must carry the CPU and memory requests from your values file. That is the proof that the `global.proxy` block took effect and was not quietly ignored.
 6.  `legacy` must stay **out of the mesh**. `batch-runner` must still be running with exactly one container, and `legacy` must carry no injection label.
 7.  Leave both Deployments and the `checkout-api` Service otherwise unchanged. Do not add workloads.
 
 **Consistency**
 
-8.  The control plane and every injected proxy must report the same version.
+8.  The control plane and every proxy, the gateway included, must report the same version.
+
+The grader reads Helm's release records, the live `istio` ConfigMap, the `public-gateway` Deployment and Service, the pods in `payments` and `legacy` with their containers and sidecar resource requests, and the image versions of `istiod`, the sidecar and the gateway.

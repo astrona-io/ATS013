@@ -1,15 +1,15 @@
 # Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)
 
-Test your understanding of Helm's value semantics, revisions and revision tags, version skew, and the ordering rules that decide whether an upgrade strands your workloads.
+Check what you know before the capstone lab. These questions test how Helm handles values on an upgrade, revisions and revision tags, version skew, and the order of steps that decides whether an upgrade leaves your workloads stranded.
 
 ---
 
 ## Scenario-Based Questions
 
 ### Question 1
-`istiod` was installed with `-f values.yaml`. Someone runs `helm upgrade istiod istio/istiod -n istio-system --version 1.30.5` with no other flags. It prints `STATUS: deployed`. What happened to the values?
+`istiod` was installed with `-f values.yaml`. Someone runs `helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 --set pilot.resources.requests.cpu=200m` with no other flags. It prints `STATUS: deployed`. What happened to the other values?
 *   **A)** They were carried over automatically; only the chart version changed.
-*   **B)** They were discarded. The release now uses chart defaults, and the command reported success.
+*   **B)** They were discarded. Apart from the one `--set` value, the release now uses chart defaults, and the command reported success.
 *   **C)** The upgrade would have failed, because Helm requires the original values file.
 *   **D)** They were carried over, but only the keys that still exist in the new chart.
 
@@ -18,7 +18,7 @@ Test your understanding of Helm's value semantics, revisions and revision tags, 
 
 **Correct Answer: B**
 
-*   **Why B is correct:** `helm upgrade` computes the release from the chart's defaults plus the `-f` files and `--set` flags given **on this run**. Values from the previous revision are not carried over. Nothing errors, the exit code is zero, and mesh-wide settings quietly revert. The habit that removes the problem entirely: one complete values file, committed, passed with `-f` on every install and every upgrade.
+*   **Why B is correct:** As soon as you pass any `-f` file or `--set` flag, `helm upgrade` computes the release from the chart's defaults plus the `-f` files and `--set` flags given **on this run**. Values from the previous revision are not carried over. (Only an upgrade with no values at all reuses the previous ones.) Nothing errors, the exit code is zero, and mesh-wide settings quietly revert. The habit that removes the problem entirely: one complete values file, committed, passed with `-f` on every install and every upgrade.
 *   **Why others are incorrect:**
     *   *Option A* describes `--reuse-values`, which is opt-in.
     *   *Option C* invents a safety check Helm does not perform.
@@ -81,7 +81,7 @@ What does `istioctl install --set profile=minimal --set revision=1-30-5` create?
 
 **Correct Answer: B**
 
-*   **Why B is correct:** A revision suffixes every namespaced object the install owns, so names do not collide. Istio's reconciliation is scoped by the `istio.io/rev` ownership label, which means this install cannot see or prune the default revision's objects — that scoping is precisely what lets two control planes coexist. Installing a revision is completely non-disruptive: no running pod moves.
+*   **Why B is correct:** A revision adds its name as a suffix to every namespaced object the install owns, so names do not collide. Istio's reconciliation is scoped by the `istio.io/rev` ownership label, which means this install cannot see or prune the default revision's objects — that scoping is precisely what lets two control planes coexist. Installing a revision is completely non-disruptive: no running pod moves.
 *   **Why others are incorrect:**
     *   *Option A* describes an in-place upgrade, which is what happens when you omit `revision`.
     *   *Option C* describes `istioctl tag set`.
@@ -123,7 +123,7 @@ You have moved every namespace to revision `1-30-5` and restarted the workloads.
 
 **Correct Answer: B**
 
-*   **Why B is correct:** `--revision <name>` removes one named control plane and the objects labelled for it, leaving other revisions and the shared cluster-scoped resources — including the CRDs — intact. That is exactly what retiring a revision after a canary means.
+*   **Why B is correct:** `--revision <name>` removes one named control plane and the objects labelled for it, leaving other revisions and the shared cluster-wide resources intact, including the Custom Resource Definitions (CRDs). That is exactly what retiring a revision after a canary means.
 *   **Why others are incorrect:**
     *   *Option A* removes **every** revision, including the one you just promoted, plus the shared CRDs. This is the destructive mistake the section warns about repeatedly.
     *   *Option C* deletes one object and leaves its Service, webhook and cluster-scoped resources behind — a half-removed control plane that the next `precheck` will complain about.
@@ -195,9 +195,6 @@ Why must you not upgrade from 1.28 directly to 1.30?
 
 ---
 
-## Ready for the Labs?
+## What comes next
 
-*   **[Module 1 Lab: Upgrade And Reconfigure Istio With Helm](./module-01/labs/lab-01)**
-*   **[Module 2 Lab: Canary Upgrade With Revisions And Revision Tags](./module-02/labs/lab-01)**
-*   **[Module 3 Lab: In-Place Upgrade Of The Control Plane](./module-03/labs/lab-01)**
-*   **[Section 030 Capstone: A Complete Canary Migration](./capstone/labs/lab-01)**
+The section capstone lab comes next. It combines the skills of the whole section in one task on a live cluster.

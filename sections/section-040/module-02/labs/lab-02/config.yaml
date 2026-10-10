@@ -1,0 +1,33 @@
+metadata:
+  name: "ats-013-lab-040-02-02"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-ambient-and-gateway-api"
+      description: "Installs istioctl 1.30.5, the Gateway API CRDs and the ambient profile"
+      type: "file"
+      source: "bootstrap/01-install-ambient.sh"
+    - name: "lab-040-02-02-setup"
+      description: "Creates the ambient-l7 namespace in ambient mode with two Services, an HTTPRoute and a namespace-wide waypoint that every Service goes through"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+testing:
+  init:
+    - name: "solution"
+      description: "Reference solution applied by `astrona test` in CI"
+      type: "file"
+      source: "solution/apply.sh"
+
+validation:
+  scripts:
+    - name: "verify-service-waypoint"
+      description: "Confirms a service waypoint serves only notification-service, the namespace is no longer enrolled to a waypoint, ztunnel routes each Service as expected, and live requests show layer 7 processing for notification-service only"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false

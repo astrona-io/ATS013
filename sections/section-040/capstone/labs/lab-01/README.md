@@ -1,11 +1,29 @@
-# Section 040 Capstone: An Ambient Mesh With Selective L7
+---
+estimated_duration: 40m
+---
 
-This is the Section 040 integration challenge. It combines both modules — the ambient data plane and its restart-free enrollment, and the waypoint proxy that makes HTTP-aware behaviour possible — into one specification where the difference between what ztunnel can enforce and what needs a waypoint is the whole exercise.
+# An Ambient Mesh With Selective L7
 
-There is no step-by-step guide until you have tried it. Work from the specification.
+This is the capstone lab for the whole section. It combines restart-free ambient enrollment with a waypoint proxy for HTTP-aware rules. The whole exercise turns on one question: which layer enforces each requirement, ztunnel at layer 4 or the waypoint at layer 7?
+
+There is no step-by-step guide until you have tried it. Work from the specification in `question.md`.
 
 ## Launching the Lab
-Run the following command in your terminal to boot the kind Kubernetes cluster:
+
+Run this command to start the cluster:
+
 ```bash
-astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-040/capstone/labs/lab-01
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-040/capstone/labs/lab-01
+```
+
+When you think you have finished, send it for grading:
+
+```bash
+astrona submit -c sections/section-040/capstone/labs/lab-01
+```
+
+When you are done, remove the lab:
+
+```bash
+astrona destroy ats-013-capstone-040
 ```

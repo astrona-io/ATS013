@@ -1,12 +1,12 @@
 # Solution Walkthrough
 
-Read this only after you have attempted the specification.
+Read this only after you have tried the specification yourself.
 
 ---
 
-## Step 1: Sort the Requirements by Layer
+## Step 1: Sort the requirements by layer
 
-Five control-plane requirements, and they are not all in the same place. Getting this mapping right before you type is most of the challenge:
+There are five control plane requirements, and they do not all live in the same place. Getting this map right before you type is most of the challenge:
 
 | Requirement | Layer | Where it shows up |
 | --- | --- | --- |
@@ -16,14 +16,15 @@ Five control-plane requirements, and they are not all in the same place. Getting
 | Access logging, `REGISTRY_ONLY` | `spec.meshConfig` | The `istio` ConfigMap |
 | **Sidecars** default to 20m | `spec.values.global.proxy.resources` | A field on every **injected** pod |
 
-The last row is the one that separates people who know the layers from people who pattern-match. `components.pilot` sizes the control plane — one Deployment. `values.global.proxy` sizes every sidecar — multiplied by every meshed pod. They look similar and configure completely different things.
+The last row separates people who know the layers from people who match patterns. `components.pilot` sizes the control plane: one Deployment. `values.global.proxy` sizes every sidecar proxy, multiplied by every meshed pod. They look alike and configure completely different things.
 
 ---
 
-## Step 2: Write the Document
+## Step 2: Write the document
 
-```sh
-cat > istio-custom.yaml <<'YAML'
+Save this as `istio-custom.yaml`:
+
+```yaml
 apiVersion: install.istio.io/v1alpha1
 kind: IstioOperator
 spec:
@@ -48,17 +49,16 @@ spec:
         resources:
           requests:
             cpu: 20m
-YAML
 ```
 
-Check it renders the way you think before applying:
+Check that it renders the way you think before you apply it:
 
 ```sh
 istioctl validate -f istio-custom.yaml
 istioctl manifest generate -f istio-custom.yaml | grep -c '^  name: istio-egressgateway$'
 ```
 
-`istioctl validate` checks the schema. `profile dump -f` shows the rendered result — the stronger check, because an unmatched list `name` or a misplaced key is accepted silently, and only the dump reveals it.
+`istioctl validate` checks the schema. `istioctl manifest generate -f` shows the rendered result, and it is the stronger check: a list `name` that matches nothing, or a key in the wrong place, is accepted silently, and only the rendered output shows it. A count of `0` egress gateway objects means your entry matched the profile's gateway.
 
 ---
 
@@ -75,13 +75,13 @@ istioctl install -f istio-custom.yaml -y
 ✔ Installation complete
 ```
 
-"Egress gateways installed" is absent and "Ingress gateways installed" is present. That is reconciliation removing exactly the component your document omitted, while `profile: demo` keeps the other one.
+"Egress gateways installed" is missing and "Ingress gateways installed" is there. `istioctl install` removed exactly the component your document turned off, while `profile: demo` kept the other one.
 
 ---
 
-## Step 4: Set the Injection Overrides, Then Restart
+## Step 4: Set the injection override, then restart
 
-Order matters here for the same reason as the module lab: set the exclusion first so `audit-shipper` never briefly gets a sidecar.
+Order matters: set the exclusion first, so `audit-shipper` never briefly gets a sidecar. Then label the namespace and restart `checkout-api`:
 
 ```sh
 kubectl -n payments patch deployment audit-shipper -p \
@@ -99,15 +99,15 @@ namespace/payments labeled
 deployment "checkout-api" successfully rolled out
 ```
 
-The patch path is `spec` → `template` → `metadata` → `labels`: the **pod template**. Istio's webhook is registered against Pods and never sees the Deployment, so the same label on the Deployment's own `metadata.labels` applies cleanly and does nothing. The grader detects that specific mistake and names it.
+The patch path is `spec`, `template`, `metadata`, `labels`: the **pod template**. Istio's webhook is called for Pods and never sees the Deployment, so the same label on the Deployment's own `metadata.labels` applies cleanly and does nothing. The grader spots that mistake and names it.
 
-`legacy` needs **no action at all**. The correct response to "this must stay outside the mesh" is to leave it alone — no label, no restart, nothing.
+`legacy` needs **no action at all**. The right answer to "this must stay outside the mesh" is to leave it alone: no label, no restart, nothing.
 
 ---
 
-## Step 5: Verify Each Layer Where It Lands
+## Step 5: Check each layer where it lands
 
-Control plane:
+Start with the control plane:
 
 ```sh
 kubectl -n istio-system get deploy
@@ -128,40 +128,42 @@ outboundTrafficPolicy:
   mode: REGISTRY_ONLY
 ```
 
-The sidecar default — only observable on an injected pod:
+The sidecar default can only be seen on an injected pod:
 
 ```sh
 kubectl -n payments get pod -l app=checkout-api \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].resources.requests.cpu}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].resources.requests.cpu}{"\n"}'
 ```
 
 ```text
 20m
 ```
 
-If that comes back as something else, `values.global.proxy.resources` did not take effect — most often because it was written under `components.pilot.k8s` instead, which sized `istiod` twice and the sidecars not at all.
+If that shows something else, `values.global.proxy.resources` did not take effect. The usual cause is writing it under `components.pilot.k8s` instead, which sized `istiod` twice and the sidecars not at all.
 
-The injection matrix:
+Then the injection result. Istio 1.30.5 injects `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`, so read the init containers as well as the containers:
 
 ```sh
-kubectl -n payments get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
-kubectl -n legacy get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n payments get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
+kubectl -n legacy get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 kubectl get ns legacy --show-labels
 ```
 
-```text
-POD                           CONTAINERS
-audit-shipper-...             audit-shipper
-checkout-api-...              checkout-api,istio-proxy
+The output looks like this (shortened: right after a restart, the old `audit-shipper` pod can show for a few more seconds while it stops):
 
-POD                           CONTAINERS
-nightly-report-...            nightly-report
+```text
+POD                              INIT                     CONTAINERS
+audit-shipper-68ddb8c4fb-lhqxb   <none>                   audit-shipper
+checkout-api-84f4cc5dcc-ph572    istio-init,istio-proxy   checkout-api
+
+POD                               INIT     CONTAINERS
+nightly-report-5f8fb9d98b-v2h9k   <none>   nightly-report
 
 NAME     STATUS   AGE   LABELS
-legacy   Active   13m   kubernetes.io/metadata.name=legacy
+legacy   Active   40s   kubernetes.io/metadata.name=legacy
 ```
 
-Three workloads, three outcomes, and `legacy` with no mesh label at all.
+Three workloads, three results, and `legacy` with no mesh label at all.
 
 ---
 
@@ -175,10 +177,10 @@ astrona submit
 
 ## Common Mistakes
 
-*   **Putting the sidecar CPU request under `components.pilot.k8s`.** It sizes `istiod`, not the proxies. The grader reads the request off the injected `istio-proxy` container, which will still carry the profile default.
-*   **Switching to `minimal` to drop the egress gateway.** It drops the ingress gateway too. Override one component of `demo`.
-*   **`sidecar.istio.io/inject` on the Deployment's own metadata.** Applies cleanly, does nothing. The grader detects this case specifically.
-*   **Labelling `legacy` "for consistency".** The specification says it stays out, and the grader rejects `istio-injection`, `istio.io/rev` and `istio.io/dataplane-mode` on it.
-*   **Labelling `payments` before excluding `audit-shipper`.** It works if you restart twice, but the shipper gets a sidecar in between — a real disruption on a real cluster.
-*   **Forgetting `checkout-api` needs a restart.** The namespace label does nothing for a pod that already exists.
-*   **Deleting and recreating a Deployment.** The grader counts two Deployments in `payments` by name, and checks the `checkout-api` Service is still there.
+*   **Putting the sidecar CPU request under `components.pilot.k8s`.** It sizes `istiod`, not the proxies. The grader reads the request from the injected `istio-proxy` container, which still carries the profile default.
+*   **Switching to `minimal` to drop the egress gateway.** It drops the ingress gateway too. Change one component of `demo` instead.
+*   **`sidecar.istio.io/inject` on the Deployment's own metadata.** It applies cleanly and does nothing. The grader spots this case.
+*   **Labelling `legacy` "to be consistent".** The specification says it stays out, and the grader rejects `istio-injection`, `istio.io/rev` and `istio.io/dataplane-mode` on it.
+*   **Labelling `payments` before excluding `audit-shipper`.** It works if you restart twice, but the shipper gets a sidecar in between: a real disruption on a real cluster.
+*   **Forgetting that `checkout-api` needs a restart.** The namespace label does nothing for a pod that already exists.
+*   **Deleting and recreating a Deployment.** The grader counts two Deployments in `payments` and checks that the `checkout-api` Service is still there.

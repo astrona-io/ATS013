@@ -117,7 +117,7 @@ A namespace carries `istio-injection=enabled`. You add `sidecar.istio.io/inject:
 
 **Correct Answer: B**
 
-A label on the Deployment is never copied to the pod unless it is in the template. The manifest applies cleanly and achieves nothing, which is what makes this the most expensive mistake in section 020. (Note *C* is wrong in general: the pod-template label beats the namespace in both directions.)
+A label on the Deployment is never copied to the pod unless it is in the template. The manifest applies cleanly and achieves nothing, which is what makes this the most expensive injection mistake. (Note *C* is wrong in general: the pod-template label beats the namespace in both directions.)
 </details>
 
 ---
@@ -137,9 +137,9 @@ It follows from the webhook selectors, not from conflict-resolution logic: the d
 ---
 
 ### Question 9
-`helm upgrade istiod istio/istiod -n istio-system --version 1.30.5` runs with no other flags, on a release that was installed with `-f values.yaml`. What is the result?
+`helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 --set pilot.traceSampling=1.0` runs with no other flags, on a release that was installed with `-f values.yaml`. What happens to the values from `values.yaml`?
 *   **A)** Values are carried over automatically.
-*   **B)** The release falls back to chart defaults, and the command reports success.
+*   **B)** They are dropped: the release falls back to chart defaults plus the one `--set` value, and the command reports success.
 *   **C)** The upgrade fails.
 *   **D)** Only keys still present in the new chart are kept.
 
@@ -148,7 +148,7 @@ It follows from the webhook selectors, not from conflict-resolution logic: the d
 
 **Correct Answer: B**
 
-`helm upgrade` computes the release from chart defaults plus what you pass **on this run**. `--reuse-values` opts into carrying the previous set over, but it merges rather than replaces, so a `-f` file that removes a key does not remove it. One complete committed file passed every time avoids both traps.
+As soon as you pass any value, `helm upgrade` computes the release from chart defaults plus what you pass **on this run**; only an upgrade with no values at all reuses the previous ones. `--reuse-values` opts into carrying the previous set over, but it also keeps the old chart's defaults (the Istio image tag included), and it merges rather than replaces, so a `-f` file that removes a key does not remove it. One complete committed file passed every time avoids both traps.
 </details>
 
 ---
@@ -268,9 +268,9 @@ Question-to-section mapping:
 
 | Questions | Section |
 | --- | --- |
-| 1, 2, 3, 4 | [010 — Installing Istio With istioctl Or Helm](./section-010/README.md) |
-| 5, 6, 7, 8 | [020 — Customizing Your Istio Installation](./section-020/README.md) |
-| 9, 10, 11, 12 | [030 — Upgrading Istio (Canary, In-Place)](./section-030/README.md) |
-| 13, 14, 15 | [040 — Installing Istio In Sidecar Or Ambient Mode](./section-040/README.md) |
+| 1, 2, 3, 4 | Installing Istio With istioctl Or Helm |
+| 5, 6, 7, 8 | Customizing Your Istio Installation |
+| 9, 10, 11, 12 | Upgrading Istio (Canary, In-Place) |
+| 13, 14, 15 | Installing Istio In Sidecar Or Ambient Mode |
 
 Questions 7 and 8 both turn on the same idea — *which object does the webhook actually read?* — and questions 14 and 15 both turn on *which layer enforces this?*. If you missed either pair, that concept is worth a re-read rather than the individual questions.

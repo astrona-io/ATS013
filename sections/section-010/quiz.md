@@ -1,6 +1,6 @@
 # Section 010 Knowledge Check: Installing Istio With istioctl Or Helm
 
-Test your understanding of what `istioctl install` really does, how profiles are defined, the Helm chart model and its ordering, injection timing, and the version relationships that decide whether a change takes effect.
+Test what you know before the capstone lab. These questions check what `istioctl install` really does, how profiles are defined, the Helm chart model and its order, when injection happens, and how the three Istio versions decide whether a change takes effect.
 
 ---
 
@@ -195,8 +195,6 @@ After an upgrade, `istioctl version` reports `control plane version: 1.30.5` and
 
 ---
 
-## Ready for the Labs?
+## What comes next
 
-*   **[Module 1 Lab: Install Istio With istioctl](./module-01/labs/lab-01)**
-*   **[Module 2 Lab: Install Istio With Helm](./module-02/labs/lab-01)**
-*   **[Section 010 Capstone: Install And Onboard A Mesh](./capstone/labs/lab-01)**
+The section capstone lab comes next. It combines the skills of the whole section in one task on a live cluster.

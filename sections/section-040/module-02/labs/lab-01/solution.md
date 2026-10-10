@@ -1,15 +1,16 @@
 # Solution Walkthrough
 
-Follow these steps to add a waypoint and prove L7 processing is really in the path.
+Follow these steps to add a waypoint proxy to the `ambient-l7` namespace and prove that layer 7 processing is in the path.
 
 ---
 
-## Step 1: See the Gap First
+## Step 1: See the gap first
 
-Write the route and apply it **before** creating the waypoint. It is worth watching the failure, because it is silent.
+Write the route and apply it **before** you create the waypoint. The failure is worth seeing, because it gives no error.
 
-```sh
-cat > notification-header.yaml <<'YAML'
+Save this as `httproute-notification-header.yaml`:
+
+```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -30,48 +31,64 @@ spec:
       backendRefs:
         - name: notification-service
           port: 80
-YAML
+```
 
-kubectl apply -f notification-header.yaml
+Apply it:
+
+```sh
+kubectl apply -f httproute-notification-header.yaml
+```
+
+```text
+httproute.gateway.networking.k8s.io/notification-header created
+```
+
+Then check the result. Read the route's status and send a request from `tester`:
+
+```sh
 kubectl -n ambient-l7 get httproute notification-header \
   -o jsonpath='{.status.parents[0].conditions[*].type}{"\n"}'
 kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -3
 ```
 
 ```text
-httproute.gateway.networking.k8s.io/notification-header created
-Accepted ResolvedRefs
-
+Accepted ResolvedRefs ResolvedWaypoints
 HTTP/1.1 200 OK
-Server: nginx/1.27.4
-Date: ...
+Server: nginx/1.27.5
+Date: Sat, 10 Oct 2026 01:05:28 GMT
 ```
 
-The route exists, its status says `Accepted` and `ResolvedRefs`, the request succeeds — and there is **no** `x-processed-by` header. `Server: nginx/1.27.4` means the response came straight from the application, through no HTTP-aware proxy.
+The route exists, its status lists `Accepted`, `ResolvedRefs` and `ResolvedWaypoints`, all `True`, and the request succeeds. But there is **no** `x-processed-by` header. The message of `ResolvedWaypoints` (`.status.parents[0].conditions[2].message`) says why: `istio.io/use-waypoint label missing from parent and parent namespace; in ambient mode, route will not be respected`. `Server: nginx/1.27.5` means the response came straight from nginx, through no HTTP-aware proxy.
 
-Read the `parentRefs` block while you are here. In ingress use an `HTTPRoute` attaches to a `Gateway`; here it attaches to a **Service** (`kind: Service`, empty `group` meaning core Kubernetes). That is the Gateway API's mesh pattern — the route describes what happens to traffic destined for that Service, wherever it comes from.
+Look at the `parentRefs` block while you are here. At the edge of the cluster, an `HTTPRoute` attaches to a `Gateway`. Here it attaches to a **Service** (`kind: Service`, with an empty `group` that means core Kubernetes). That is the Gateway API's mesh pattern: the route describes what happens to traffic sent to that Service, from any workload in the mesh.
 
 ---
 
-## Step 2: Create the Waypoint
+## Step 2: Create the waypoint
+
+Create the waypoint, enroll the namespace, and wait for the waypoint's Deployment:
 
 ```sh
 istioctl waypoint apply -n ambient-l7 --enroll-namespace
 kubectl -n ambient-l7 rollout status deployment waypoint --timeout=180s
 ```
 
+The output looks like this (shortened: the `Waiting for deployment` lines are left out):
+
 ```text
-✓ waypoint ambient-l7/waypoint applied
-✓ namespace ambient-l7 labeled with "istio.io/use-waypoint: waypoint"
+✅ waypoint ambient-l7/waypoint applied
+✅ namespace ambient-l7 labeled with "istio.io/use-waypoint: waypoint"
 deployment "waypoint" successfully rolled out
 ```
 
-Two things happened, and they are separate:
+Two separate things happened:
 
-*   `waypoint apply` created a `Gateway` resource, which Istio turned into a running Envoy Deployment.
-*   `--enroll-namespace` labelled the namespace `istio.io/use-waypoint: waypoint`, which is what tells ztunnel to route the namespace's traffic through it.
+*   `istioctl waypoint apply` created a `Gateway` object, and Istio turned it into a running Envoy Deployment.
+*   `--enroll-namespace` added the label `istio.io/use-waypoint: waypoint` to the namespace. That label tells ztunnel to send the namespace's traffic through the waypoint.
 
-Without the second, you get a healthy, idle proxy and no change in behaviour.
+Without the second step, you get a healthy proxy that receives no requests, and nothing changes.
+
+Now check the `Gateway` and the namespace labels:
 
 ```sh
 kubectl -n ambient-l7 get gateway waypoint \
@@ -82,91 +99,103 @@ kubectl get ns ambient-l7 --show-labels
 ```text
 NAME       CLASS            PROGRAMMED
 waypoint   istio-waypoint   True
-
 NAME         STATUS   AGE   LABELS
-ambient-l7   Active   12m   istio.io/dataplane-mode=ambient,istio.io/use-waypoint=waypoint,...
+ambient-l7   Active   14s   istio.io/dataplane-mode=ambient,istio.io/use-waypoint=waypoint,kubernetes.io/metadata.name=ambient-l7
 ```
 
-`gatewayClassName: istio-waypoint` is the single field that makes this a waypoint rather than an ingress gateway — same API, same proxy binary, completely different role. The namespace now carries two labels doing two jobs: `dataplane-mode` puts it in the mesh at L4, `use-waypoint` routes its traffic through L7.
+`gatewayClassName: istio-waypoint` is the one field that makes this `Gateway` a waypoint instead of an ingress gateway: same API, same proxy program, a different job. The namespace now carries two labels with two jobs: `istio.io/dataplane-mode` puts it in the mesh at layer 4, and `istio.io/use-waypoint` sends its traffic through layer 7.
 
 ---
 
-## Step 3: Confirm ztunnel Knows Where to Send Traffic
+## Step 3: Confirm that ztunnel routes through the waypoint
+
+ztunnel shows its routing decision in its **service** view. Ask it about `ambient-l7`:
 
 ```sh
-istioctl ztunnel-config workload | grep ambient-l7
+istioctl ztunnel-config service | grep ambient-l7
 ```
 
 ```text
-NAMESPACE   POD NAME                      ADDRESS      NODE                     WAYPOINT  PROTOCOL
-ambient-l7  notification-service-...      10.244.0.14  astro-...-control-plane  waypoint  HBONE
-ambient-l7  tester-...                    10.244.0.15  astro-...-control-plane  waypoint  HBONE
-ambient-l7  waypoint-5f6d8c9b74-h2vzq     10.244.0.16  astro-...-control-plane  None      HBONE
+ambient-l7   notification-service        10.96.198.233 waypoint 1/1
+ambient-l7   waypoint                    10.96.56.0    None     1/1
 ```
 
-The `WAYPOINT` column read `None` before enrollment and now names `waypoint`. The waypoint pod itself reads `None` — a waypoint does not route through itself, which would be a loop.
+`grep` removes the header; the columns are `NAMESPACE`, `SERVICE NAME`, `SERVICE VIP`, `WAYPOINT` and `ENDPOINTS`. On the `notification-service` row, the `WAYPOINT` column names `waypoint`. This is the check the grader runs. The `WAYPOINT` column in the workload view (`istioctl ztunnel-config workload`) stays `None` for a waypoint that serves a Service, so it cannot answer this question.
 
 The path a request now takes:
 
-```text
-   tester  ──►  ztunnel (tester's node)
-                   │  destination has a waypoint? yes
-                   ▼
-              waypoint (Envoy)  ── terminates HBONE, parses HTTP,
-                   │                applies the HTTPRoute
-                   ▼
-              ztunnel (destination node)  ──►  notification-service
+```mermaid
+flowchart TB
+    T["tester"] -->|"HBONE"| Z1["ztunnel on client node"]
+    Z1 -->|"destination has a waypoint"| W["waypoint (Envoy)"]
+    W -->|"after the HTTPRoute, HBONE"| Z2["ztunnel on destination node"]
+    Z2 -->|"port 80"| N["notification-service"]
 ```
 
-Neither application pod was modified. Both legs are HBONE, so mTLS is preserved end to end; the waypoint terminates one tunnel and opens another.
+The diagram shows the request passing through the waypoint between the two ztunnel instances.
+
+The waypoint ends the first tunnel, reads the HTTP request, applies the `HTTPRoute`, and opens a new tunnel. Neither application pod changed. Both legs are HBONE (HTTP-Based Overlay Network Environment), the mutual TLS tunnel ztunnel uses, so mutual TLS stays in place end to end.
 
 ---
 
-## Step 4: The Same Request, Through L7
+## Step 4: Send the same request through layer 7
 
-The `HTTPRoute` is still exactly as you applied it in Step 1. Nothing about it needed fixing — it was correct and had no executor.
+The `HTTPRoute` is still exactly as you applied it in Step 1. Nothing about it needed fixing: it was correct, and no proxy was carrying it out. Send the request again:
 
 ```sh
-kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -7
+kubectl -n ambient-l7 exec deploy/tester -- curl -s -o /dev/null -D - http://notification-service/ | grep -i -E '^(HTTP/|server:|x-envoy-upstream-service-time:|x-processed-by:)'
 ```
 
 ```text
 HTTP/1.1 200 OK
 server: istio-envoy
-date: ...
-content-type: text/html
-content-length: 615
-x-envoy-upstream-service-time: 2
+x-envoy-upstream-service-time: 1
 x-processed-by: waypoint
 ```
 
-Three tells that Envoy is now in the path: `x-processed-by: waypoint` (a header no application set), `server: istio-envoy` instead of `nginx/1.27.4`, and `x-envoy-upstream-service-time` timing the upstream call.
+`-D -` prints the response headers, `-o /dev/null` drops the body, and `grep` keeps the status line and the headers that matter. Three signs show that Envoy is now in the path: `x-processed-by: waypoint` (a header nginx does not set), `server: istio-envoy` instead of `nginx/1.27.5`, and `x-envoy-upstream-service-time`, the time Envoy measured for the call to nginx.
 
-You can also look at the route from inside the waypoint's Envoy, using the ordinary sidecar tooling:
+You can also look at the route from inside the waypoint's Envoy, with the ordinary proxy tools. The table view of `istioctl proxy-config route` does not name the `HTTPRoute`, so read the waypoint's route table for `notification-service` port `80` as JSON and pick out the route entry's name and the header it sets:
 
 ```sh
-WP=$(kubectl -n ambient-l7 get pod -l gateway.networking.k8s.io/gateway-name=waypoint \
+WAYPOINT_POD=$(kubectl -n ambient-l7 get pod -l gateway.networking.k8s.io/gateway-name=waypoint \
   -o jsonpath='{.items[0].metadata.name}')
-istioctl proxy-config route "$WP.ambient-l7" | head -5
+istioctl proxy-config route "$WAYPOINT_POD.ambient-l7" --name 'inbound-vip|80|http|notification-service.ambient-l7.svc.cluster.local' -o json | grep -E '"name": "ambient-l7|"key": "x-processed-by"'
 ```
 
-Seeing your route's name in the output is the strongest evidence the configuration reached the proxy, as opposed to merely existing in the cluster.
+```text
+                        "name": "ambient-l7.notification-header.0",
+                                    "key": "x-processed-by",
+```
+
+`ambient-l7.notification-header.0` is the first rule of your `HTTPRoute`, and `x-processed-by` is the header it sets. That is the strongest proof that the configuration reached the proxy, and does not only exist in the cluster.
 
 ---
 
 ## Step 5: Submit
 
+Send the lab for grading:
+
 ```sh
 astrona submit
 ```
 
-The grader checks that the namespace is still ambient, that the `waypoint` Gateway is class `istio-waypoint` and `Programmed: True` with a ready Deployment, that the namespace carries `istio.io/use-waypoint`, that ztunnel's `WAYPOINT` column names it, that the `HTTPRoute` attaches to `Service/notification-service` and is `Accepted` — and then runs a **real request** from `tester` and requires the `x-processed-by: waypoint` header. That last check is the only one that proves anything is parsing HTTP.
+The grader checks that:
+
+- the namespace still carries `istio.io/dataplane-mode=ambient`;
+- the `waypoint` Gateway is class `istio-waypoint`, `Programmed: True`, with a ready Deployment;
+- the namespace carries `istio.io/use-waypoint=waypoint`;
+- ztunnel's workload view lists the `notification-service` workload, and its service view names `waypoint` for the `notification-service` Service;
+- the `HTTPRoute` attaches to `Service/notification-service` and is `Accepted`;
+- a **real request** from `tester` returns `200` with the `x-processed-by: waypoint` header.
+
+That last check is the only one that proves a proxy is reading HTTP.
 
 ---
 
-## Optional: Watch It Degrade
+## Optional: Delete the waypoint and compare
 
-Delete the waypoint and try the request again:
+Delete the waypoint and send the request again:
 
 ```sh
 istioctl waypoint delete waypoint -n ambient-l7
@@ -174,21 +203,28 @@ kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-servi
 ```
 
 ```text
+waypoint ambient-l7/waypoint deleted
 HTTP/1.1 200 OK
-Server: nginx/1.27.4
+Server: nginx/1.27.5
 ```
 
-Traffic still flows, still encrypted, still authenticated — the mesh did not break, it got smaller. L7 rules silently stopped applying. If an `AuthorizationPolicy` had been enforcing an HTTP-level restriction, that restriction would now be gone while the policy object still looked healthy.
+If the response still says `server: istio-envoy`, the waypoint pod is still shutting down; send the request again a few seconds later.
 
-Recreate it before submitting: `istioctl waypoint apply -n ambient-l7 --enroll-namespace`.
+Traffic still flows, still encrypted and still checked by ztunnel. The mesh did not break; it lost its layer 7 features, and the header change stopped with no error. If an `AuthorizationPolicy` had enforced an HTTP-level rule, that rule would no longer be enforced, while the policy object still looked healthy.
+
+Create the waypoint again before you submit:
+
+```sh
+istioctl waypoint apply -n ambient-l7 --enroll-namespace
+```
 
 ---
 
-## Common Mistakes
+## Common mistakes
 
-*   **Applying the `HTTPRoute` and stopping.** Accepted, statused, inert. Check `istioctl ztunnel-config workload` for a non-`None` `WAYPOINT` before debugging the route.
-*   **Omitting `--enroll-namespace`.** The proxy runs and receives no traffic; `WAYPOINT` stays `None`.
-*   **Pointing `parentRefs` at a `Gateway`.** In a mesh the route attaches to the **Service**. The grader checks `kind` and `name`.
-*   **Reading route status as proof of effect.** `Accepted` means well-formed and bound, not enforced. Only a real request proves L7 is in the path.
-*   **Naming the waypoint something else.** The task asks for `waypoint`, which is also `istioctl waypoint apply`'s default name.
-*   **Removing the ambient label.** A waypoint adds L7 on top of the L4 mesh; without `dataplane-mode=ambient`, ztunnel never captures the connection in the first place.
+*   **Applying the `HTTPRoute` and stopping.** It is accepted, gets a status, and does nothing. Check for the waypoint in `istioctl ztunnel-config service` before you debug the route.
+*   **Leaving out `--enroll-namespace`.** The proxy runs and receives no traffic.
+*   **Pointing `parentRefs` at a `Gateway`.** In the mesh, the route attaches to the **Service**. The grader checks `kind` and `name`.
+*   **Reading route status as proof of effect.** `Accepted` means well formed and bound, not enforced. Only a real request proves that layer 7 is in the path.
+*   **Naming the waypoint something else.** The task asks for `waypoint`, which is also the default name `istioctl waypoint apply` uses.
+*   **Removing the ambient label.** A waypoint adds layer 7 on top of the layer 4 mesh. Without `istio.io/dataplane-mode=ambient`, ztunnel never captures the connection in the first place.

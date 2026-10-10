@@ -1,43 +1,45 @@
 # Customize An Istio Installation
 
-<!-- astrona:playground -->
-> [!NOTE]
-> 🧪 **Hands-on playground for this module** — a clean, throwaway machine to explore on. No task, no grading. Folder: [`playground/`](https://github.com/astrona-io/ATS013/tree/main/sections/section-020/module-01/playground)
->
-> ```sh
-> astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-020/module-01/playground
-> astrona destroy ats-013-playground-020-01
-> ```
+A built-in profile gives you a working Istio control plane, but almost never the exact one a cluster needs. You may not want the egress gateway. You may want Envoy access logs on every proxy. The CPU that `istiod` requests may be wrong for your nodes. This module shows how to change those things with the same `istioctl install` command, by passing it a file instead of only a profile name.
 
-A profile gets Istio running. It almost never gets Istio running the way your cluster needs it: the egress gateway you do not want, the access logs you do want, the CPU request that is wrong for your nodes. Changing those is not a different skill from installing — it is the same `istioctl install` command with a document behind it instead of a profile name.
-
-This module is about that document. There are four places a setting can live in it, they behave differently, and picking the wrong one is why a change sometimes applies cleanly and does nothing at all.
-
-## How this module is organised
-
-1. **[Part 1 — The Four Configuration Layers](./course-01-the-four-configuration-layers.md)** — `profile`, `components`, `meshConfig` and `values`: what each one owns, how they merge, and the install-time / runtime boundary that decides whether a requirement belongs here at all.
-2. **[Part 2 — meshConfig: From File To ConfigMap To Proxy](./course-02-meshconfig-from-file-to-proxy.md)** — the full path a mesh-wide setting travels, why the `istio` ConfigMap is the fastest debugging tool you have, and watching `REGISTRY_ONLY` change real traffic.
-3. **[Part 3 — Writing, Validating And Re-applying The Document](./course-03-writing-validating-reapplying.md)** — building the `IstioOperator` file, the list-matching rule that silently swallows typos, diffing against a baseline, and what a second install does to what you left out.
+That file is an `IstioOperator` document: a YAML description of the whole Istio installation you want. It has four places where a setting can live, and each place takes effect on a different object. If you put a setting in the wrong place, the install succeeds and the setting does nothing at all.
 
 ## Learning objectives
 
 After this module you can:
 
-- Name the four configuration layers in an `IstioOperator`, say which one owns a given setting, and state the order they merge in.
-- Decide whether a requirement is install-time configuration or a runtime resource, and justify the answer.
-- Trace a `meshConfig` setting from your file to the `istio` ConfigMap to an individual proxy, and use each step to narrow a fault.
-- Write an `IstioOperator` file that disables a component, sets mesh-wide behaviour and sizes the control plane, and validate it before applying.
-- Compare an installation against the profile it started from by diffing rendered manifests, and read every line of the output.
+- Name the four configuration layers in an `IstioOperator` document, say which one owns a given setting, and say how they merge.
+- Decide whether a requirement belongs in the installation or in a runtime resource, and explain why.
+- Follow a `meshConfig` setting from your file, to the `istio` ConfigMap, to a single proxy, and use each step to narrow down a fault.
+- Write an `IstioOperator` file that turns off a component, sets mesh-wide behaviour and sizes the control plane, and check it before you apply it.
+- Compare an installation with the profile it started from by comparing rendered manifests.
 - Predict what a second `istioctl install` does to settings the new document does not mention.
 
 ## Before you start
 
-You should be able to install Istio with `istioctl` and know what `istiod`, a gateway and the injection webhook are — [Module 1 of section 010](../../section-010/module-01/course.md) covers all three, and its Part 4 on reconciliation is the direct prerequisite for Part 3 here.
+This module expects some Kubernetes knowledge and a basic idea of how Istio is installed.
 
-The playground gives you a single-node `kind` cluster with **`istioctl` 1.30.5** on your PATH and **Istio 1.30.5 already installed with the stock `demo` profile**: `istiod`, an ingress gateway and an egress gateway in `istio-system`, with no overrides of any kind. That unmodified baseline is the point — every difference you can see later is one you caused. All commands run from your normal shell with `kubectl` pointed at the cluster.
+### What you should already know
 
-## Where this fits
+- **Kubernetes basics.** Namespaces, Deployments, ConfigMaps and reading a pod spec with `kubectl`.
+- **Installing Istio with `istioctl`.** You know that `istiod` is Istio's control plane, that a gateway is a standalone Envoy proxy at the edge of the mesh, and that a sidecar injection webhook adds a proxy to new pods. You also know that `istioctl install` makes the cluster match the document you pass, and removes Istio objects that the document no longer describes.
 
-There are two kinds of Istio configuration and confusing them costs real time. **Install-time configuration** is everything in this module: which components exist, how the control plane is sized, and mesh-wide defaults. It is set through `IstioOperator` or Helm values, and changing it means re-running the install. **Runtime configuration** is `VirtualService`, `DestinationRule`, `AuthorizationPolicy` and the rest — ordinary Kubernetes resources you apply and delete at any time, which `istiod` picks up within seconds.
+### What is in your playground
 
-The boundary matters when you are reading a task. "Route 10% of traffic to v2" is runtime and never touches the install. "Turn on access logging for the whole mesh" is install-time. "Turn on access logging for one workload" is runtime again, through a `Telemetry` resource. Deciding which side of that line a requirement sits on is half of getting it right.
+The playground is one single-node `kind` cluster with **`istioctl` 1.30.5** on your PATH. **Istio 1.30.5 is already installed with the built-in `demo` profile**: `istiod`, an ingress gateway and an egress gateway run in `istio-system`, with no changes of any kind.
+
+That unchanged starting point matters. Every difference you see later is one you caused. You run every command from your normal shell, and `kubectl` already points at the cluster.
+
+Start your playground now, and keep it running while you read the parts:
+
+<!-- astrona:playground -->
+
+## The parts of this module
+
+Read the parts in this order:
+
+1. **The Four Configuration Layers:** what `profile`, `components`, `meshConfig` and `values` each own, how they merge, and where the line runs between installation settings and runtime resources.
+2. **meshConfig: From File To ConfigMap To Proxy:** the path a mesh-wide setting takes, why the `istio` ConfigMap is the fastest place to check it, and how `REGISTRY_ONLY` changes real traffic.
+3. **Writing, Validating And Re-applying The Document:** how to build the `IstioOperator` file, the rule that a gateway list replaces the profile's list, how to compare with the built-in profile, and what a second install does to settings you left out. The graded lab "Customize An Istio Installation" follows this part.
+
+A summary closes the module.

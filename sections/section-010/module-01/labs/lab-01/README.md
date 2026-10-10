@@ -1,9 +1,27 @@
-# Install Istio With istioctl Sandbox
+---
+estimated_duration: 20m
+---
 
-Welcome to the Module 1 targeted practice sandbox. In this lab you'll install an Istio control plane from scratch with `istioctl`, confirm what the install actually created, bring an existing workload into the mesh, and prove the control plane and data plane agree on a version.
+# Install Istio With istioctl
+
+The cluster has no Istio at all. The learner installs the Istio control plane (`istiod`) with `istioctl` and the `demo` profile, confirms what the install created, brings a workload that is already running into the mesh, and proves that the control plane and the data plane run the same version.
 
 ## Launching the Lab
-Run the following command in your terminal to boot the kind Kubernetes cluster:
+
+Run this command to start the cluster:
+
 ```bash
-astrona run --git git@github.com:astrona-io/ATS013.git -c sections/section-010/module-01/labs/lab-01
+astrona run --git ssh://git@github.com/astrona-io/ATS013.git -c sections/section-010/module-01/labs/lab-01
+```
+
+When you think you have finished, send it for grading:
+
+```bash
+astrona submit -c sections/section-010/module-01/labs/lab-01
+```
+
+When you are done, remove the lab:
+
+```bash
+astrona destroy ats-013-lab-010-01
 ```

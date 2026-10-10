@@ -1,10 +1,12 @@
 # Solution Walkthrough
 
-Follow these steps to stand up a second control plane, put the namespace behind a tag, and move the workload across.
+Follow these steps to install a second control plane (`istiod`) as a revision, put it behind the revision tag `prod`, and move `canary-demo` and its workload onto it through the tag. The old control plane keeps running the whole time.
 
 ---
 
-## Step 1: Confirm the Starting State
+## Step 1: Confirm the starting state
+
+List the control plane pods, the namespace labels and the versions:
 
 ```sh
 kubectl -n istio-system get pods -l app=istiod
@@ -14,38 +16,42 @@ istioctl version
 
 ```text
 NAME                      READY   STATUS    RESTARTS   AGE
-istiod-77d5f6c8b9-qr4tz   1/1     Running   0          4m
-
+istiod-68b5bc79c8-tb65b   1/1     Running   0          23s
 NAME          STATUS   AGE   LABELS
-canary-demo   Active   4m    istio-injection=enabled,kubernetes.io/metadata.name=canary-demo
-
+canary-demo   Active   6s    istio-injection=enabled,kubernetes.io/metadata.name=canary-demo
 client version: 1.29.8
 control plane version: 1.29.8
 data plane version: 1.29.8 (3 proxies)
 ```
 
-One `istiod` with no suffix — that is "the default revision". One injection webhook, matching `istio-injection=enabled`.
+One `istiod` with no suffix: that is "the default revision". Its injection webhook, the mutating admission webhook that adds the sidecar proxy to new pods, matches namespaces labelled `istio-injection=enabled`.
 
 ---
 
-## Step 2: Install the Canary Control Plane
+## Step 2: Install the canary control plane
+
+Use the 1.30.5 binary, the `minimal` profile and the revision name `1-30-5`:
 
 ```sh
 istioctl-1.30.5 install --set profile=minimal --set revision=1-30-5 -y
 ```
 
+The output looks like this (shortened: the logo and progress lines are left out):
+
 ```text
-✔ Istio core installed
-✔ Istiod installed
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
 ✔ Installation complete
 ```
 
-Two deliberate choices in that line:
+That line makes two choices on purpose:
 
-*   **`--set revision=1-30-5`** suffixes every namespaced object the install owns: `istiod-1-30-5`, its Service, and a webhook `istio-sidecar-injector-1-30-5`. Names do not collide, and Istio's reconciliation is scoped by the `istio.io/rev` ownership label, so this install cannot see or prune the default revision's objects. That scoping *is* the canary mechanism.
-*   **`--set profile=minimal`** installs `istiod` and nothing else. A canary needs a second control plane, not a second copy of the gateways — a full profile would create gateway Deployments contending for the same names. Gateways are migrated separately, once the control plane is proven.
+*   **`--set revision=1-30-5`** adds the suffix to every namespaced object the install owns: `istiod-1-30-5`, its Service, and a webhook `istio-sidecar-injector-1-30-5`. The names do not collide. The install only manages objects with its own `istio.io/rev` ownership label, so it cannot see or remove the objects of the default revision. That separation is what makes a canary upgrade possible.
+*   **`--set profile=minimal`** installs `istiod` and nothing else. A canary needs a second control plane, not a second set of gateways. A full profile would create gateway Deployments that compete for the same names. Gateways move separately, once the control plane has proved itself.
 
-Note the name is `1-30-5`, not `1.30.5`. Revision names become Kubernetes object names, so they must be valid DNS labels: no dots.
+The name is `1-30-5`, not `1.30.5`. Revision names become Kubernetes object names, so they must be valid DNS labels: no dots.
+
+Check the control plane pods and webhooks:
 
 ```sh
 kubectl -n istio-system get pods -l app=istiod
@@ -53,20 +59,21 @@ kubectl get mutatingwebhookconfigurations | grep istio
 ```
 
 ```text
-NAME                             READY   STATUS    RESTARTS   AGE
-istiod-1-30-5-6b9c8f7d4b-xk2p9   1/1     Running   0          40s
-istiod-77d5f6c8b9-qr4tz          1/1     Running   0          9m
-
-istio-revision-tag-default            ...   9m
-istio-sidecar-injector                ...   9m
-istio-sidecar-injector-1-30-5         ...   40s
+NAME                            READY   STATUS    RESTARTS   AGE
+istiod-1-30-5-67fd8d4b8-88nvk   1/1     Running   0          8s
+istiod-68b5bc79c8-tb65b         1/1     Running   0          35s
+istio-revision-tag-default      4          19s
+istio-sidecar-injector          4          35s
+istio-sidecar-injector-1-30-5   2          8s
 ```
 
-Two control planes, two webhooks, both healthy.
+Two control planes, both healthy. `istio-sidecar-injector-1-30-5` is the new revision's webhook. `istio-revision-tag-default` is the webhook of the revision tag `default`, which serves the default revision; while it exists, the entries in `istio-sidecar-injector` are switched off.
 
 ---
 
-## Step 3: Confirm Nothing Moved
+## Step 3: Confirm nothing moved
+
+List the workload's pod and its proxy status:
 
 ```sh
 kubectl -n canary-demo get pods
@@ -75,17 +82,18 @@ istioctl proxy-status | grep -E 'NAME|canary-demo'
 
 ```text
 NAME                                       READY   STATUS    RESTARTS   AGE
-notification-service-v1-5d9f8b7c6d-p2mzq   2/2     Running   0          10m
-
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-77d5f6c8b9-qr4tz
+notification-service-v1-746cd97ddb-4kpmn   2/2     Running   0          18s
+NAME                                                     CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+notification-service-v1-746cd97ddb-4kpmn.canary-demo     Kubernetes     istiod-68b5bc79c8-tb65b     1.29.8      4 (CDS,LDS,EDS,RDS)
 ```
 
-`AGE` predates the install, `RESTARTS` is 0, and the `ISTIOD` column still names the **old** control plane pod. Installing a revision is completely non-disruptive — which is the property that makes canary upgrades safe to start.
+The pod was created before the install, `RESTARTS` is 0, and the `ISTIOD` column still names the **old** control plane pod. Installing a revision disturbs nothing, and that is what makes a canary upgrade safe to start.
 
 ---
 
-## Step 4: Create the Tag
+## Step 4: Create the tag
+
+Create `prod` for revision `1-30-5`, then list the tags:
 
 ```sh
 istioctl-1.30.5 tag set prod --revision 1-30-5 -y
@@ -93,20 +101,22 @@ istioctl-1.30.5 tag list
 ```
 
 ```text
-✔ Revision tag "prod" created, referencing revision "1-30-5".
-
-TAG      REVISION   NAMESPACES
-default  default
-prod     1-30-5
+Revision tag "prod" created, referencing control plane revision "1-30-5". To enable injection using this
+revision tag, use 'kubectl label namespace <NAMESPACE> istio.io/rev=prod'
+TAG     REVISION NAMESPACES
+prod    1-30-5   
+default default  
 ```
 
-A tag is an **alias**. Mechanically it is another mutating webhook configuration — `istio-revision-tag-prod` — whose selector matches `istio.io/rev=prod` and whose backend is the tagged revision's `istiod` Service.
+A revision tag is a second name that points at one revision. Underneath, it is another mutating webhook configuration, `istio-revision-tag-prod`. Its selector matches `istio.io/rev=prod`, and it sends injection requests to the `istiod` Service of the tagged revision.
 
-The reason to bother: without a tag, every future upgrade means relabelling every meshed namespace, and every rollback means relabelling them all back. With a tag, namespaces are labelled once and the upgrade is a single `tag set`.
+A tag saves work later. Without a tag, every future upgrade means relabelling every namespace in the mesh, and every rollback means relabelling them all back. With a tag, you label the namespaces once, and the upgrade is a single `tag set`.
 
 ---
 
-## Step 5: Move the Namespace
+## Step 5: Move the namespace
+
+Remove the old label, add the tag label, and check the result:
 
 ```sh
 kubectl label namespace canary-demo istio-injection-
@@ -117,75 +127,86 @@ kubectl get ns canary-demo --show-labels
 ```text
 namespace/canary-demo unlabeled
 namespace/canary-demo labeled
-
 NAME          STATUS   AGE   LABELS
-canary-demo   Active   12m   istio.io/rev=prod,kubernetes.io/metadata.name=canary-demo
+canary-demo   Active   19s   istio.io/rev=prod,kubernetes.io/metadata.name=canary-demo
 ```
 
-**Remove the old label first.** `istio-injection` and `istio.io/rev` are mutually exclusive in effect: with both present, `istio-injection` wins and the revision label is ignored — silently, leaving the workload on the control plane you were trying to move away from.
+**Remove the old label first.** In effect, `istio-injection` and `istio.io/rev` rule each other out. With both present, `istio-injection` wins and the revision label is ignored. Nothing warns you, and the workload stays on the control plane you were trying to move away from.
 
-That is not arbitrary logic inside Istio. The default webhook's selector requires `istio-injection: enabled`; the revisioned webhook's selector requires `istio.io/rev` **and** that `istio-injection` is absent. A namespace with both satisfies only the first.
+The rule comes from the webhook selectors. The default webhook's selector requires `istio-injection: enabled`. The revision webhook's selector requires `istio.io/rev` **and** that `istio-injection` is absent. A namespace with both labels only satisfies the first.
 
 ---
 
-## Step 6: Restart the Workload
+## Step 6: Restart the workload
+
+Restart the Deployment and wait for it:
 
 ```sh
 kubectl -n canary-demo rollout restart deployment notification-service-v1
 kubectl -n canary-demo rollout status deployment notification-service-v1 --timeout=180s
 ```
 
-This is the step that actually performs the upgrade for the workload. Steps 2 through 5 changed which webhook *would* fire; only a new pod goes through admission.
+```text
+deployment.apps/notification-service-v1 restarted
+Waiting for deployment "notification-service-v1" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "notification-service-v1" rollout to finish: 1 old replicas are pending termination...
+deployment "notification-service-v1" successfully rolled out
+```
+
+This step performs the upgrade for the workload. Steps 2 to 5 changed which webhook the API server *would* call. Only a new pod goes through admission, so only a new pod is injected by the canary control plane.
+
+Check the proxy status, the proxy image and the revision of the new pod. `istioctl proxy-status` asks one control plane, the default revision unless you pass `--revision`, so name the new one. Istio runs `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`, so its image is in `.spec.initContainers`. Wait until the old pod has stopped, or `items[0]` may still be the old pod:
 
 ```sh
-istioctl-1.30.5 proxy-status | grep -E 'NAME|canary-demo'
+istioctl-1.30.5 proxy-status --revision 1-30-5 | grep -E 'NAME|canary-demo'
 kubectl -n canary-demo get pod -l app=notification-service \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].image}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].image}{"\n"}'
 kubectl -n canary-demo get pod -l app=notification-service \
-  -o jsonpath='{.items[0].metadata.labels.istio\.io/rev}{"\n"}'
+  -o jsonpath='{.items[0].metadata.annotations.istio\.io/rev}{"\n"}'
 ```
 
 ```text
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-6b9c8f7d4b-xk2p9
-
-docker.io/istio/proxyv2:1.30.5
+NAME                                                     CLUSTER        ISTIOD                            VERSION     SUBSCRIBED TYPES
+notification-service-v1-7659dc76d7-kkjvd.canary-demo     Kubernetes     istiod-1-30-5-67fd8d4b8-88nvk     1.30.5      4 (CDS,LDS,EDS,RDS)
+registry.istio.io/release/proxyv2:1.30.5
 1-30-5
 ```
 
-The `ISTIOD` column names the canary, the proxy image is 1.30.5, and the pod carries `istio.io/rev=1-30-5` — the resolved revision, not the tag. That last label is the proof the tag pointed where you meant it to.
+The `ISTIOD` column of `istioctl proxy-status` names the canary `istiod` pod, the proxy image is 1.30.5, and the pod's `istio.io/rev` annotation records `1-30-5`: the revision the tag resolved to, not the tag itself. That last value proves the tag pointed where you meant. Istio 1.30 writes it as an annotation; the pod has no `istio.io/rev` label. The grader reads the annotation first and falls back to the label.
 
 ---
 
 ## Step 7: Submit
 
+Send the lab for grading:
+
 ```sh
 astrona submit
 ```
 
-The grader checks that **both** control planes are ready, that `istiod-1-30-5` is running 1.30.5, that the canary installed no gateways, that a `prod` tag webhook exists, that `canary-demo` carries `istio.io/rev=prod` and not `istio-injection`, and that the single Deployment's pod is on the 1.30.5 proxy reporting revision `1-30-5`.
+The grader checks that **both** control planes are ready, that `istiod-1-30-5` runs 1.30.5, and that the canary installed no gateways. It checks that a `prod` tag webhook exists, and that `canary-demo` carries `istio.io/rev=prod` and not `istio-injection`. Finally it checks that the single Deployment's pod runs the 1.30.5 proxy and reports revision `1-30-5`.
 
 ---
 
-## Try the Rollback
+## Try the rollback
 
-Not graded, and the fastest way to feel why tags are worth the extra concept:
+This is not graded, but it shows in two commands why a tag is worth the extra step:
 
 ```sh
 istioctl tag set prod --revision default --overwrite -y
 kubectl -n canary-demo rollout restart deployment notification-service-v1
 ```
 
-Two commands, no namespace edits, and the workload is back on the old control plane. Point it forward again before submitting.
+Two commands, no namespace edits, and the workload is back on the old control plane. Point the tag forward again and restart before you submit.
 
 ---
 
-## Common Mistakes
+## Common mistakes
 
-*   **Leaving `istio-injection=enabled` in place.** With both labels present, the revision label is ignored and the workload never moves. The grader names this case specifically.
+*   **Leaving `istio-injection=enabled` in place.** With both labels present, the revision label is ignored and the workload never moves. The grader names this case.
 *   **Labelling the namespace with the raw revision instead of the tag.** `istio.io/rev=1-30-5` works, and it is exactly the thing that does not scale. The task asks for the tag.
-*   **Forgetting the restart.** Installing a revision, creating a tag and relabelling a namespace are all no-ops for running pods.
-*   **Installing the canary with the `demo` profile.** Two sets of gateways contend for the same names. Use `minimal`.
+*   **Forgetting the restart.** Installing a revision, creating a tag and relabelling a namespace change nothing for running pods.
+*   **Installing the canary with the `demo` profile.** Two sets of gateways compete for the same names. Use `minimal`.
 *   **Using a dotted revision name.** `1.30.5` is not a valid DNS label.
-*   **Installing the revision with the old binary.** `istioctl install --set revision=1-30-5` with the 1.29.8 binary creates a revision named `1-30-5` running **1.29.8**. The name is just a string; the version comes from the binary.
-*   **Uninstalling the old control plane to "finish".** The task requires it still running. Retiring it comes after every workload has moved — and it is the capstone's job.
+*   **Installing the revision with the old binary.** `istioctl install --set revision=1-30-5` with the 1.29.8 binary creates a revision named `1-30-5` that runs **1.29.8**. The name is just a string; the version comes from the binary.
+*   **Uninstalling the old control plane to "finish".** The task requires it to keep running. Retiring it comes after every workload has moved, and this task does not ask for it.

@@ -1,25 +1,27 @@
 # Solution Walkthrough
 
-Read this only after you have attempted the specification.
+Read this only after you have tried the specification yourself.
 
 ---
 
 ## Step 1: Sort the Requirements by Layer
 
-The specification is really one question asked three times: **which layer enforces this?**
+The specification really asks one question three times: **which layer enforces this?** ztunnel, the proxy on each node, checks the connection: who is talking, on which port (layer 4). The waypoint proxy reads the HTTP request: method, path and headers (layer 7).
 
 | Requirement | Enforced by | Needs a waypoint? |
 | --- | --- | --- |
-| Mesh identity, mTLS between workloads | ztunnel | No |
+| Mesh identity, mutual TLS between workloads | ztunnel | No |
 | A rule on source identity or port | ztunnel | No |
-| Response header rewriting (`HTTPRoute`) | waypoint | **Yes** |
+| Response header change (`HTTPRoute`) | waypoint | **Yes** |
 | A rule on the HTTP **method** | waypoint | **Yes** |
 
-Requirements 6 and 7 are the exercise. `AuthorizationPolicy` is one CRD, but a rule matching on `methods` is L7 and a rule matching on `principals` or `ports` is L4. ztunnel enforces the second and cannot even see the first — it is a TCP-level proxy. Without a waypoint the policy applies cleanly, reports healthy, and does nothing.
+Requirements 6 and 7 are the heart of the exercise. `AuthorizationPolicy` is one kind of object, but a rule that matches on `methods` is layer 7, and a rule that matches on `principals` or `ports` is layer 4. ztunnel enforces the second and cannot even see the first, because it does not read HTTP. Without a waypoint, the policy applies cleanly, reports healthy, and does nothing.
 
 ---
 
 ## Step 2: Enroll, Without Recreating Anything
+
+Read the baseline, label the namespace, and list the pods:
 
 ```sh
 kubectl -n ambient-shop get configmap lab-baseline -o jsonpath='{.data.pod-uids}{"\n"}'
@@ -40,9 +42,11 @@ catalog-api-...          1/1     Running   0          6m14s
 storefront-...           1/1     Running   0          6m14s
 ```
 
-One label, no restart. `RESTARTS` is still 0 and `AGE` just kept counting.
+One label, and no restart. `RESTARTS` is still 0, and `AGE` just kept counting.
 
-The reason is mechanical and worth being able to state: sidecar injection mutates the **pod spec**, so it can only happen at admission. Ambient enrollment changes **node-level redirection** (via `istio-cni-node`) and **ztunnel's configuration** (via `istiod`) — both outside the pod.
+Be ready to explain why. Sidecar injection changes the **pod spec**, so it can only happen when a pod is created. Ambient enrollment changes the **node-level redirect**, set up by `istio-cni-node`, and **ztunnel's configuration**, sent by `istiod`. Both live outside the pod.
+
+Confirm with ztunnel:
 
 ```sh
 istioctl ztunnel-config workload | grep ambient-shop
@@ -55,11 +59,13 @@ ambient-shop  catalog-api-...      10.244.0.11  ...      None      HBONE
 ambient-shop  storefront-...       10.244.0.13  ...      None      HBONE
 ```
 
-`HBONE` means enrolled. `WAYPOINT None` means L4 only — nothing in the path can read HTTP yet.
+`HBONE` means enrolled: ztunnel carries these workloads in its mutual TLS tunnel. There is no waypoint yet, so nothing in the path can read HTTP.
 
 ---
 
 ## Step 3: Add the Waypoint
+
+Create the waypoint, enroll the namespace, wait for it, and check the `Gateway`:
 
 ```sh
 istioctl waypoint apply -n ambient-shop --enroll-namespace
@@ -76,16 +82,25 @@ NAME       CLASS            PROGRAMMED
 waypoint   istio-waypoint   True
 ```
 
-Two separate things: `waypoint apply` created the `Gateway` (and Istio turned it into a running Envoy), and `--enroll-namespace` labelled the namespace `istio.io/use-waypoint`, which is what makes ztunnel route through it.
+Two separate things happened. `waypoint apply` created the `Gateway`, and Istio turned it into a running Envoy. `--enroll-namespace` labelled the namespace `istio.io/use-waypoint`, which makes ztunnel route through the waypoint.
 
-Note the waypoint pod appears in `ambient-shop` — which is why the grader excludes it when comparing pod UIDs against the baseline. Adding a waypoint adds a pod; it does not recreate yours.
+Check that ztunnel now routes the Service through it:
+
+```sh
+istioctl ztunnel-config service | grep ambient-shop
+```
+
+On the `catalog-api` row, the `WAYPOINT` column names `waypoint`. Use the service view for this: the workload view's `WAYPOINT` column stays `None` for a waypoint that serves a Service.
+
+Note that the waypoint pod runs in `ambient-shop` too. That is why the grader leaves it out when it compares pod UIDs with the baseline. Adding a waypoint adds a pod; it does not recreate yours.
 
 ---
 
 ## Step 4: The HTTPRoute
 
-```sh
-cat > catalog-header.yaml <<'YAML'
+Save this as `catalog-header.yaml`:
+
+```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -106,18 +121,25 @@ spec:
       backendRefs:
         - name: catalog-api
           port: 80
-YAML
+```
+
+Apply it:
+
+```sh
 kubectl apply -f catalog-header.yaml
 ```
 
-`parentRefs` targets the **Service**, not a `Gateway`. That is the Gateway API's mesh pattern: the route describes what happens to traffic destined for that Service, wherever it originates.
+`parentRefs` points at the **Service**, not a `Gateway`. That is the Gateway API's mesh pattern: the route describes what happens to traffic headed for that Service, wherever it comes from.
 
 ---
 
-## Step 5: The L7 AuthorizationPolicy
+## Step 5: The Layer 7 AuthorizationPolicy
 
-```sh
-cat > catalog-methods.yaml <<'YAML'
+An `AuthorizationPolicy` is the guard's list at the airlock: who may come aboard and what they may do.
+
+Save this as `catalog-methods.yaml`:
+
+```yaml
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
@@ -133,19 +155,25 @@ spec:
     - to:
         - operation:
             methods: ["GET"]
-YAML
+```
+
+Apply it:
+
+```sh
 kubectl apply -f catalog-methods.yaml
 ```
 
-Two things to notice.
+Notice two things.
 
-`action: ALLOW` with a single rule is **allow-list** semantics: once any ALLOW policy selects a workload, anything not matched by a rule is denied. So allowing `GET` denies everything else — you do not write a separate DENY.
+`action: ALLOW` with a single rule works as a guest list. Once any `ALLOW` policy applies to a workload, anything its rules do not match is denied. So allowing `GET` denies everything else, and you do not need a separate `DENY` policy.
 
-`targetRefs` pointing at the **Service** is what binds the policy to the waypoint handling that Service. (`selector` on workload labels also exists and binds to the workload itself; for a waypoint-enforced L7 rule, `targetRefs` is the documented form.)
+`targetRefs` pointing at the **Service** binds the policy to the waypoint that handles that Service. (`selector` on workload labels also exists and binds to the workload itself. For a layer 7 rule enforced by a waypoint, `targetRefs` is the documented form.)
 
 ---
 
 ## Step 6: Prove Both Outcomes
+
+Send a `GET` from `storefront` and read the response headers:
 
 ```sh
 kubectl -n ambient-shop exec deploy/storefront -c storefront -- \
@@ -161,6 +189,8 @@ content-length: 615
 x-served-via: waypoint
 ```
 
+Then try a `DELETE` from `storefront`, and a `GET` from `batch-runner`:
+
 ```sh
 kubectl -n ambient-shop exec deploy/storefront -c storefront -- \
   curl -s -o /dev/null -w 'DELETE -> %{http_code}\n' -X DELETE http://catalog-api/
@@ -173,13 +203,34 @@ DELETE -> 403
 GET -> 200
 ```
 
-`x-served-via: waypoint` and `server: istio-envoy` prove an HTTP-aware proxy is in the path. `DELETE -> 403` proves it is enforcing a rule on the method — something ztunnel structurally cannot do.
+`x-served-via: waypoint` and `server: istio-envoy` prove that an HTTP-aware proxy is in the path. `DELETE -> 403` proves that it enforces a rule on the method, something ztunnel cannot do.
+
+If the `DELETE` still returns `200` right after you applied the policy, wait a few seconds and try again. The waypoint receives its configuration from `istiod` over xDS, and that takes a moment.
 
 ---
 
-## Step 7: See What Happens Without the Waypoint
+## Step 7: Submit
 
-Not graded, and the single most instructive thing in the section. Delete the waypoint and re-run both requests:
+Send the lab for grading:
+
+```sh
+astrona submit
+```
+
+The grader checks:
+
+- the ambient label, and that `istio-injection` is absent;
+- that the application pods' UIDs match the baseline, and that no pod has a sidecar;
+- the waypoint's class, `Programmed` status, readiness, and namespace enrollment;
+- that ztunnel's service view routes `catalog-api` through the waypoint;
+- that the `HTTPRoute` attaches to the Service, and that the policy exists;
+- **live requests** from `storefront`: the `x-served-via` header, `GET` returning 200, and `DELETE` returning 403.
+
+---
+
+## Optional: See What Happens Without the Waypoint
+
+This is not graded, and it is the most useful thing to see in this section. Do it only after you have submitted, or rebuild the waypoint afterwards. Delete the waypoint and send the `DELETE` again:
 
 ```sh
 istioctl waypoint delete waypoint -n ambient-shop
@@ -196,11 +247,11 @@ NAME              AGE
 catalog-methods   4m
 ```
 
-The policy is still there, still looks healthy — and the restriction is gone. Traffic is still encrypted and still authenticated, because that is ztunnel's job and ztunnel is untouched. The mesh did not break; it got smaller, silently.
+The policy is still there and still looks healthy, but the restriction is gone. Traffic is still encrypted and still checked, because that is ztunnel's job, and ztunnel is untouched. The mesh did not break; it got smaller, silently.
 
-That is the security consequence worth carrying out of this section: **a waypoint's absence is indistinguishable from its silence.**
+That is the security lesson to take from this section: **a missing waypoint looks exactly like a quiet one.**
 
-Recreate everything before submitting:
+Build it again if you want the lab to pass:
 
 ```sh
 istioctl waypoint apply -n ambient-shop --enroll-namespace
@@ -209,22 +260,12 @@ kubectl -n ambient-shop rollout status deployment waypoint --timeout=180s
 
 ---
 
-## Step 8: Submit
-
-```sh
-astrona submit
-```
-
-The grader checks the ambient label and the absence of `istio-injection`, compares the application pods' UIDs against the baseline, confirms no pod has a sidecar, checks the waypoint's class, `Programmed` status, readiness and namespace enrollment, checks ztunnel routes `catalog-api` through it, checks the `HTTPRoute` attaches to the Service and the policy exists — and then runs **live requests**: the `x-served-via` header, `GET` returning 200, and `DELETE` returning 403.
-
----
-
 ## Common Mistakes
 
-*   **`kubectl rollout restart` after labelling.** The namespace ends up enrolled and the pod UIDs change, which fails the check. Ambient enrollment needs no restart.
-*   **Writing the method rule and skipping the waypoint.** Accepted, healthy, and completely inert. `DELETE` returns 200 and nothing says why.
-*   **Omitting `--enroll-namespace`.** The waypoint runs, `WAYPOINT` stays `None`, and both L7 requirements fail together.
-*   **Adding a separate DENY policy for other methods.** An `ALLOW` policy already denies anything its rules do not match. Two policies here usually means an unintended interaction.
-*   **Pointing `parentRefs` at a `Gateway`.** In a mesh the route attaches to the Service.
-*   **Deleting `lab-baseline` while tidying.** It is the grader's record of what was running before you started.
-*   **Testing `DELETE` immediately after applying the policy.** The waypoint receives configuration over xDS; give it a few seconds. The grader retries for the same reason.
+*   **Running `kubectl rollout restart` after labelling.** The namespace ends up enrolled, but the pod UIDs change, which fails the check. Ambient enrollment needs no restart.
+*   **Writing the method rule and skipping the waypoint.** The policy is accepted, healthy, and does nothing. `DELETE` returns 200, and nothing says why.
+*   **Leaving out `--enroll-namespace`.** The waypoint runs, ztunnel does not route through it, and both layer 7 requirements fail together.
+*   **Adding a separate `DENY` policy for the other methods.** An `ALLOW` policy already denies anything its rules do not match. Two policies here usually means an interaction you did not intend.
+*   **Pointing `parentRefs` at a `Gateway`.** In the mesh, the route attaches to the Service.
+*   **Deleting `lab-baseline` while tidying up.** It is the grader's record of what was running before you started.
+*   **Testing `DELETE` right after applying the policy.** The waypoint receives configuration over xDS; give it a few seconds. The grader retries for the same reason.

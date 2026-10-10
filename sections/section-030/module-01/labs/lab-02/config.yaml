@@ -1,0 +1,33 @@
+metadata:
+  name: "ats-013-lab-030-01-02"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-tooling"
+      description: "Installs helm 3 and istioctl 1.29.8, and registers the istio chart repository"
+      type: "file"
+      source: "bootstrap/01-install-tooling.sh"
+    - name: "install-istio-and-bad-upgrade"
+      description: "Installs Istio 1.29.8 as three Helm releases from a values file that is then discarded, meshes one workload, then runs a helm upgrade of istiod with --reset-values and restarts the workload"
+      type: "file"
+      source: "bootstrap/02-install-istio-and-bad-upgrade.sh"
+
+testing:
+  init:
+    - name: "solution"
+      description: "Reference solution applied by `astrona test` in CI"
+      type: "file"
+      source: "solution/apply.sh"
+
+validation:
+  scripts:
+    - name: "verify-helm-rollback"
+      description: "Confirms istiod was rolled back to revision 1 with helm rollback, that every value from the original install is live again, that the other releases were left alone, and that the workload was restarted so its sidecar has the original resource requests"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false
