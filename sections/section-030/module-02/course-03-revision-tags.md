@@ -46,24 +46,28 @@ kubectl get mutatingwebhookconfigurations | grep tag
 kubectl label namespace canary-demo istio.io/rev=prod --overwrite
 kubectl -n canary-demo rollout restart deployment notification-service-v1
 kubectl -n canary-demo rollout status deployment notification-service-v1 --timeout=180s
-istioctl proxy-status | grep -E 'NAME|canary-demo'
+istioctl-1.30.5 proxy-status --revision 1-30-5 | grep -E 'NAME|canary-demo'
+istioctl-1.30.5 tag list
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: the label, restart and rollout lines are left out):
 
 ```text
-TAG      REVISION   NAMESPACES
-default  default
-prod     1-30-5     canary-demo
-
-istio-revision-tag-default   ...
-istio-revision-tag-prod      ...
-
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-...
+Revision tag "prod" created, referencing control plane revision "1-30-5". To enable injection using this
+revision tag, use 'kubectl label namespace <NAMESPACE> istio.io/rev=prod'
+TAG     REVISION NAMESPACES
+prod    1-30-5   
+default default  
+istio-revision-tag-default      4          88s
+istio-revision-tag-prod         2          0s
+NAME                                                     CLUSTER        ISTIOD                            VERSION     SUBSCRIBED TYPES
+notification-service-v1-689994bb57-5j4np.canary-demo     Kubernetes     istiod-1-30-5-67fd8d4b8-6tmgd     1.30.5      4 (CDS,LDS,EDS,RDS)
+TAG     REVISION NAMESPACES
+prod    1-30-5   canary-demo
+default default  
 ```
 
-`istioctl tag list` resolves `prod` to `1-30-5` and shows which namespaces follow it. The new `istio-revision-tag-prod` webhook is the tag as Kubernetes sees it. The workload ends up exactly where a raw revision label would put it. The difference is that the *next* upgrade does not touch this namespace at all.
+`istioctl tag list` resolves `prod` to `1-30-5`. Its `NAMESPACES` column is empty right after `tag set` and lists `canary-demo` once the namespace carries the tag label. `proxy-status --revision 1-30-5` asks the new control plane, because plain `istioctl proxy-status` only asks the default revision. The new `istio-revision-tag-prod` webhook is the tag as Kubernetes sees it. The workload ends up exactly where a raw revision label would put it. The difference is that the *next* upgrade does not touch this namespace at all.
 
 If `canary-demo` still carries `istio-injection=enabled`, remove it first with `kubectl label namespace canary-demo istio-injection-`. While that label is there, it wins over `istio.io/rev`.
 
@@ -78,12 +82,16 @@ kubectl -n canary-demo rollout status deployment notification-service-v1 --timeo
 istioctl proxy-status | grep -E 'NAME|canary-demo'
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: the restart and rollout lines are left out):
 
 ```text
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-77d5f6c8b9-qr4tz
+Revision tag "prod" created, referencing control plane revision "default". To enable injection using this
+revision tag, use 'kubectl label namespace <NAMESPACE> istio.io/rev=prod'
+NAME                                                     CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+notification-service-v1-5d44b694b9-fj5gw.canary-demo     Kubernetes     istiod-68b5bc79c8-27k2j     1.29.8      4 (CDS,LDS,EDS,RDS)
 ```
+
+`istioctl` says "created" even though the tag existed: `--overwrite` replaced it. Plain `istioctl proxy-status` asks the default revision, and the workload is back in its list, with a `1.29.8` proxy.
 
 The workload is back on the old control plane, and no namespace label changed. The rollback took one `tag set` plus one restart per namespace. You can space out the restarts as you like, because the tag change takes effect at once and each workload follows it the next time its pods are created.
 

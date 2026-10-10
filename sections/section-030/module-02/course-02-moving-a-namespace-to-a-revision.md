@@ -47,21 +47,24 @@ kubectl label namespace canary-demo istio-injection-
 kubectl label namespace canary-demo istio.io/rev=1-30-5 --overwrite
 kubectl -n canary-demo rollout restart deployment notification-service-v1
 kubectl -n canary-demo rollout status deployment notification-service-v1 --timeout=180s
-istioctl proxy-status | grep -E 'NAME|canary-demo'
+istioctl-1.30.5 proxy-status --revision 1-30-5 | grep -E 'NAME|canary-demo'
 kubectl -n canary-demo get pod -l app=notification-service \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].image}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].image}{"\n"}'
 ```
 
-The output looks like this (shortened):
+`istioctl proxy-status` asks one control plane for its proxies: the default revision, unless you name another one with `--revision`. Plain `istioctl proxy-status` would now print only its header, because the workload has left the default revision. The last command reads `.spec.initContainers`, because Istio runs `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`.
+
+The output looks like this (shortened: the label, restart and rollout lines are left out):
 
 ```text
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-6b9c8f7d4b-xk2p9
-
-docker.io/istio/proxyv2:1.30.5
+NAME                                                     CLUSTER        ISTIOD                            VERSION     SUBSCRIBED TYPES
+notification-service-v1-756cddfb64-dfk5x.canary-demo     Kubernetes     istiod-1-30-5-67fd8d4b8-6tmgd     1.30.5      4 (CDS,LDS,EDS,RDS)
+registry.istio.io/release/proxyv2:1.30.5
 ```
 
-The `ISTIOD` column of `istioctl proxy-status` now names the canary pod, and the injected proxy image is the new version. Both changed at the same moment, when the Deployment controller created the new pod. This is what it means that injection decides everything when the pod is created.
+If the image still reads `1.29.8`, `items[0]` was the old pod, which takes a few seconds to stop; run the command again.
+
+The `ISTIOD` column of `istioctl proxy-status` now names the canary pod, `VERSION` is `1.30.5`, and the injected proxy image is the new version. Both changed at the same moment, when the Deployment controller created the new pod. This is what it means that injection decides everything when the pod is created.
 
 ## Rolling back with labels
 

@@ -16,11 +16,9 @@ istioctl version
 
 ```text
 NAME                      READY   STATUS    RESTARTS   AGE
-istiod-77d5f6c8b9-qr4tz   1/1     Running   0          4m
-
+istiod-68b5bc79c8-tb65b   1/1     Running   0          23s
 NAME          STATUS   AGE   LABELS
-canary-demo   Active   4m    istio-injection=enabled,kubernetes.io/metadata.name=canary-demo
-
+canary-demo   Active   6s    istio-injection=enabled,kubernetes.io/metadata.name=canary-demo
 client version: 1.29.8
 control plane version: 1.29.8
 data plane version: 1.29.8 (3 proxies)
@@ -38,9 +36,11 @@ Use the 1.30.5 binary, the `minimal` profile and the revision name `1-30-5`:
 istioctl-1.30.5 install --set profile=minimal --set revision=1-30-5 -y
 ```
 
+The output looks like this (shortened: the logo and progress lines are left out):
+
 ```text
-✔ Istio core installed
-✔ Istiod installed
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
 ✔ Installation complete
 ```
 
@@ -59,16 +59,15 @@ kubectl get mutatingwebhookconfigurations | grep istio
 ```
 
 ```text
-NAME                             READY   STATUS    RESTARTS   AGE
-istiod-1-30-5-6b9c8f7d4b-xk2p9   1/1     Running   0          40s
-istiod-77d5f6c8b9-qr4tz          1/1     Running   0          9m
-
-istio-revision-tag-default            ...   9m
-istio-sidecar-injector                ...   9m
-istio-sidecar-injector-1-30-5         ...   40s
+NAME                            READY   STATUS    RESTARTS   AGE
+istiod-1-30-5-67fd8d4b8-88nvk   1/1     Running   0          8s
+istiod-68b5bc79c8-tb65b         1/1     Running   0          35s
+istio-revision-tag-default      4          19s
+istio-sidecar-injector          4          35s
+istio-sidecar-injector-1-30-5   2          8s
 ```
 
-Two control planes, two webhooks, both healthy.
+Two control planes, both healthy. `istio-sidecar-injector-1-30-5` is the new revision's webhook. `istio-revision-tag-default` is the webhook of the revision tag `default`, which serves the default revision; while it exists, the entries in `istio-sidecar-injector` are switched off.
 
 ---
 
@@ -83,13 +82,12 @@ istioctl proxy-status | grep -E 'NAME|canary-demo'
 
 ```text
 NAME                                       READY   STATUS    RESTARTS   AGE
-notification-service-v1-5d9f8b7c6d-p2mzq   2/2     Running   0          10m
-
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-77d5f6c8b9-qr4tz
+notification-service-v1-746cd97ddb-4kpmn   2/2     Running   0          18s
+NAME                                                     CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+notification-service-v1-746cd97ddb-4kpmn.canary-demo     Kubernetes     istiod-68b5bc79c8-tb65b     1.29.8      4 (CDS,LDS,EDS,RDS)
 ```
 
-`AGE` is older than the install, `RESTARTS` is 0, and the `ISTIOD` column still names the **old** control plane pod. Installing a revision disturbs nothing, and that is what makes a canary upgrade safe to start.
+The pod was created before the install, `RESTARTS` is 0, and the `ISTIOD` column still names the **old** control plane pod. Installing a revision disturbs nothing, and that is what makes a canary upgrade safe to start.
 
 ---
 
@@ -103,11 +101,11 @@ istioctl-1.30.5 tag list
 ```
 
 ```text
-✔ Revision tag "prod" created, referencing revision "1-30-5".
-
-TAG      REVISION   NAMESPACES
-default  default
-prod     1-30-5
+Revision tag "prod" created, referencing control plane revision "1-30-5". To enable injection using this
+revision tag, use 'kubectl label namespace <NAMESPACE> istio.io/rev=prod'
+TAG     REVISION NAMESPACES
+prod    1-30-5   
+default default  
 ```
 
 A revision tag is a second name that points at one revision. Underneath, it is another mutating webhook configuration, `istio-revision-tag-prod`. Its selector matches `istio.io/rev=prod`, and it sends injection requests to the `istiod` Service of the tagged revision.
@@ -129,9 +127,8 @@ kubectl get ns canary-demo --show-labels
 ```text
 namespace/canary-demo unlabeled
 namespace/canary-demo labeled
-
 NAME          STATUS   AGE   LABELS
-canary-demo   Active   12m   istio.io/rev=prod,kubernetes.io/metadata.name=canary-demo
+canary-demo   Active   19s   istio.io/rev=prod,kubernetes.io/metadata.name=canary-demo
 ```
 
 **Remove the old label first.** In effect, `istio-injection` and `istio.io/rev` rule each other out. With both present, `istio-injection` wins and the revision label is ignored. Nothing warns you, and the workload stays on the control plane you were trying to move away from.
@@ -149,27 +146,33 @@ kubectl -n canary-demo rollout restart deployment notification-service-v1
 kubectl -n canary-demo rollout status deployment notification-service-v1 --timeout=180s
 ```
 
+```text
+deployment.apps/notification-service-v1 restarted
+Waiting for deployment "notification-service-v1" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "notification-service-v1" rollout to finish: 1 old replicas are pending termination...
+deployment "notification-service-v1" successfully rolled out
+```
+
 This step performs the upgrade for the workload. Steps 2 to 5 changed which webhook the API server *would* call. Only a new pod goes through admission, so only a new pod is injected by the canary control plane.
 
-Check the proxy status, the proxy image and the revision of the new pod:
+Check the proxy status, the proxy image and the revision of the new pod. `istioctl proxy-status` asks one control plane, the default revision unless you pass `--revision`, so name the new one. Istio runs `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`, so its image is in `.spec.initContainers`. Wait until the old pod has stopped, or `items[0]` may still be the old pod:
 
 ```sh
-istioctl-1.30.5 proxy-status | grep -E 'NAME|canary-demo'
+istioctl-1.30.5 proxy-status --revision 1-30-5 | grep -E 'NAME|canary-demo'
 kubectl -n canary-demo get pod -l app=notification-service \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].image}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].image}{"\n"}'
 kubectl -n canary-demo get pod -l app=notification-service \
-  -o jsonpath='{.items[0].metadata.labels.istio\.io/rev}{"\n"}'
+  -o jsonpath='{.items[0].metadata.annotations.istio\.io/rev}{"\n"}'
 ```
 
 ```text
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-6b9c8f7d4b-xk2p9
-
-docker.io/istio/proxyv2:1.30.5
+NAME                                                     CLUSTER        ISTIOD                            VERSION     SUBSCRIBED TYPES
+notification-service-v1-7659dc76d7-kkjvd.canary-demo     Kubernetes     istiod-1-30-5-67fd8d4b8-88nvk     1.30.5      4 (CDS,LDS,EDS,RDS)
+registry.istio.io/release/proxyv2:1.30.5
 1-30-5
 ```
 
-The `ISTIOD` column of `istioctl proxy-status` names the canary `istiod` pod, the proxy image is 1.30.5, and the pod records `1-30-5`: the revision the tag resolved to, not the tag itself. That last value proves the tag pointed where you meant. The grader reads it from the pod's `istio.io/rev` annotation first and falls back to the label, because Istio 1.30 records it as an annotation.
+The `ISTIOD` column of `istioctl proxy-status` names the canary `istiod` pod, the proxy image is 1.30.5, and the pod's `istio.io/rev` annotation records `1-30-5`: the revision the tag resolved to, not the tag itself. That last value proves the tag pointed where you meant. Istio 1.30 writes it as an annotation; the pod has no `istio.io/rev` label. The grader reads the annotation first and falls back to the label.
 
 ---
 

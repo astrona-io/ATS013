@@ -15,7 +15,7 @@ This is a **playground**, not a lab. The environment starts clean, runs `bootstr
 
 - Install the 1.30.5 revision, then run `kubectl -n canary-demo get pods` straight away. Nothing moved. Work out what the install really changed.
 - Set `istio-injection=enabled` and `istio.io/rev=1-30-5` on the namespace at the same time, restart the Deployment, and see which control plane wins.
-- Watch `istioctl proxy-status` while a `rollout restart` is halfway done, so you see both control planes serving proxies at once.
+- Watch `istioctl proxy-status` and `istioctl-1.30.5 proxy-status --revision 1-30-5` while a `rollout restart` is halfway done, so you see both control planes serving proxies at once. Each command lists only the proxies of the revision it asks.
 - Create a `prod` revision tag, point it at the old revision, move it to the new one, and move it back. Count how many commands a rollback took, compared with relabelling the namespace.
 - Run `istioctl uninstall --revision default` *before* restarting the workloads, then check whether the running pods still have a control plane.
 

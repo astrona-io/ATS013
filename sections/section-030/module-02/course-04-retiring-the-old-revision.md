@@ -24,7 +24,7 @@ The workload certificate is the identity the proxy uses for mTLS (mutual TLS, wh
 
 ## Check for workloads left behind first
 
-Knowing the right order is only useful if you can prove that the move is complete. Before you remove anything, check that no workload still depends on the old control plane. List every proxy, then any namespace still labelled for the old control plane:
+Knowing the right order is only useful if you can prove that the move is complete. Before you remove anything, check that no workload still depends on the old control plane. `istioctl proxy-status` asks one control plane for the proxies connected to it: the default revision, unless you pass `--revision`. So plain `istioctl proxy-status` lists exactly the proxies that still depend on the old control plane. List them, then any namespace still labelled for the old control plane, then the proxies of the new revision:
 
 <!-- astrona:playground:renew -->
 
@@ -32,19 +32,24 @@ Knowing the right order is only useful if you can prove that the move is complet
 istioctl proxy-status
 kubectl get ns -l istio-injection=enabled
 kubectl get ns -l istio.io/rev=default
+istioctl-1.30.5 proxy-status --revision 1-30-5
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-...
-
+NAME                                                   CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+istio-egressgateway-7b5fc4675c-z5cgw.istio-system      Kubernetes     istiod-68b5bc79c8-27k2j     1.29.8      3 (CDS,LDS,EDS)
+istio-ingressgateway-7f57d9869c-7fnn2.istio-system     Kubernetes     istiod-68b5bc79c8-27k2j     1.29.8      3 (CDS,LDS,EDS)
 No resources found
 No resources found
+NAME                                                     CLUSTER        ISTIOD                            VERSION     SUBSCRIBED TYPES
+notification-service-v1-656989c9f4-rxs85.canary-demo     Kubernetes     istiod-1-30-5-67fd8d4b8-6tmgd     1.30.5      4 (CDS,LDS,EDS,RDS)
 ```
 
-This is the evidence you want before you run `istioctl uninstall --revision default -y`. Every entry in `istioctl proxy-status` names the *new* control plane pod, and no namespace is still labelled for the old one. Check both. `proxy-status` finds running pods, and the namespace queries find namespaces whose pods are scaled to zero right now.
+The workload is gone from the old control plane's list and shows up under `istiod-1-30-5`, and no namespace is still labelled for the old one. Check both kinds of evidence. `proxy-status` finds running pods, and the namespace queries find namespaces whose pods are scaled to zero right now.
+
+Two proxies are still on the old control plane: the egress and ingress gateways. They are the reason this check is not yet the green light for `istioctl uninstall --revision default -y`. The next section is about them.
 
 If `canary-demo` is still on the old control plane in your playground, move it first. Label it `istio.io/rev=prod` (or `istio.io/rev=1-30-5`), remove `istio-injection`, and restart `notification-service-v1`.
 

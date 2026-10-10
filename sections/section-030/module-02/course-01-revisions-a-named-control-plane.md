@@ -65,28 +65,30 @@ kubectl -n istio-system get svc | grep istiod
 kubectl get mutatingwebhookconfigurations | grep istio
 ```
 
-The output looks like this (shortened; your pod names, IP addresses and ages differ):
+The output looks like this (shortened: the logo and progress lines of the install are left out):
 
 ```text
-NAME                             READY   STATUS    RESTARTS   AGE
-istiod-1-30-5-6b9c8f7d4b-xk2p9   1/1     Running   0          41s
-istiod-77d5f6c8b9-qr4tz          1/1     Running   0          12m
-
-istiod           ClusterIP   10.96.31.4    <none>   15010/TCP,15012/TCP,443/TCP,15014/TCP
-istiod-1-30-5    ClusterIP   10.96.88.17   <none>   15010/TCP,15012/TCP,443/TCP,15014/TCP
-
-istio-revision-tag-default            ...   12m
-istio-sidecar-injector                ...   12m
-istio-sidecar-injector-1-30-5         ...   41s
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
+✔ Installation complete
+NAME                            READY   STATUS    RESTARTS   AGE
+istiod-1-30-5-67fd8d4b8-6tmgd   1/1     Running   0          11s
+istiod-68b5bc79c8-27k2j         1/1     Running   0          39s
+istiod                        ClusterIP      10.96.133.159   <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP                                        39s
+istiod-1-30-5                 ClusterIP      10.96.60.22     <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP                                        11s
+istiod-revision-tag-default   ClusterIP      10.96.61.115    <none>        15010/TCP,15012/TCP,443/TCP,15014/TCP                                        21s
+istio-revision-tag-default      4          21s
+istio-sidecar-injector          4          39s
+istio-sidecar-injector-1-30-5   2          11s
 ```
 
-You see two `istiod` pods, two Services, and a webhook configuration with the suffix. The two Services matter more than they look. The `discoveryAddress` setting of a sidecar proxy points at one of them, and that is how each proxy stays connected to one control plane and not the other.
+You see two `istiod` pods, a Service for each, and a webhook configuration with the suffix. The `istiod-revision-tag-default` Service and the `istio-revision-tag-default` webhook belong to the revision tag `default`, which points at the default revision. The new webhook configuration has two entries, both for the `istio.io/rev=1-30-5` label: one checks the namespace label and one checks the pod label. The two Services matter more than they look. The `discoveryAddress` setting of a sidecar proxy points at one of them, and that is how each proxy stays connected to one control plane and not the other.
 
 ## Installing a revision moves nothing
 
 The new control plane runs, but it has no clients yet. This surprises people, and it follows straight from injection. The new control plane has a webhook, but no namespace is labelled for it. Even a relabelled namespace only affects pods created afterwards.
 
-Your running workload was injected by the old control plane, points at the Service of the old control plane, and stays there. `istioctl proxy-status` lets you check this. It lists every proxy that `istiod` knows about. Its last column, `ISTIOD`, names the control plane *pod* each proxy is connected to. That column is the only reliable answer to the question "which control plane serves this workload?".
+Your running workload was injected by the old control plane, points at the Service of the old control plane, and stays there. `istioctl proxy-status` lets you check this. It lists every proxy that `istiod` knows about. Its `ISTIOD` column names the control plane *pod* each proxy is connected to. That column is the only reliable answer to the question "which control plane serves this workload?".
 
 List the pods in `canary-demo`, then the proxy status for that namespace:
 
@@ -95,17 +97,16 @@ kubectl -n canary-demo get pods
 istioctl proxy-status | grep -E 'NAME|canary-demo'
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
 NAME                                       READY   STATUS    RESTARTS   AGE
-notification-service-v1-5d9f8b7c6d-p2mzq   2/2     Running   0          13m
-
-NAME                                     CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-notification-service-v1-...canary-demo   Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-77d5f6c8b9-qr4tz
+notification-service-v1-746cd97ddb-rl5nw   2/2     Running   0          20s
+NAME                                                     CLUSTER        ISTIOD                      VERSION     SUBSCRIBED TYPES
+notification-service-v1-746cd97ddb-rl5nw.canary-demo     Kubernetes     istiod-68b5bc79c8-27k2j     1.29.8      4 (CDS,LDS,EDS,RDS)
 ```
 
-The `AGE` of the pod is older than the canary install, and `RESTARTS` is still 0. The `ISTIOD` column names the *old* control plane pod, the one without a suffix. Installing a revision disturbs nothing, and that is exactly what makes a canary upgrade safe to start.
+The pod was created before the canary install, and `RESTARTS` is still 0. The `ISTIOD` column names the *old* control plane pod, the one without a suffix, and `VERSION` shows the proxy still runs `1.29.8`. and `RESTARTS` is still 0. The `ISTIOD` column names the *old* control plane pod, the one without a suffix. Installing a revision disturbs nothing, and that is exactly what makes a canary upgrade safe to start.
 
 The other half of the picture is the new control plane: it runs and serves nobody. Ask the 1.30.5 binary for the proxies of revision `1-30-5`, and look for pushes in the log of the new `istiod`:
 
@@ -114,15 +115,17 @@ istioctl-1.30.5 proxy-status --revision 1-30-5
 kubectl -n istio-system logs deploy/istiod-1-30-5 --tail=5 | grep -i 'push\|ads' || echo '(no pushes logged)'
 ```
 
-The output looks like this:
+The output looks like this (the long log lines are as `istiod` prints them):
 
 ```text
-No proxies connected to the control plane.
-
-(no pushes logged)
+NAME     CLUSTER     ISTIOD     VERSION     SUBSCRIBED TYPES
+2026-10-10T00:41:40.640839Z	info	ads	Push debounce stable[2] 1 for config ServiceEntry/istio-system/istiod-1-30-5.istio-system.svc.cluster.local: 101.195922ms since last change, 101.195839ms since last push, full=false
+2026-10-10T00:41:40.640970Z	info	ads	XDS: Incremental Pushing ConnectedEndpoints:0 Version:2026-10-10T00:41:37Z/1
+2026-10-10T00:41:42.788153Z	info	ads	ADS: new connection for node:test-1.default-1
+2026-10-10T00:41:42.788277Z	info	ads	istio.io/debug/syncz: PUSH for node:test-1.default resources:0 size:0B
 ```
 
-This is a healthy, running `istiod` with no connected proxies. A push is `istiod` sending new configuration to a proxy over xDS, the protocol `istiod` uses to send configuration to proxies while they run. This `istiod` has built nothing and pushed nothing, because no workload has been told to connect to it.
+`proxy-status` prints only its header: no proxy is connected to revision `1-30-5`. This is a healthy, running `istiod` with no connected proxies. A push is `istiod` sending new configuration to proxies over xDS, the protocol `istiod` uses to send configuration to proxies while they run. The log shows that this `istiod` does build pushes, but `ConnectedEndpoints:0` says there is nobody to send them to. The `node:test-1.default` connection is not a workload: it is the `istioctl proxy-status` command you just ran, which asked `istiod` for its sync status (`istio.io/debug/syncz`) and got zero resources back.
 
 ## What this costs
 
