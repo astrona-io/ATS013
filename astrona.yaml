@@ -86,7 +86,7 @@ modules:
       - type: lab
         title: "Install Istio With istioctl Lab"
         path: sections/section-010/module-01/labs/lab-01
-        difficulty: beginner
+        difficulty: intermediate
         estimated_duration: 20m
         topic: istioctl-install
         task_kind: build
@@ -111,7 +111,7 @@ modules:
       - type: lab
         title: "Remove Istio Completely With istioctl Lab"
         path: sections/section-010/module-01/labs/lab-02
-        difficulty: beginner
+        difficulty: intermediate
         estimated_duration: 15m
         topic: istioctl-install
         task_kind: build
@@ -283,7 +283,7 @@ modules:
       - type: lab
         title: "Control Sidecar Injection Lab"
         path: sections/section-020/module-02/labs/lab-01
-        difficulty: beginner
+        difficulty: intermediate
         estimated_duration: 20m
         topic: sidecar-injection
         task_kind: build
@@ -577,7 +577,7 @@ modules:
       - type: lab
         title: "Install Istio In Ambient Mode Lab"
         path: sections/section-040/module-01/labs/lab-01
-        difficulty: beginner
+        difficulty: intermediate
         estimated_duration: 20m
         topic: ambient
         task_kind: build
