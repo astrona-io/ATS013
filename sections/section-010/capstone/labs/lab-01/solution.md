@@ -159,7 +159,7 @@ Check the sidecar defaults. People miss this requirement, because you can only s
 
 ```sh
 kubectl -n payments get pod -l app=checkout-api \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].resources.requests}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].resources.requests}{"\n"}'
 ```
 
 ```text
@@ -168,19 +168,19 @@ kubectl -n payments get pod -l app=checkout-api \
 
 If that comes back empty or with other values, `global.proxy.resources` did not take effect. Most often it was passed as `--set` on the *gateway* release, or put under the wrong key.
 
-Check both namespaces side by side:
+Check both namespaces side by side. Istio 1.30.5 injects `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`, so read the init containers as well as the containers:
 
 ```sh
-kubectl -n payments get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
-kubectl -n legacy get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n payments get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
+kubectl -n legacy get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 ```
 
 ```text
-POD                             CONTAINERS
-checkout-api-7d4b9f6a21-k2vnm   checkout-api,istio-proxy
+POD                            INIT                     CONTAINERS
+checkout-api-9c6d99d67-9zm7j   istio-init,istio-proxy   checkout-api
 
-POD                             CONTAINERS
-batch-runner-5b7d9c4f88-x9plm   batch-runner
+POD                             INIT     CONTAINERS
+batch-runner-7b5b4d9cb4-9j5r8   <none>   batch-runner
 ```
 
 Check the versions:
