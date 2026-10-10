@@ -37,17 +37,15 @@ The output looks like this:
 
 ```text
 NAME                                       READY   STATUS    RESTARTS   AGE
-notification-service-v1-6c8f9d7b5c-t7wqx   1/1     Running   0          6m
-tester-5b7d9c4f88-k2vnm                    1/1     Running   0          6m
-
+notification-service-v1-746cd97ddb-qvg72   1/1     Running   0          11s
+tester-577d497fbd-qlvq6                    1/1     Running   0          11s
 namespace/ambient-demo labeled
-
 NAME                                       READY   STATUS    RESTARTS   AGE
-notification-service-v1-6c8f9d7b5c-t7wqx   1/1     Running   0          6m12s
-tester-5b7d9c4f88-k2vnm                    1/1     Running   0          6m12s
+notification-service-v1-746cd97ddb-qvg72   1/1     Running   0          11s
+tester-577d497fbd-qlvq6                    1/1     Running   0          11s
 ```
 
-The pod names are the same, `RESTARTS` is still 0, and `AGE` is twelve seconds higher. Traffic between these workloads now uses mTLS, and no pod was created again. `READY 1/1` means there is still one container, and it stays that way.
+The pod names are the same, `RESTARTS` is still 0, and `AGE` keeps counting from the same start. Traffic between these workloads now uses mTLS, and no pod was created again. `READY 1/1` means there is still one container, and it stays that way.
 
 ## Checking membership when containers do not tell you
 
@@ -73,12 +71,11 @@ istioctl ztunnel-config workload | grep ambient-demo
 The output looks like this:
 
 ```text
-NAMESPACE     POD NAME                                   ADDRESS      NODE                     WAYPOINT  PROTOCOL
-ambient-demo  notification-service-v1-6c8f9d7b5c-t7wqx   10.244.0.11  astro-...-control-plane  None      HBONE
-ambient-demo  tester-5b7d9c4f88-k2vnm                    10.244.0.12  astro-...-control-plane  None      HBONE
+ambient-demo       notification-service-v1-746cd97ddb-qvg72                              10.244.0.8  astro-ats-013-playground-040-01-control-plane None     HBONE
+ambient-demo       tester-577d497fbd-qlvq6                                               10.244.0.9  astro-ats-013-playground-040-01-control-plane None     HBONE
 ```
 
-`PROTOCOL HBONE` on both workloads is the membership check. On a fresh playground, before you add the label, both rows read `TCP`. The label is the only thing that changed.
+`grep` keeps only the matching rows, so the header line (`NAMESPACE POD NAME ADDRESS NODE WAYPOINT PROTOCOL`) is not there; the last column is `PROTOCOL`. If the rows still read `TCP`, you ran the command within a second of the label; run it again. `PROTOCOL HBONE` on both workloads is the membership check. On a fresh playground, before you add the label, both rows read `TCP`. The label is the only thing that changed.
 
 > [!TIP]
 > Make `istioctl ztunnel-config workload` your first check in ambient mode. Whenever someone asks "is this in the mesh?", read the `PROTOCOL` column, never the container count.
@@ -93,15 +90,15 @@ Look for the certificates for `ambient-demo`:
 istioctl ztunnel-config certificate | grep -E 'CERTIFICATE|ambient-demo' | head -5
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
-CERTIFICATE NAME                                          TYPE     STATUS  VALID CERT  SERIAL NUMBER
-spiffe://cluster.local/ns/ambient-demo/sa/default         Leaf     Available  true     1f4a...
-spiffe://cluster.local/ns/ambient-demo/sa/default         Root     Available  true     8c22...
+CERTIFICATE NAME                                      TYPE     STATUS        VALID CERT     SERIAL NUMBER                        NOT AFTER                NOT BEFORE
+spiffe://cluster.local/ns/ambient-demo/sa/default     Leaf     Available     true           f18ae9feabc7d1983a61c0200ebb0fb8     2026-10-11T00:57:43Z     2026-10-10T00:55:43Z
+spiffe://cluster.local/ns/ambient-demo/sa/default     Root     Available     true           5eb9505331c10fc62bb85888c1cb2f67     2036-10-07T00:57:26Z     2026-10-10T00:57:26Z
 ```
 
-Those names are SPIFFE (Secure Production Identity Framework For Everyone) IDs, the standard format Istio uses for workload identities. Read `spiffe://cluster.local/ns/ambient-demo/sa/default` as: trust domain `cluster.local`, namespace `ambient-demo`, service account `default`. A `Leaf` certificate marked `Available` means `istiod` signed an identity for that service account, and ztunnel holds it ready to use.
+Those names are SPIFFE (Secure Production Identity Framework For Everyone) IDs, the standard format Istio uses for workload identities. Read `spiffe://cluster.local/ns/ambient-demo/sa/default` as: trust domain `cluster.local`, namespace `ambient-demo`, service account `default`. A `Leaf` certificate marked `Available` means `istiod` signed an identity for that service account, and ztunnel holds it ready to use. `NOT BEFORE` and `NOT AFTER` show that the leaf certificate is valid for about 24 hours; ztunnel asks `istiod` for a new one before then.
 
 ## Watching the tunnel carry real traffic
 
@@ -115,20 +112,15 @@ kubectl -n ambient-demo exec deploy/tester -- \
 kubectl -n istio-system logs ds/ztunnel --tail=20 | grep ambient-demo
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: the two `pod received, starting proxy` lines that ztunnel wrote when the namespace joined the mesh are left out):
 
 ```text
 200
-
-2026-09-27T09:14:22.104Z  INFO access: connection complete
-  src.addr=10.244.0.12:41244 src.workload="tester-5b7d9c4f88-k2vnm"
-  src.identity="spiffe://cluster.local/ns/ambient-demo/sa/default"
-  dst.addr=10.244.0.11:15008 dst.workload="notification-service-v1-6c8f9d7b5c-t7wqx"
-  dst.identity="spiffe://cluster.local/ns/ambient-demo/sa/default"
-  direction="inbound" bytes_sent=853 bytes_recv=76 duration="3ms"
+2026-10-10T00:57:43.983722Z	info	access	connection complete	src.addr=10.244.0.9:41114 src.workload="tester-577d497fbd-qlvq6" src.namespace="ambient-demo" src.identity="spiffe://cluster.local/ns/ambient-demo/sa/default" dst.addr=10.244.0.8:15008 dst.hbone_addr=10.244.0.8:80 dst.service="notification-service.ambient-demo.svc.cluster.local" dst.workload="notification-service-v1-746cd97ddb-qvg72" dst.namespace="ambient-demo" dst.identity="spiffe://cluster.local/ns/ambient-demo/sa/default" direction="inbound" bytes_sent=853 bytes_recv=84 duration="0ms"
+2026-10-10T00:57:43.983793Z	info	access	connection complete	src.addr=10.244.0.9:41412 src.workload="tester-577d497fbd-qlvq6" src.namespace="ambient-demo" src.identity="spiffe://cluster.local/ns/ambient-demo/sa/default" dst.addr=10.244.0.8:15008 dst.hbone_addr=10.244.0.8:80 dst.service="notification-service.ambient-demo.svc.cluster.local" dst.workload="notification-service-v1-746cd97ddb-qvg72" dst.namespace="ambient-demo" dst.identity="spiffe://cluster.local/ns/ambient-demo/sa/default" direction="outbound" bytes_sent=84 bytes_recv=853 duration="1ms"
 ```
 
-The exact field names and layout change between versions, so read the fields, not their position. Both sides have a cryptographic identity. The destination port is **15008**, the HBONE port, not nginx's port 80. The application sent a plain HTTP request to port 80 and never learned that ztunnel carried it through an mTLS tunnel.
+Each connection is one long line. There are two lines because the same ztunnel carried both ends: `direction="outbound"` is the client side for `tester`, and `direction="inbound"` is the server side for `notification-service`. The exact fields change between versions, so read the fields, not their position. Both sides have a cryptographic identity. The destination port is **15008**, the HBONE port; `dst.hbone_addr` shows the real target inside the tunnel, nginx's port 80. The application sent a plain HTTP request to port 80 and never learned that ztunnel carried it through an mTLS tunnel.
 
 ## Where ztunnel stops
 

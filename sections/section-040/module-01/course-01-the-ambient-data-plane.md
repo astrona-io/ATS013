@@ -41,17 +41,16 @@ kubectl -n istio-system get daemonset
 kubectl -n istio-system get pods -o wide
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
-NAME             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   AGE
-istio-cni-node   1         1         1       1            1           5m
-ztunnel          1         1         1       1            1           5m
-
-NAME                      READY   STATUS    RESTARTS   AGE   NODE
-istio-cni-node-8kq2v      1/1     Running   0          5m    astro-...-control-plane
-istiod-7c9d64f8b5-rlz6t   1/1     Running   0          5m    astro-...-control-plane
-ztunnel-x4m9p             1/1     Running   0          5m    astro-...-control-plane
+NAME             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+istio-cni-node   1         1         1       1            1           kubernetes.io/os=linux   22s
+ztunnel          1         1         1       1            1           kubernetes.io/os=linux   14s
+NAME                      READY   STATUS    RESTARTS   AGE   IP           NODE                                            NOMINATED NODE   READINESS GATES
+istio-cni-node-wxbbf      1/1     Running   0          22s   10.244.0.5   astro-ats-013-playground-040-01-control-plane   <none>           <none>
+istiod-6586db6dcf-rw7zx   1/1     Running   0          22s   10.244.0.6   astro-ats-013-playground-040-01-control-plane   <none>           <none>
+ztunnel-tgk8k             1/1     Running   0          14s   10.244.0.7   astro-ats-013-playground-040-01-control-plane   <none>           <none>
 ```
 
 `DESIRED 1` is there because this cluster has one node. On a ten-node cluster both DaemonSets would read 10, and `istiod` would still have one pod. The data plane grows with the number of nodes, not with the number of pods.
@@ -109,15 +108,15 @@ The output looks like this:
 
 ```text
 NAME     READY   UP-TO-DATE   AVAILABLE   AGE
-istiod   1/1     1            1           7m
-
-NAMESPACE     POD NAME                  ADDRESS      NODE                     WAYPOINT  PROTOCOL
-istio-system  istiod-7c9d64f8b5-rlz6t   10.244.0.5   astro-...-control-plane  None      TCP
-istio-system  ztunnel-x4m9p             10.244.0.6   astro-...-control-plane  None      TCP
-kube-system   coredns-...               10.244.0.3   astro-...-control-plane  None      TCP
+istiod   1/1     1            1           22s
+NAMESPACE          POD NAME                                                              ADDRESS     NODE                                          WAYPOINT PROTOCOL
+ambient-demo       notification-service-v1-746cd97ddb-qvg72                              10.244.0.8  astro-ats-013-playground-040-01-control-plane None     TCP
+ambient-demo       tester-577d497fbd-qlvq6                                               10.244.0.9  astro-ats-013-playground-040-01-control-plane None     TCP
+default            kubernetes                                                            10.89.1.134                                               None     TCP
+istio-system       istio-cni-node-wxbbf                                                  10.244.0.5  astro-ats-013-playground-040-01-control-plane None     TCP
 ```
 
-There is one ordinary `istiod` Deployment. The ztunnel already knows every pod on its node, even pods that are not in the mesh. The `PROTOCOL` column says which ones it actually carries through the tunnel: `TCP` means plain traffic from a workload that is not in the mesh.
+There is one ordinary `istiod` Deployment. The ztunnel already knows every pod on its node, even pods that are not in the mesh, and also workloads with no pod, such as the API server behind the `kubernetes` Service. `head -5` keeps the header and the first four rows. The `PROTOCOL` column says which ones it actually carries through the tunnel: `TCP` means plain traffic from a workload that is not in the mesh.
 
 ## What is not installed
 
