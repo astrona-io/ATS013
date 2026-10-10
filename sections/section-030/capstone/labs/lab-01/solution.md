@@ -31,10 +31,15 @@ istioctl-1.30.5 install --set profile=minimal --set revision=1-30-5 -y
 kubectl -n istio-system get pods -l app=istiod
 ```
 
+The output looks like this (shortened: the logo and progress lines of the install are left out):
+
 ```text
-NAME                             READY   STATUS    RESTARTS   AGE
-istiod-1-30-5-6b9c8f7d4b-xk2p9   1/1     Running   0          42s
-istiod-77d5f6c8b9-qr4tz          1/1     Running   0          8m
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
+✔ Installation complete
+NAME                            READY   STATUS    RESTARTS   AGE
+istiod-1-30-5-67fd8d4b8-lvnqq   1/1     Running   0          10s
+istiod-587b649545-zlvnz         1/1     Running   0          39s
 ```
 
 The revision adds a suffix to every namespaced object the install owns. The install only manages objects with its own `istio.io/rev` ownership label, so it cannot see or remove the default revision's objects. That separation lets two control planes run side by side.
@@ -53,10 +58,14 @@ istioctl-1.30.5 tag list
 ```
 
 ```text
-TAG      REVISION   NAMESPACES
-default  default
-prod     1-30-5
+Revision tag "prod" created, referencing control plane revision "1-30-5". To enable injection using this
+revision tag, use 'kubectl label namespace <NAMESPACE> istio.io/rev=prod'
+TAG     REVISION NAMESPACES
+prod    1-30-5   
+default default  
 ```
+
+The `NAMESPACES` column is empty because no namespace carries the tag label yet.
 
 The tag is another mutating webhook configuration. Its selector matches `istio.io/rev=prod`, and its backend is the Service of the tagged revision. With two namespaces the saving looks small. With fifty, it is the difference between one command and fifty chances to miss one.
 
@@ -75,9 +84,13 @@ kubectl get ns payments orders --show-labels
 ```
 
 ```text
+namespace/payments unlabeled
+namespace/payments labeled
+namespace/orders unlabeled
+namespace/orders labeled
 NAME       STATUS   AGE   LABELS
-payments   Active   10m   istio.io/rev=prod,kubernetes.io/metadata.name=payments
-orders     Active   10m   istio.io/rev=prod,kubernetes.io/metadata.name=orders
+payments   Active   30s   istio.io/rev=prod,kubernetes.io/metadata.name=payments
+orders     Active   30s   istio.io/rev=prod,kubernetes.io/metadata.name=orders
 ```
 
 Remove `istio-injection` **first**. With both labels present, `istio-injection` wins and the revision label is ignored. The default webhook's selector requires `istio-injection: enabled`, while the revision webhook requires `istio.io/rev` *and* that `istio-injection` is absent. A namespace with both labels only satisfies the first.
@@ -95,30 +108,50 @@ kubectl -n payments rollout status deployment --timeout=300s
 kubectl -n orders rollout status deployment --timeout=300s
 ```
 
+The output looks like this (shortened: the `Waiting for deployment` lines are left out):
+
+```text
+deployment.apps/checkout-api restarted
+deployment.apps/order-api restarted
+deployment.apps/tester restarted
+deployment "checkout-api" successfully rolled out
+deployment "order-api" successfully rolled out
+deployment "tester" successfully rolled out
+```
+
 `rollout restart deployment` with no name covers every Deployment in the namespace, `tester` included. That one is easy to forget because it does no visible work.
 
-Check before you go any further, because the next step cannot be undone:
+Check before you go any further, because the next step cannot be undone. `istioctl proxy-status` asks one control plane for its proxies: the default revision, unless you pass `--revision`. Ask both. The pod columns read the `istio.io/rev` annotation, where Istio 1.30 records the revision, and the image of `istio-proxy`, which runs as a native sidecar (an init container with `restartPolicy: Always`):
 
 ```sh
 istioctl-1.30.5 proxy-status
+istioctl-1.30.5 proxy-status --revision 1-30-5
 for ns in payments orders; do
   kubectl -n "$ns" get pods \
-    -o custom-columns='POD:.metadata.name,REV:.metadata.labels.istio\.io/rev,PROXY:.spec.containers[1].image'
+    -o custom-columns='POD:.metadata.name,REV:.metadata.annotations.istio\.io/rev,PROXY:.spec.initContainers[?(@.name=="istio-proxy")].image'
 done
 ```
 
-```text
-NAME                              CLUSTER      CDS      LDS      EDS      RDS      ISTIOD
-checkout-api-...payments          Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-...
-checkout-api-...payments          Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-...
-order-api-...orders               Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-...
-tester-...orders                  Kubernetes   SYNCED   SYNCED   SYNCED   SYNCED   istiod-1-30-5-...
+The output looks like this, once the old pods have stopped:
 
-POD                       REV       PROXY
-checkout-api-...          1-30-5    docker.io/istio/proxyv2:1.30.5
+```text
+NAME     CLUSTER     ISTIOD     VERSION     SUBSCRIBED TYPES
+NAME                                       CLUSTER        ISTIOD                            VERSION     SUBSCRIBED TYPES
+checkout-api-698655cddc-dwbqc.payments     Kubernetes     istiod-1-30-5-67fd8d4b8-lvnqq     1.30.5      4 (CDS,LDS,EDS,RDS)
+checkout-api-698655cddc-g8dkq.payments     Kubernetes     istiod-1-30-5-67fd8d4b8-lvnqq     1.30.5      4 (CDS,LDS,EDS,RDS)
+order-api-75c49fb6dc-nffjh.orders          Kubernetes     istiod-1-30-5-67fd8d4b8-lvnqq     1.30.5      4 (CDS,LDS,EDS,RDS)
+tester-59687677f4-99s2m.orders             Kubernetes     istiod-1-30-5-67fd8d4b8-lvnqq     1.30.5      4 (CDS,LDS,EDS,RDS)
+POD                             REV      PROXY
+checkout-api-698655cddc-dwbqc   1-30-5   registry.istio.io/release/proxyv2:1.30.5
+checkout-api-698655cddc-g8dkq   1-30-5   registry.istio.io/release/proxyv2:1.30.5
+POD                          REV      PROXY
+order-api-75c49fb6dc-nffjh   1-30-5   registry.istio.io/release/proxyv2:1.30.5
+tester-59687677f4-99s2m      1-30-5   registry.istio.io/release/proxyv2:1.30.5
 ```
 
-Every entry in the `ISTIOD` column names the canary pod, and every pod reports `1-30-5`. The pod records the **revision the tag resolved to**, not the tag itself. That proves the tag pointed where you meant.
+The old control plane serves nobody any more: its list has only the header. Every proxy is connected to the canary pod, and every pod reports `1-30-5`. The pod records the **revision the tag resolved to**, not the tag itself. That proves the tag pointed where you meant.
+
+If you run the checks too early, the old `tester` pod is still shutting down. It shows up in the first list with `1.29.8`, and in the pod list with `REV` `default` and `docker.io/istio/proxyv2:1.29.8`. Wait until it is gone.
 
 ---
 
@@ -147,17 +180,30 @@ kubectl get mutatingwebhookconfigurations | grep istio
 kubectl get crd | grep -c istio.io
 ```
 
+The output looks like this (shortened: the uninstall prints one `Removed` line for every object it deletes):
+
 ```text
+✔ Uninstall complete
 NAME            READY   UP-TO-DATE   AVAILABLE   AGE
-istiod-1-30-5   1/1     1            1           14m
-
-istio-revision-tag-prod           ...   12m
-istio-sidecar-injector-1-30-5     ...   14m
-
+istiod          0/1     0            0           80s
+istiod-1-30-5   1/1     1            1           50s
+istio-revision-tag-default      4          70s
+istio-revision-tag-prod         2          41s
+istio-sidecar-injector          4          81s
+istio-sidecar-injector-1-30-5   2          51s
 15
 ```
 
-One control plane is left, with the canary's webhook and the tag's webhook, and the Custom Resource Definitions (CRDs) are intact.
+Right after the uninstall, Kubernetes is still deleting the old objects: `istiod` shows `0/1` and the old webhooks are still listed. Run the two `kubectl get` commands again a few seconds later:
+
+```text
+NAME            READY   UP-TO-DATE   AVAILABLE   AGE
+istiod-1-30-5   1/1     1            1           56s
+istio-revision-tag-prod         2          46s
+istio-sidecar-injector-1-30-5   2          56s
+```
+
+The grader fails while the old `istiod` Deployment still exists, so wait for this output before you submit. One control plane is left, with the canary's webhook and the tag's webhook, and the Custom Resource Definitions (CRDs) are intact.
 
 **`--revision default`, never `--purge`.** `--purge` removes every revision, including the one you just promoted, along with the shared cluster-wide resources. That is exactly why the grader checks the CRDs.
 
