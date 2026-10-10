@@ -132,7 +132,7 @@ The sidecar default can only be seen on an injected pod:
 
 ```sh
 kubectl -n payments get pod -l app=checkout-api \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].resources.requests.cpu}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].resources.requests.cpu}{"\n"}'
 ```
 
 ```text
@@ -141,24 +141,26 @@ kubectl -n payments get pod -l app=checkout-api \
 
 If that shows something else, `values.global.proxy.resources` did not take effect. The usual cause is writing it under `components.pilot.k8s` instead, which sized `istiod` twice and the sidecars not at all.
 
-Then the injection result:
+Then the injection result. Istio 1.30.5 injects `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`, so read the init containers as well as the containers:
 
 ```sh
-kubectl -n payments get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
-kubectl -n legacy get pods -o custom-columns='POD:.metadata.name,CONTAINERS:.spec.containers[*].name'
+kubectl -n payments get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
+kubectl -n legacy get pods -o custom-columns='POD:.metadata.name,INIT:.spec.initContainers[*].name,CONTAINERS:.spec.containers[*].name'
 kubectl get ns legacy --show-labels
 ```
 
-```text
-POD                           CONTAINERS
-audit-shipper-...             audit-shipper
-checkout-api-...              checkout-api,istio-proxy
+The output looks like this (shortened: right after a restart, the old `audit-shipper` pod can show for a few more seconds while it stops):
 
-POD                           CONTAINERS
-nightly-report-...            nightly-report
+```text
+POD                              INIT                     CONTAINERS
+audit-shipper-68ddb8c4fb-lhqxb   <none>                   audit-shipper
+checkout-api-84f4cc5dcc-ph572    istio-init,istio-proxy   checkout-api
+
+POD                               INIT     CONTAINERS
+nightly-report-5f8fb9d98b-v2h9k   <none>   nightly-report
 
 NAME     STATUS   AGE   LABELS
-legacy   Active   13m   kubernetes.io/metadata.name=legacy
+legacy   Active   40s   kubernetes.io/metadata.name=legacy
 ```
 
 Three workloads, three results, and `legacy` with no mesh label at all.
