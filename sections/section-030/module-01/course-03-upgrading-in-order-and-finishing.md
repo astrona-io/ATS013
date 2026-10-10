@@ -40,20 +40,26 @@ helm ls -A
 kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}' | grep -A2 -E 'accessLogFile|outboundTrafficPolicy'
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: each `helm upgrade` also prints its status and release notes):
 
 ```text
-NAME                    NAMESPACE       REVISION  STATUS    CHART           APP VERSION
-istio-base              istio-system    2         deployed  base-1.30.5     1.30.5
-istio-ingressgateway    istio-ingress   2         deployed  gateway-1.30.5  1.30.5
-istiod                  istio-system    5         deployed  istiod-1.30.5   1.30.5
-
+Release "istio-base" has been upgraded. Happy Helming!
+Release "istiod" has been upgraded. Happy Helming!
+Release "istio-ingressgateway" has been upgraded. Happy Helming!
+NAME                	NAMESPACE    	REVISION	UPDATED                              	STATUS  	CHART         	APP VERSION
+istio-base          	istio-system 	2       	2026-10-10 02:28:35.999143 +0200 CEST	deployed	base-1.30.5   	1.30.5     
+istio-ingressgateway	istio-ingress	2       	2026-10-10 02:28:37.676204 +0200 CEST	deployed	gateway-1.30.5	1.30.5     
+istiod              	istio-system 	6       	2026-10-10 02:28:37.128867 +0200 CEST	deployed	istiod-1.30.5 	1.30.5     
 accessLogFile: /dev/stdout
+defaultConfig:
+  discoveryAddress: istiod.istio-system.svc:15012
+--
 outboundTrafficPolicy:
   mode: REGISTRY_ONLY
+rootNamespace: istio-system
 ```
 
-The new chart version is on all three releases, the old settings are intact, and the one change you wanted is there. `istiod` shows a higher revision than the others because each earlier experiment with it in this playground added a revision. The history records what happened, not what you meant.
+The new chart version is on all three releases, the old settings are intact, and the one change you wanted is there. `istiod` shows a higher revision than the others because each earlier experiment with it in this playground added a revision; the output above comes from a run where one rollback failed first, which adds a revision too, so your number can be one lower. The history records what happened, not what you meant.
 
 ## The data plane has not moved
 
@@ -63,12 +69,12 @@ Each application pod still runs the sidecar image it was **injected with**. The 
 
 The result is **version skew**: the control plane runs a newer version than the proxies it sends configuration to. Istio supports a skew of one minor version. That is what makes a rolling upgrade possible, because in a large mesh there is no single moment when every proxy changes together. Two commands make the skew visible. `istioctl version` splits `data plane version` into groups when proxies disagree, and `istioctl proxy-status` lists every proxy, so you can see *which* ones are behind.
 
-Read the versions, then the image of the application's sidecar proxy:
+Read the versions, then the image of the application's sidecar proxy. Istio runs `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`, so the image is in `.spec.initContainers`:
 
 ```sh
 istioctl version
 kubectl -n default get pod -l app=notification-service \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].image}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].image}{"\n"}'
 ```
 
 The output looks like this:
@@ -76,18 +82,17 @@ The output looks like this:
 ```text
 client version: 1.29.8
 control plane version: 1.30.5
-data plane version: 1.29.8 (2 proxies)
-
+data plane version: 1.29.8 (1 proxies), 1.30.5 (1 proxies)
 docker.io/istio/proxyv2:1.29.8
 ```
 
-The screen gives three answers. Your `istioctl` binary is old, the control plane is new, and the proxies are still old. Only the third is a real problem, and only a restart fixes it. The first does not matter much: `istioctl` is a client, and an old client talking to a new control plane just gives slightly less useful diagnostics.
+The screen gives three answers. Your `istioctl` binary is old, the control plane is new, and the data plane is split. The `notification-service` proxy is still `1.29.8`. The gateway proxy is already `1.30.5`, because `helm upgrade` of the gateway release changed the `helm.sh/chart` and `app.kubernetes.io/version` labels on its pod template, and that change made the Deployment controller replace the gateway pod. If you run the command while that rollout is still going, you see three proxies for a moment. Only the old application proxy is a real problem, and only a restart fixes it. The first does not matter much: `istioctl` is a client, and an old client talking to a new control plane just gives slightly less useful diagnostics.
 
 ## Finishing the upgrade
 
 A proxy gets a new image the only way any container does: Kubernetes replaces the pod. `kubectl rollout restart deployment` asks the Deployment controller to do that, a few pods at a time. Each new pod passes through the injection webhook again and gets the new proxy image.
 
-Gateways count too. An ingress gateway is an Envoy workload with its own Deployment, and the control plane upgrade does not restart it. It is also the workload whose old version is most visible from outside the cluster.
+Gateways count too. An ingress gateway is an Envoy workload with its own Deployment, and the control plane upgrade does not restart it. Here the gateway's own `helm upgrade` already replaced its pod, but a gateway that is not upgraded with its own chart keeps its old proxy until you restart it. It is also the workload whose old version is most visible from outside the cluster.
 
 Restart the application and the gateway, wait for the application, and read the versions again:
 
@@ -98,7 +103,7 @@ kubectl -n default rollout status deployment notification-service --timeout=180s
 istioctl version
 ```
 
-The output looks like this (shortened):
+The output looks like this (shortened: the `restarted` and `rollout status` lines are left out):
 
 ```text
 client version: 1.29.8
@@ -106,12 +111,19 @@ control plane version: 1.30.5
 data plane version: 1.30.5 (2 proxies)
 ```
 
+If it says `3 proxies`, the old gateway pod is still shutting down; run `istioctl version` again a few seconds later.
+
 A single `data plane version` that matches the control plane means the upgrade is complete. If two versions are still listed, something was not restarted. `istioctl proxy-status` names the workloads, and the answer is usually a Deployment in a namespace nobody remembered was in the mesh.
 
 To find those namespaces before they surprise you, list every namespace with the injection label:
 
 ```sh
 kubectl get ns -l istio-injection=enabled
+```
+
+```text
+NAME      STATUS   AGE
+default   Active   3m26s
 ```
 
 Every namespace in that list needs a restart. A workload that joined the mesh through a label on the pod instead of the namespace does not show up here, so `istioctl proxy-status` stays the full list.
@@ -125,7 +137,7 @@ You now know that the three releases go `base`, `istiod`, gateway, each with the
 >
 > **Stopping at the control plane.** `helm upgrade` finishing is not the upgrade finishing. Until you restart the workloads, the data plane runs the old version.
 >
-> **Forgetting the gateways.** They are separate releases *and* separate workloads: they need both the `helm upgrade` and the `rollout restart`.
+> **Forgetting the gateways.** They are separate releases *and* separate workloads: they need their own `helm upgrade`, and a check with `istioctl version` that their pods run the new proxy.
 >
 > **Skipping a minor version.** The supported skew is one minor version. Go 1.28 to 1.29 to 1.30, restarting the data plane between steps, not 1.28 straight to 1.30.
 >

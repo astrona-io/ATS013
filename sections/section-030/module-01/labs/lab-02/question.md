@@ -6,7 +6,7 @@ Istio **1.29.8** is installed as three Helm releases: `istio-base` and `istiod` 
 
 Revision 1 of the `istiod` release was installed with a values file that is no longer on disk. It turned on access logging to `/dev/stdout`, switched off autoscaling of the control plane, set `istiod` to request `100m` CPU and `256Mi` memory, and set every injected sidecar to request `10m` CPU and `64Mi` memory.
 
-Then someone ran `helm upgrade` on `istiod` with no values. That created revision 2, which reset all of those settings to the chart defaults. After that, the `notification-service` workload was restarted, so its sidecar now has the chart-default resource requests too.
+Then someone ran `helm upgrade` on `istiod` with `--reset-values` and no values file. That created revision 2, which reset all of those settings to the chart defaults. After that, the `notification-service` workload was restarted, so its sidecar now has the chart-default resource requests too.
 
 Undo the bad change:
 

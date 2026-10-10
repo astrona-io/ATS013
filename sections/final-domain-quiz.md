@@ -137,9 +137,9 @@ It follows from the webhook selectors, not from conflict-resolution logic: the d
 ---
 
 ### Question 9
-`helm upgrade istiod istio/istiod -n istio-system --version 1.30.5` runs with no other flags, on a release that was installed with `-f values.yaml`. What is the result?
+`helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 --set pilot.traceSampling=1.0` runs with no other flags, on a release that was installed with `-f values.yaml`. What happens to the values from `values.yaml`?
 *   **A)** Values are carried over automatically.
-*   **B)** The release falls back to chart defaults, and the command reports success.
+*   **B)** They are dropped: the release falls back to chart defaults plus the one `--set` value, and the command reports success.
 *   **C)** The upgrade fails.
 *   **D)** Only keys still present in the new chart are kept.
 
@@ -148,7 +148,7 @@ It follows from the webhook selectors, not from conflict-resolution logic: the d
 
 **Correct Answer: B**
 
-`helm upgrade` computes the release from chart defaults plus what you pass **on this run**. `--reuse-values` opts into carrying the previous set over, but it merges rather than replaces, so a `-f` file that removes a key does not remove it. One complete committed file passed every time avoids both traps.
+As soon as you pass any value, `helm upgrade` computes the release from chart defaults plus what you pass **on this run**; only an upgrade with no values at all reuses the previous ones. `--reuse-values` opts into carrying the previous set over, but it also keeps the old chart's defaults (the Istio image tag included), and it merges rather than replaces, so a `-f` file that removes a key does not remove it. One complete committed file passed every time avoids both traps.
 </details>
 
 ---

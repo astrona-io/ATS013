@@ -20,13 +20,12 @@ The output looks like this:
 
 ```text
 NAME                               TYPE                 DATA   AGE
-sh.helm.release.v1.istio-base.v1   helm.sh/release.v1   1      9m
-sh.helm.release.v1.istiod.v1       helm.sh/release.v1   1      8m
-
-{"name":"istiod","owner":"helm","status":"deployed","version":"1"}
+sh.helm.release.v1.istio-base.v1   helm.sh/release.v1   1      20s
+sh.helm.release.v1.istiod.v1       helm.sh/release.v1   1      20s
+{"modifiedAt":"1791590665","name":"istiod","owner":"helm","status":"deployed","version":"1"}
 ```
 
-The `version` label is the **revision** number, not the chart version. A revision is one numbered entry in the release history. Keep the two numbers apart: `helm history` shows both as separate columns. `status: deployed` marks the revision that is applied now, and earlier revisions carry `superseded`.
+`modifiedAt` is the time Helm last wrote the record, in seconds since 1970. The `version` label is the **revision** number, not the chart version. A revision is one numbered entry in the release history. Keep the two numbers apart: `helm history` shows both as separate columns. `status: deployed` marks the revision that is applied now, and earlier revisions carry `superseded`.
 
 ## What is inside a release Secret
 
@@ -62,17 +61,15 @@ helm history istiod -n istio-system
 helm get values istiod -n istio-system
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
-NAME                    NAMESPACE       REVISION  STATUS    CHART           APP VERSION
-istio-base              istio-system    1         deployed  base-1.29.8     1.29.8
-istio-ingressgateway    istio-ingress   1         deployed  gateway-1.29.8  1.29.8
-istiod                  istio-system    1         deployed  istiod-1.29.8   1.29.8
-
-REVISION  UPDATED       STATUS      CHART          APP VERSION  DESCRIPTION
-1         Mon Sep 27..  deployed    istiod-1.29.8  1.29.8       Install complete
-
+NAME                	NAMESPACE    	REVISION	UPDATED                              	STATUS  	CHART         	APP VERSION
+istio-base          	istio-system 	1       	2026-10-10 02:04:15.769835 +0200 CEST	deployed	base-1.29.8   	1.29.8     
+istio-ingressgateway	istio-ingress	1       	2026-10-10 02:04:25.622133 +0200 CEST	deployed	gateway-1.29.8	1.29.8     
+istiod              	istio-system 	1       	2026-10-10 02:04:16.396044 +0200 CEST	deployed	istiod-1.29.8 	1.29.8     
+REVISION	UPDATED                 	STATUS  	CHART        	APP VERSION	DESCRIPTION     
+1       	Sat Oct 10 02:04:16 2026	deployed	istiod-1.29.8	1.29.8     	Install complete
 USER-SUPPLIED VALUES:
 global:
   proxy:

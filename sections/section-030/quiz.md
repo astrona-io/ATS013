@@ -7,9 +7,9 @@ Check what you know before the capstone lab. These questions test how Helm handl
 ## Scenario-Based Questions
 
 ### Question 1
-`istiod` was installed with `-f values.yaml`. Someone runs `helm upgrade istiod istio/istiod -n istio-system --version 1.30.5` with no other flags. It prints `STATUS: deployed`. What happened to the values?
+`istiod` was installed with `-f values.yaml`. Someone runs `helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 --set pilot.resources.requests.cpu=200m` with no other flags. It prints `STATUS: deployed`. What happened to the other values?
 *   **A)** They were carried over automatically; only the chart version changed.
-*   **B)** They were discarded. The release now uses chart defaults, and the command reported success.
+*   **B)** They were discarded. Apart from the one `--set` value, the release now uses chart defaults, and the command reported success.
 *   **C)** The upgrade would have failed, because Helm requires the original values file.
 *   **D)** They were carried over, but only the keys that still exist in the new chart.
 
@@ -18,7 +18,7 @@ Check what you know before the capstone lab. These questions test how Helm handl
 
 **Correct Answer: B**
 
-*   **Why B is correct:** `helm upgrade` computes the release from the chart's defaults plus the `-f` files and `--set` flags given **on this run**. Values from the previous revision are not carried over. Nothing errors, the exit code is zero, and mesh-wide settings quietly revert. The habit that removes the problem entirely: one complete values file, committed, passed with `-f` on every install and every upgrade.
+*   **Why B is correct:** As soon as you pass any `-f` file or `--set` flag, `helm upgrade` computes the release from the chart's defaults plus the `-f` files and `--set` flags given **on this run**. Values from the previous revision are not carried over. (Only an upgrade with no values at all reuses the previous ones.) Nothing errors, the exit code is zero, and mesh-wide settings quietly revert. The habit that removes the problem entirely: one complete values file, committed, passed with `-f` on every install and every upgrade.
 *   **Why others are incorrect:**
     *   *Option A* describes `--reuse-values`, which is opt-in.
     *   *Option C* invents a safety check Helm does not perform.

@@ -12,7 +12,7 @@ This is a **playground**, not a lab. The environment starts, runs `bootstrap/pre
 
 ## Things to try
 
-- Run `helm upgrade istiod istio/istiod -n istio-system --version 1.30.5` with no `-f` and no `--reuse-values`, then read `kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}'`. The upgrade reports success. Find the settings it dropped.
+- Run `helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 --set pilot.resources.requests.cpu=200m`, with no `-f`, then read `kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}'`. The upgrade reports success. Find the settings it dropped. Then compare: an upgrade with no values at all keeps them.
 - Recover the lost values from `helm get values istiod -n istio-system --revision 1` and do the upgrade again, properly.
 - Try `--reuse-values` together with a `-f` file that *removes* a key, and see whether the key is really gone.
 - Upgrade `istiod` without touching `istio-base` and see whether anything complains. Then think about when that would hurt.

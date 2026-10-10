@@ -2,7 +2,7 @@
 
 Helm is a package manager for Kubernetes: it installs a chart (a package of templated Kubernetes objects) as a named release, and it can upgrade or roll back that release later. This module shows how to upgrade an Istio installation that Helm manages, and how to keep every setting it had while you do it.
 
-`helm upgrade` has one default that surprises people. The command builds the new release from the chart plus **the values you pass on this run**. It does not reuse the values from the last run. Any setting you passed at install time and do not pass again is gone, and Helm still reports success.
+`helm upgrade` has one rule that surprises people. As soon as you pass any value on the command line, the command builds the new release from the chart plus **the values you pass on this run**. It does not reuse the values from the last run. Any setting you passed at install time and do not pass again is gone, and Helm still reports success.
 
 So this module covers where the old settings really live, what the value flags really do, and why an upgrade needs one more step after the control plane is new. It ends with what `helm rollback` restores and what it leaves alone.
 
@@ -11,7 +11,7 @@ So this module covers where the old settings really live, what the value flags r
 After this module you can:
 
 - Say where Helm stores a release's manifests and values, and read an older revision's values back out of the cluster.
-- Explain how `helm upgrade` computes values, and predict what `--reuse-values` and `--reset-values` do.
+- Explain how `helm upgrade` computes values, and predict what `--reuse-values`, `--reset-then-reuse-values` and `--reset-values` do.
 - Recover settings that exist only inside a release, and rebuild a values file from them.
 - Upgrade `base`, `istiod` and a gateway to a new version in the right order without losing mesh settings.
 - Spot version skew between the control plane and the data plane with `istioctl version` and `istioctl proxy-status`, and finish the upgrade.
@@ -52,7 +52,7 @@ Start your playground now, and keep it running while you read the parts:
 Read the parts in this order:
 
 1. **Where A Release Lives:** the Secret behind every release, revision numbers, and the read commands that tell you what a cluster runs and how it was configured.
-2. **How `helm upgrade` Computes Values:** the default value handling, `--reuse-values` and `--reset-values`, a setting lost on purpose, and getting a values file back from an older revision.
+2. **How `helm upgrade` Computes Values:** the default value handling, `--reuse-values`, `--reset-then-reuse-values` and `--reset-values`, a setting lost on purpose, and getting a values file back from an older revision.
 3. **Upgrading In Order And Finishing The Job:** the chart order, version skew, and the data plane restart that really completes the upgrade. The graded lab "Upgrade And Reconfigure Istio With Helm" follows this part.
 4. **Rolling Back And A Safe Procedure:** what `helm rollback` restores and what it does not, and a step-by-step upgrade procedure. The graded lab "Roll Back A Helm Release Of istiod" follows this part.
 

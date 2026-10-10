@@ -15,14 +15,12 @@ helm get values istiod -n istio-system
 ```
 
 ```text
-NAME                    NAMESPACE       REVISION  STATUS    CHART           APP VERSION
-istio-base              istio-system    1         deployed  base-1.29.8     1.29.8
-istio-ingressgateway    istio-ingress   1         deployed  gateway-1.29.8  1.29.8
-istiod                  istio-system    1         deployed  istiod-1.29.8   1.29.8
-
-REVISION  UPDATED       STATUS      CHART          APP VERSION  DESCRIPTION
-1         Mon Sep 27..  deployed    istiod-1.29.8  1.29.8       Install complete
-
+NAME                	NAMESPACE    	REVISION	UPDATED                              	STATUS  	CHART         	APP VERSION
+istio-base          	istio-system 	1       	2026-10-10 02:31:25.14284 +0200 CEST 	deployed	base-1.29.8   	1.29.8     
+istio-ingressgateway	istio-ingress	1       	2026-10-10 02:31:35.333685 +0200 CEST	deployed	gateway-1.29.8	1.29.8     
+istiod              	istio-system 	1       	2026-10-10 02:31:25.763793 +0200 CEST	deployed	istiod-1.29.8 	1.29.8     
+REVISION	UPDATED                 	STATUS  	CHART        	APP VERSION	DESCRIPTION     
+1       	Sat Oct 10 02:31:25 2026	deployed	istiod-1.29.8	1.29.8     	Install complete
 USER-SUPPLIED VALUES:
 global:
   proxy:
@@ -67,13 +65,14 @@ grep -A2 outboundTrafficPolicy istiod-values.yaml
 ```text
   outboundTrafficPolicy:
     mode: REGISTRY_ONLY
+pilot:
 ```
 
 ---
 
 ## Step 3: Know the trap you are avoiding
 
-This is the trap the whole lab is built around. A default `helm upgrade` starts from the chart's defaults:
+This is the trap the whole lab is built around. As soon as you pass any `-f` file or `--set` flag, `helm upgrade` starts from the chart's defaults:
 
 ```mermaid
 flowchart LR
@@ -85,16 +84,38 @@ flowchart LR
 
 The diagram shows that the values of the previous revision never reach the new release.
 
-`helm upgrade istiod istio/istiod -n istio-system --version 1.30.5` with no `-f` would report `STATUS: deployed` and quietly reset access logging, autoscaling and every resource request to the chart defaults. `--reuse-values` is the other option, but it merges instead of replacing: a `-f` file that *removes* a key does not remove it. One complete file, passed every time, avoids both.
+`helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 --set meshConfig.outboundTrafficPolicy.mode=REGISTRY_ONLY` would report `STATUS: deployed` and quietly reset access logging, autoscaling and every resource request to the chart defaults. `--reuse-values` is no way out here: it also keeps the old chart's default values, so `istiod` would stay on the `1.29.8` image under a `1.30.5` chart. And it merges instead of replacing, so a `-f` file that *removes* a key does not remove it. One complete file, passed every time, avoids all of this.
 
 Check what will happen first, with a dry run that changes nothing:
 
 ```sh
 helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 \
-  -f istiod-values.yaml --dry-run --debug 2>&1 | sed -n '/COMPUTED VALUES/,/HOOKS/p' | head -20
+  -f istiod-values.yaml --dry-run --debug 2>&1 | sed -n '/^USER-SUPPLIED VALUES:/,/^COMPUTED VALUES:/p'
 ```
 
-If the computed values block is empty or misses keys you expect, stop.
+```text
+USER-SUPPLIED VALUES:
+global:
+  proxy:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+meshConfig:
+  accessLogFile: /dev/stdout
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY
+pilot:
+  autoscaleEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+COMPUTED VALUES:
+```
+
+These are exactly the values the upgrade will pass. If the block is `{}` or misses keys you expect, stop.
 
 ---
 
@@ -107,6 +128,8 @@ helm upgrade istio-base istio/base -n istio-system --version 1.30.5 --wait
 helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 -f istiod-values.yaml --wait
 helm upgrade istio-ingressgateway istio/gateway -n istio-ingress --version 1.30.5 --wait
 ```
+
+The output looks like this (shortened: each command also prints the release status and notes):
 
 ```text
 Release "istio-base" has been upgraded. Happy Helming!
@@ -124,17 +147,20 @@ kubectl -n istio-system get cm istio -o jsonpath='{.data.mesh}' | grep -A2 -E 'a
 ```
 
 ```text
-NAME                    NAMESPACE       REVISION  STATUS    CHART           APP VERSION
-istio-base              istio-system    2         deployed  base-1.30.5     1.30.5
-istio-ingressgateway    istio-ingress   2         deployed  gateway-1.30.5  1.30.5
-istiod                  istio-system    2         deployed  istiod-1.30.5   1.30.5
-
+NAME                	NAMESPACE    	REVISION	UPDATED                              	STATUS  	CHART         	APP VERSION
+istio-base          	istio-system 	2       	2026-10-10 02:31:54.674467 +0200 CEST	deployed	base-1.30.5   	1.30.5     
+istio-ingressgateway	istio-ingress	2       	2026-10-10 02:32:04.631378 +0200 CEST	deployed	gateway-1.30.5	1.30.5     
+istiod              	istio-system 	2       	2026-10-10 02:31:55.616647 +0200 CEST	deployed	istiod-1.30.5 	1.30.5     
 accessLogFile: /dev/stdout
+defaultConfig:
+  discoveryAddress: istiod.istio-system.svc:15012
+--
 outboundTrafficPolicy:
   mode: REGISTRY_ONLY
+rootNamespace: istio-system
 ```
 
-The kept setting and the new setting, side by side. That is the whole exercise in two lines.
+The kept setting and the new setting, in one ConfigMap. That is the whole exercise in two keys.
 
 ---
 
@@ -149,10 +175,10 @@ istioctl-1.30.5 version
 ```text
 client version: 1.30.5
 control plane version: 1.30.5
-data plane version: 1.29.8 (2 proxies)
+data plane version: 1.29.8 (2 proxies), 1.30.5 (1 proxies)
 ```
 
-The control plane runs 1.30.5, and the sidecar proxies still run 1.29.8. This is **version skew**. Istio supports it across one minor version, which is what makes a rolling upgrade possible. It is a window to pass through, not a place to stay.
+The control plane runs 1.30.5, and the application's sidecar proxy still runs 1.29.8. The gateway is in the middle of its own change: `helm upgrade` of the gateway release changed the chart labels on its pod template, so the Deployment controller is replacing the gateway pod, and for a moment both the old and the new gateway proxy are listed. A few seconds later the line reads `1.29.8 (1 proxies), 1.30.5 (1 proxies)`. This is **version skew**. Istio supports it across one minor version, which is what makes a rolling upgrade possible. It is a window to pass through, not a place to stay.
 
 The reason is simple: the injection webhook fixes a sidecar's image when the pod is created. Upgrading `istiod` replaces one Deployment. It cannot rewrite the stored spec of every pod in the cluster.
 
@@ -169,7 +195,18 @@ kubectl -n default rollout status deployment notification-service --timeout=180s
 kubectl -n istio-ingress rollout status deployment istio-ingressgateway --timeout=180s
 ```
 
-The gateway is the one people forget. It runs the same Envoy image as a sidecar, as its own Deployment, and the control plane upgrade does not restart it. Yet it is the workload whose old version is most visible from outside the cluster.
+```text
+deployment.apps/notification-service restarted
+deployment.apps/istio-ingressgateway restarted
+Waiting for deployment "notification-service" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "notification-service" rollout to finish: 1 old replicas are pending termination...
+deployment "notification-service" successfully rolled out
+Waiting for deployment "istio-ingressgateway" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "istio-ingressgateway" rollout to finish: 1 old replicas are pending termination...
+deployment "istio-ingressgateway" successfully rolled out
+```
+
+The gateway is the one people forget. It runs the same Envoy image as a sidecar, as its own Deployment, and the control plane upgrade does not restart it. Its own `helm upgrade` did replace its pod here, but the restart makes sure, whatever way the gateway was installed. Yet it is the workload whose old version is most visible from outside the cluster.
 
 Compare the versions again:
 
@@ -183,19 +220,19 @@ control plane version: 1.30.5
 data plane version: 1.30.5 (2 proxies)
 ```
 
-A single `data plane version` that matches the control plane means the upgrade is complete.
+A single `data plane version` that matches the control plane means the upgrade is complete. If you see `3 proxies`, an old pod is still shutting down; run the command again a few seconds later.
 
 ---
 
 ## Step 7: Confirm everything survived
 
-Read the autoscaler, the resource requests of `istiod`, and the resource requests of the new sidecar:
+Read the autoscaler, the resource requests of `istiod`, and the resource requests of the new sidecar. Istio runs `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`, so its requests are under `.spec.initContainers`:
 
 ```sh
 kubectl -n istio-system get hpa
 kubectl -n istio-system get deploy istiod -o jsonpath='{.spec.template.spec.containers[0].resources.requests}{"\n"}'
 kubectl -n default get pod -l app=notification-service \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].resources.requests}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].resources.requests}{"\n"}'
 ```
 
 ```text
@@ -222,10 +259,10 @@ The grader checks that every release is `deployed` at revision 2 or higher, and 
 
 ## Common mistakes
 
-*   **`helm upgrade` with no `-f`.** Everything goes back to chart defaults, the command prints `deployed`, and the exit code is zero. This is the failure the whole lab is built around.
-*   **`--reuse-values` with a `-f` that removes a key.** Helm ignores the removal and merges the file onto the old values. Pass one complete file instead.
+*   **`helm upgrade` with a `--set` and no `-f`.** Every other value goes back to chart defaults, the command prints `deployed`, and the exit code is zero. This is the failure the whole lab is built around.
+*   **`--reuse-values` for a version upgrade.** It keeps the old chart's default values, so `istiod` stays on the `1.29.8` image. It also ignores a key that your `-f` file removes. Pass one complete file instead.
 *   **Upgrading `istiod` without `istio-base`.** It often seems to work, then fails later on a field the older CRDs do not accept.
 *   **Stopping when Helm says `deployed`.** The data plane is still on 1.29.8. `istioctl version` splitting into two versions is the signal.
-*   **Forgetting the gateway.** It needs both the `helm upgrade` *and* the `rollout restart`. The grader checks its image.
+*   **Forgetting the gateway.** It needs its own `helm upgrade`, and its pod must run the new proxy. The grader checks its image.
 *   **Reinstalling with `istioctl` because it is fewer steps.** The Helm release records stop matching the cluster, and the grader reports that the release was never upgraded.
 *   **Recovering the values file and not saving it.** The cluster being the only copy is the real cause. Rebuilding the file alone just sets the trap again.

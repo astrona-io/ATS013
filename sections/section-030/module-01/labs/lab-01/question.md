@@ -10,7 +10,7 @@ Istio **1.29.8** is installed as three Helm releases: `istio-base` and `istiod` 
 
 Upgrade the mesh to **1.30.5**:
 
-1.  Recover the configuration the current release was installed with, before you change anything. `helm upgrade` builds the new release from the chart plus the values you pass **on this run**. It does not carry over the values from the previous run.
+1.  Recover the configuration the current release was installed with, before you change anything. As soon as you pass a values file or a `--set` flag, `helm upgrade` builds the new release from the chart plus the values you pass **on this run**. It does not carry over the values from the previous run.
 2.  Upgrade **all three** releases to chart version `1.30.5`, in the correct order.
 3.  Every setting from the original install must survive the upgrade: mesh-wide access logging to `/dev/stdout`, no HorizontalPodAutoscaler for the control plane, `istiod` requesting `100m` CPU and `256Mi` memory, and injected sidecars requesting `10m` CPU and `64Mi` memory.
 4.  During the same upgrade, change `meshConfig.outboundTrafficPolicy.mode` from `ALLOW_ANY` to **`REGISTRY_ONLY`**.

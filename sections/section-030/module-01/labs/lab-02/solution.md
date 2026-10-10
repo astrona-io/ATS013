@@ -12,7 +12,13 @@ Follow these steps to roll the `istiod` release back to its last good revision, 
 helm history istiod -n istio-system
 ```
 
-You should see two revisions: revision 1 with the status `superseded` and the description `Install complete`, and revision 2 with the status `deployed` and the description `Upgrade complete`. Both are on chart `istiod-1.29.8`, so the version did not change. Only the values did.
+```text
+REVISION	UPDATED                 	STATUS    	CHART        	APP VERSION	DESCRIPTION     
+1       	Sat Oct 10 02:38:10 2026	superseded	istiod-1.29.8	1.29.8     	Install complete
+2       	Sat Oct 10 02:38:31 2026	deployed  	istiod-1.29.8	1.29.8     	Upgrade complete
+```
+
+There are two revisions: revision 1 with the status `superseded` and the description `Install complete`, and revision 2 with the status `deployed` and the description `Upgrade complete`. Both are on chart `istiod-1.29.8`, so the version did not change. Only the values did.
 
 ---
 
@@ -28,7 +34,6 @@ helm get values istiod -n istio-system --revision 1
 ```text
 USER-SUPPLIED VALUES:
 null
-
 USER-SUPPLIED VALUES:
 global:
   proxy:
@@ -48,7 +53,7 @@ pilot:
       memory: 256Mi
 ```
 
-Revision 2 has no user-supplied values at all, so it runs on the chart defaults. Revision 1 is the last good revision: it holds every setting from the install.
+Revision 2 has no user-supplied values at all, because it was made with `--reset-values`, so it runs on the chart defaults. A plain `helm upgrade` with no values would have kept the old ones; `--reset-values` is what threw them away. Revision 1 is the last good revision: it holds every setting from the install.
 
 You could rebuild a values file from revision 1 and run a new `helm upgrade`. The end state would look the same, but the task asks for a rollback, and the grader checks that the latest revision is a rollback to revision 1.
 
@@ -56,19 +61,32 @@ You could rebuild a values file from revision 1 and run a new `helm upgrade`. Th
 
 ## Step 3: Roll istiod back to revision 1
 
-`helm rollback` applies the manifests of revision 1 again and records the result as a new revision, revision 3:
+`helm rollback` applies the manifests of revision 1 again and records the result as a new revision, revision 3. With Helm 3, run:
 
 ```sh
 helm rollback istiod 1 -n istio-system --wait
+```
+
+With Helm 4 (`helm version --short` starts with `v4`), add `--force-conflicts` on the **first** try. Helm 4 applies objects with server-side apply, and `istiod` itself owns the `failurePolicy` field of its validating webhook, so without the flag the rollback stops with `Error: conflict occurred while applying object /istio-validator-istio-system`. That failed try is recorded as a revision of its own, and a second rollback then compares against it and leaves the HorizontalPodAutoscaler of revision 2 behind. If that happened to you, delete it with `kubectl -n istio-system delete hpa istiod`.
+
+```sh
+helm rollback istiod 1 -n istio-system --wait --force-conflicts
 ```
 
 ```text
 Rollback was a success! Happy Helming!
 ```
 
-If your machine runs Helm 4, the rollback can stop with `Error: conflict occurred while applying object /istio-validator-istio-system`. Helm 4 applies objects with server-side apply, and `istiod` itself owns the `failurePolicy` field of its validating webhook, so Helm 4 must be told to take that field back. Run the same `helm rollback` command again with `--force-conflicts` added. Helm 3 does not need that flag.
+Run `helm history istiod -n istio-system` again:
 
-Run `helm history istiod -n istio-system` again. You should see a new revision 3 with the status `deployed` and the description `Rollback to 1`. Revision 2 is now `superseded`. The history keeps the bad revision; it records what happened, not what you meant.
+```text
+REVISION	UPDATED                 	STATUS    	CHART        	APP VERSION	DESCRIPTION     
+1       	Sat Oct 10 02:38:10 2026	superseded	istiod-1.29.8	1.29.8     	Install complete
+2       	Sat Oct 10 02:38:31 2026	superseded	istiod-1.29.8	1.29.8     	Upgrade complete
+3       	Sat Oct 10 02:38:35 2026	deployed  	istiod-1.29.8	1.29.8     	Rollback to 1   
+```
+
+There is a new revision 3 with the status `deployed` and the description `Rollback to 1`. Revision 2 is now `superseded`. The history keeps the bad revision; it records what happened, not what you meant.
 
 Do not roll back `istio-base` or `istio-ingressgateway`. `helm rollback` touches only the release you name, and those two releases never had a bad revision.
 
@@ -100,10 +118,14 @@ The control plane is back, but the running pod was created while revision 2 was 
 
 ```sh
 kubectl -n default get pod -l app=notification-service \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].resources.requests}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].resources.requests}{"\n"}'
 ```
 
-You should see the chart-default requests, not `10m` and `64Mi`. The injection webhook wrote those requests into the pod spec when the pod was created, and `helm rollback` never restarts pods.
+```text
+{"cpu":"100m","memory":"128Mi"}
+```
+
+These are the chart-default requests, not `10m` and `64Mi`. Istio runs `istio-proxy` as a native sidecar, an init container with `restartPolicy: Always`, so the command reads `.spec.initContainers`. The injection webhook wrote those requests into the pod spec when the pod was created, and `helm rollback` never restarts pods.
 
 ---
 
@@ -116,11 +138,18 @@ kubectl -n default rollout restart deployment notification-service
 kubectl -n default rollout status deployment notification-service --timeout=180s
 ```
 
+```text
+deployment.apps/notification-service restarted
+Waiting for deployment "notification-service" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "notification-service" rollout to finish: 1 old replicas are pending termination...
+deployment "notification-service" successfully rolled out
+```
+
 Then read the sidecar's requests again:
 
 ```sh
 kubectl -n default get pod -l app=notification-service \
-  -o jsonpath='{.items[0].spec.containers[?(@.name=="istio-proxy")].resources.requests}{"\n"}'
+  -o jsonpath='{.items[0].spec.initContainers[?(@.name=="istio-proxy")].resources.requests}{"\n"}'
 ```
 
 ```text

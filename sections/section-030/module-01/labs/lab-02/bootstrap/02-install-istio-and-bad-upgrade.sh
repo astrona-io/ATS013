@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Starting state: Istio 1.29.8 installed with Helm from a values file that is
-# thrown away, then a bad `helm upgrade` of istiod with no values (revision 2)
-# that resets every setting to the chart defaults. The workload is restarted
+# thrown away, then a bad `helm upgrade` of istiod with --reset-values
+# (revision 2) that resets every setting to the chart defaults. A plain
+# `helm upgrade` with no values would reuse the old values, so the flag is
+# needed to create the fault. The workload is restarted
 # after the bad upgrade, so its sidecar also carries the chart-default resource
 # requests. Undoing this is the task; this script never applies the end state.
 set -eu
@@ -73,8 +75,8 @@ spec:
 YAML
 kubectl -n default rollout status deployment/notification-service --timeout=300s
 
-echo "Running a helm upgrade of istiod with no values (the bad change)..."
-helm upgrade istiod istio/istiod -n istio-system --version "$ISTIO_CURRENT" --wait
+echo "Running a helm upgrade of istiod with --reset-values (the bad change)..."
+helm upgrade istiod istio/istiod -n istio-system --version "$ISTIO_CURRENT" --reset-values --wait
 
 # helm returns once istiod reports ready, a moment before the webhook can
 # inject: a pod recreated in that window comes back with no istio-proxy.
