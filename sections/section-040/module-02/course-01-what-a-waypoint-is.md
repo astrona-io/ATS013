@@ -60,20 +60,29 @@ The output looks like this:
 
 ```text
 NAME                  HOSTNAMES   AGE
-notification-header               8s
-
-Accepted ResolvedRefs
-
+notification-header               0s
+Accepted ResolvedRefs ResolvedWaypoints
 HTTP/1.1 200 OK
-Server: nginx/1.27.4
-Date: Sat, 27 Sep 2026 09:41:02 GMT
+Server: nginx/1.27.5
+Date: Sat, 10 Oct 2026 01:02:02 GMT
 Content-Type: text/html
 Content-Length: 615
 ```
 
-The route exists, its status says `Accepted` and `ResolvedRefs`, and the request succeeds. But the response has no `x-processed-by` header. The line `Server: nginx/1.27.4` shows that the response came straight from nginx, without passing through any HTTP-aware proxy.
+The route exists, its status lists `Accepted`, `ResolvedRefs` and `ResolvedWaypoints`, and the request succeeds. But the response has no `x-processed-by` header. The line `Server: nginx/1.27.5` shows that the response came straight from nginx, without passing through any HTTP-aware proxy.
 
-That mix is the trap. A healthy status means the object is well formed and bound to a real parent. It says nothing about whether a proxy exists to carry it out.
+That mix is the trap. A healthy status means the object is well formed and bound to a real parent. All three conditions have `status: "True"`, so a quick look says nothing is wrong. Only the message of `ResolvedWaypoints` tells the truth. Read it:
+
+```sh
+kubectl -n ambient-l7 get httproute notification-header \
+  -o jsonpath='{.status.parents[0].conditions[2].message}{"\n"}'
+```
+
+```text
+istio.io/use-waypoint label missing from parent and parent namespace; in ambient mode, route will not be respected
+```
+
+Istio says it in plain words: no waypoint serves the Service, so the route is not carried out.
 
 ## A waypoint is a Gateway of a particular class
 
@@ -102,17 +111,17 @@ kubectl -n ambient-l7 get gateway waypoint \
 kubectl get ns ambient-l7 --show-labels
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
-✓ waypoint ambient-l7/waypoint applied
-✓ namespace ambient-l7 labeled with "istio.io/use-waypoint: waypoint"
-
+✅ waypoint ambient-l7/waypoint applied
+✅ namespace ambient-l7 labeled with "istio.io/use-waypoint: waypoint"
+Waiting for deployment "waypoint" rollout to finish: 0 of 1 updated replicas are available...
+deployment "waypoint" successfully rolled out
 NAME       CLASS            PROGRAMMED
 waypoint   istio-waypoint   True
-
 NAME         STATUS   AGE   LABELS
-ambient-l7   Active   14m   istio.io/dataplane-mode=ambient,istio.io/use-waypoint=waypoint,...
+ambient-l7   Active   23s   istio.io/dataplane-mode=ambient,istio.io/use-waypoint=waypoint,kubernetes.io/metadata.name=ambient-l7
 ```
 
 `CLASS istio-waypoint` is the field that makes this `Gateway` a waypoint. `PROGRAMMED True` means Istio accepted the `Gateway` and built a running proxy for it. The namespace now carries **two** labels with two different jobs: `istio.io/dataplane-mode` puts it in the mesh at layer 4, and `istio.io/use-waypoint` sends its traffic through layer 7.
@@ -141,12 +150,18 @@ istioctl ztunnel-config service | grep ambient-l7
 istioctl waypoint list -n ambient-l7
 ```
 
-In the service view, the `WAYPOINT` column on the `notification-service` row names `waypoint`. The waypoint list looks like this:
+The output looks like this:
 
 ```text
-NAME       REVISION   PROGRAMMED
-waypoint   default    True
+ambient-l7   notification-service        10.96.166.213 waypoint 1/1
+ambient-l7   waypoint                    10.96.118.254 None     1/1
+NAME         REVISION     TRAFFIC TYPE     PROGRAMMED
+waypoint     default      none             True
 ```
+
+`grep` removes the header of the service view; its columns are `NAMESPACE`, `SERVICE NAME`, `SERVICE VIP`, `WAYPOINT` and `ENDPOINTS`. The `WAYPOINT` column on the `notification-service` row names `waypoint`. The waypoint's own Service is listed too, with no waypoint of its own.
+
+`TRAFFIC TYPE none` in the waypoint list means the `Gateway` carries no `istio.io/waypoint-for` label: `istioctl waypoint apply` without `--for` does not set one. With no label, Istio uses the waypoint for traffic to Services, which is the default, and the service view above shows exactly that.
 
 The enrollment label is what made ztunnel name the waypoint. If you had created the `Gateway` without `--enroll-namespace`, the waypoint would run and the `WAYPOINT` column would stay empty.
 

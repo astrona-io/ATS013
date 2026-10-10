@@ -13,7 +13,7 @@ Send the same request from `tester` again:
 <!-- astrona:playground:renew -->
 
 ```sh
-kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -7
+kubectl -n ambient-l7 exec deploy/tester -- curl -s -o /dev/null -D - http://notification-service/ | grep -i -E '^(HTTP/|server:|x-envoy-upstream-service-time:|x-processed-by:)'
 ```
 
 The output looks like this:
@@ -21,17 +21,16 @@ The output looks like this:
 ```text
 HTTP/1.1 200 OK
 server: istio-envoy
-date: Sat, 27 Sep 2026 09:48:11 GMT
-content-type: text/html
-content-length: 615
-x-envoy-upstream-service-time: 2
+x-envoy-upstream-service-time: 0
 x-processed-by: waypoint
 ```
+
+`-D -` prints the response headers, `-o /dev/null` drops the body, and `grep` keeps the status line and the three headers that matter here.
 
 Three signs in this response show that the waypoint's Envoy handled it:
 
 - `x-processed-by: waypoint` is a header that nginx does not set. The waypoint added it, because the `HTTPRoute` told it to.
-- `server: istio-envoy` replaced `nginx/1.27.4`, so the response passed through Envoy on its way back. Without the waypoint, the same request showed `Server: nginx/1.27.4`.
+- `server: istio-envoy` replaced `nginx/1.27.5`, so the response passed through Envoy on its way back. Without the waypoint, the same request showed `Server: nginx/1.27.5`.
 - `x-envoy-upstream-service-time` is the time, in milliseconds, that Envoy measured for the call to nginx.
 
 That before-and-after comparison is worth turning into a habit. When layer 7 configuration in an ambient namespace seems to do nothing, do not start with "is my route correct?". Start with "is there a waypoint, and does ztunnel send this traffic through it?". ztunnel is the per-node proxy of ambient mode; it decides, per destination, whether a connection goes through a waypoint.
@@ -41,7 +40,7 @@ That before-and-after comparison is worth turning into a habit. When layer 7 con
 
 ## What the route's status proves
 
-The response proved that the route works, so it is fair to ask what the route's status proved. The `HTTPRoute` reported `Accepted` and `ResolvedRefs` before the waypoint existed, and it reports the same now. That is not a bug in the status. The status answers a narrower question than most people assume.
+The response proved that the route works, so it is fair to ask what the route's status proved. The `HTTPRoute` reported `Accepted`, `ResolvedRefs` and `ResolvedWaypoints` before the waypoint existed, and it reports the same now. Only the message of `ResolvedWaypoints` changed: it now reads `All waypoints resolved`. That is not a bug in the status. The status answers a narrower question than most people assume.
 
 Each condition on the route proves one thing, and only that thing:
 
@@ -49,6 +48,7 @@ Each condition on the route proves one thing, and only that thing:
 | --- | --- | --- |
 | `Accepted` | The route is well formed and bound to the parent named in `parentRefs` | A proxy is carrying it out |
 | `ResolvedRefs` | Every `backendRefs` target exists and can be referenced | Traffic is reaching that backend |
+| `ResolvedWaypoints` | Istio checked whether a waypoint serves the parent; the message says what it found | A waypoint exists (it is `True` even when the message says the route will not be respected) |
 
 So the route's status is a check on the object, not on what it does. The real check is the response (a header, a status code, a timing header), or the routes the waypoint's Envoy actually received.
 
@@ -61,14 +61,30 @@ WAYPOINT_POD=$(kubectl -n ambient-l7 get pod -l gateway.networking.k8s.io/gatewa
 istioctl proxy-config route "$WAYPOINT_POD.ambient-l7" | head -10
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
-NAME                                          VHOST NAME                              DOMAINS     MATCH     VIRTUAL SERVICE
-inbound-vip|80|http|notification-service...   inbound|http|80                         *           /*        notification-header.ambient-l7
+NAME                                                                      VHOST NAME          DOMAINS     MATCH                  VIRTUAL SERVICE
+encap                                                                     inbound|http|0      *           /*                     
+                                                                          backend             *           /healthz/ready*        
+                                                                          backend             *           /stats/prometheus*     
+default                                                                   default             *                                  
+inbound-vip|80|http|notification-service.ambient-l7.svc.cluster.local     inbound|http|80     *           /*                     ambient-l7~notification-service.ambient-l7.svc.cluster.local.ambient-l7
+encap                                                                     inbound|http|0      *           /*                     
 ```
 
-The route's name, `notification-header.ambient-l7`, appears in the `VIRTUAL SERVICE` column, even though it came from an `HTTPRoute`. That is the strongest proof that the configuration reached the proxy, and does not only exist in the cluster. Run `proxy-config` only on the waypoint pod: the application pods in an ambient namespace have no Envoy of their own.
+The waypoint holds a route table for `notification-service` on port `80` (`inbound-vip|80|http|...`). The table view does not name the `HTTPRoute`, so read that one route as JSON and pick out the route entry's name and the header it sets:
+
+```sh
+istioctl proxy-config route "$WAYPOINT_POD.ambient-l7" --name 'inbound-vip|80|http|notification-service.ambient-l7.svc.cluster.local' -o json | grep -E '"name": "ambient-l7|"key": "x-processed-by"'
+```
+
+```text
+                        "name": "ambient-l7.notification-header.0",
+                                    "key": "x-processed-by",
+```
+
+`ambient-l7.notification-header.0` is the first rule of the `notification-header` route in `ambient-l7`, and `x-processed-by` is the header it adds. That is the strongest proof that the configuration reached the proxy, and does not only exist in the cluster. Run `proxy-config` only on the waypoint pod: the application pods in an ambient namespace have no Envoy of their own.
 
 You now know how to prove that a waypoint carries out a route: a real response with the header and `server: istio-envoy`, and the route's name in the waypoint's own route table. You also know that `Accepted` and `ResolvedRefs` only check the object. The open question is scope: whether every Service in the namespace should pay for the extra hop, and what happens when a waypoint goes away.
 

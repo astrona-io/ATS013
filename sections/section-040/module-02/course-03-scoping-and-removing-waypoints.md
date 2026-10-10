@@ -32,27 +32,42 @@ kubectl -n ambient-l7 label service notification-service istio.io/use-waypoint=s
 istioctl waypoint list -n ambient-l7
 ```
 
-The waypoint list looks like this:
+The output looks like this:
 
 ```text
-NAME           REVISION   PROGRAMMED
-svc-waypoint   default    True
-waypoint       default    True
+✅ waypoint ambient-l7/svc-waypoint applied
+Waiting for deployment "svc-waypoint" rollout to finish: 0 of 1 updated replicas are available...
+deployment "svc-waypoint" successfully rolled out
+service/notification-service labeled
+NAME             REVISION     TRAFFIC TYPE     PROGRAMMED
+svc-waypoint     default      service          True
+waypoint         default      none             True
 ```
 
-Two waypoints are running. Now check which one ztunnel uses for the Service:
+Two waypoints are running. `--for service` wrote the label `istio.io/waypoint-for: service` on the new `Gateway`, so its `TRAFFIC TYPE` reads `service`. The namespace waypoint was made without `--for`, so it has no such label (`none`), and Istio uses it for Services by default. Now check which one ztunnel uses for the Service:
 
 ```sh
 istioctl ztunnel-config service | grep ambient-l7
 ```
 
-In this service view, the `WAYPOINT` column on the `notification-service` row now names `svc-waypoint`, because of the Service label. The label on the Service beats the label on the namespace: the narrower scope wins, the same rule Istio follows for its other labels.
+```text
+ambient-l7   notification-service        10.96.166.213 svc-waypoint 1/1
+ambient-l7   svc-waypoint                10.96.104.163 None         1/1
+ambient-l7   waypoint                    10.96.118.254 None         1/1
+```
+
+In this service view (`grep` removed the header; the fourth column is `WAYPOINT`), the `notification-service` row now names `svc-waypoint`, because of the Service label. The label on the Service beats the label on the namespace: the narrower scope wins, the same rule Istio follows for its other labels.
 
 Undo the change before you go on. The trailing `-` in `istio.io/use-waypoint-` removes the label:
 
 ```sh
 kubectl -n ambient-l7 label service notification-service istio.io/use-waypoint-
 istioctl waypoint delete svc-waypoint -n ambient-l7
+```
+
+```text
+service/notification-service unlabeled
+waypoint ambient-l7/svc-waypoint deleted
 ```
 
 ## What you lose when the waypoint goes away
@@ -82,20 +97,19 @@ istioctl ztunnel-config workload | grep ambient-l7 | head -3
 kubectl -n istio-system logs ds/ztunnel --tail=10 | grep -c 'src.identity'
 ```
 
-The output looks like this (shortened):
+The output looks like this:
 
 ```text
+waypoint ambient-l7/waypoint deleted
 HTTP/1.1 200 OK
-Server: nginx/1.27.4
-Date: Sat, 27 Sep 2026 09:56:40 GMT
-
-NAMESPACE   POD NAME                      ADDRESS      NODE                     WAYPOINT  PROTOCOL
-ambient-l7  notification-service-v1-...   10.244.0.14  astro-...-control-plane  None      HBONE
-
-3
+Server: nginx/1.27.5
+Date: Sat, 10 Oct 2026 01:03:43 GMT
+ambient-l7         notification-service-v1-746cd97ddb-x5jr6                              10.244.0.8  astro-ats-013-playground-040-02-control-plane None     HBONE
+ambient-l7         tester-577d497fbd-jq229                                               10.244.0.9  astro-ats-013-playground-040-02-control-plane None     HBONE
+8
 ```
 
-`Server: nginx` and no `x-processed-by` header show that the layer 7 processing is gone. `PROTOCOL HBONE`, and source identities still in ztunnel's log, show that mutual TLS and identity are untouched. The mesh did not break; it lost its layer 7 features. To keep exploring, create the waypoint again with `istioctl waypoint apply -n ambient-l7 --enroll-namespace`.
+If the first response still says `server: istio-envoy`, the waypoint pod is still shutting down; send the request again a few seconds later. `Server: nginx` and no `x-processed-by` header show that the layer 7 processing is gone. `PROTOCOL HBONE`, and source identities still in ztunnel's log, show that mutual TLS and identity are untouched. The mesh did not break; it lost its layer 7 features. `istioctl waypoint delete` does not remove the namespace label: `ambient-l7` still carries `istio.io/use-waypoint=waypoint`, pointing at a waypoint that no longer exists, and ztunnel simply sends the traffic straight to the pods. To keep exploring, create the waypoint again with `istioctl waypoint apply -n ambient-l7 --enroll-namespace`.
 
 ## Running waypoints in production
 

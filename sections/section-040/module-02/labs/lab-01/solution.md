@@ -52,14 +52,13 @@ kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-servi
 ```
 
 ```text
-Accepted ResolvedRefs
-
+Accepted ResolvedRefs ResolvedWaypoints
 HTTP/1.1 200 OK
-Server: nginx/1.27.4
-Date: ...
+Server: nginx/1.27.5
+Date: Sat, 10 Oct 2026 01:05:28 GMT
 ```
 
-The route exists, its status says `Accepted` and `ResolvedRefs`, and the request succeeds. But there is **no** `x-processed-by` header. `Server: nginx/1.27.4` means the response came straight from nginx, through no HTTP-aware proxy.
+The route exists, its status lists `Accepted`, `ResolvedRefs` and `ResolvedWaypoints`, all `True`, and the request succeeds. But there is **no** `x-processed-by` header. The message of `ResolvedWaypoints` (`.status.parents[0].conditions[2].message`) says why: `istio.io/use-waypoint label missing from parent and parent namespace; in ambient mode, route will not be respected`. `Server: nginx/1.27.5` means the response came straight from nginx, through no HTTP-aware proxy.
 
 Look at the `parentRefs` block while you are here. At the edge of the cluster, an `HTTPRoute` attaches to a `Gateway`. Here it attaches to a **Service** (`kind: Service`, with an empty `group` that means core Kubernetes). That is the Gateway API's mesh pattern: the route describes what happens to traffic sent to that Service, from any workload in the mesh.
 
@@ -74,9 +73,11 @@ istioctl waypoint apply -n ambient-l7 --enroll-namespace
 kubectl -n ambient-l7 rollout status deployment waypoint --timeout=180s
 ```
 
+The output looks like this (shortened: the `Waiting for deployment` lines are left out):
+
 ```text
-✓ waypoint ambient-l7/waypoint applied
-✓ namespace ambient-l7 labeled with "istio.io/use-waypoint: waypoint"
+✅ waypoint ambient-l7/waypoint applied
+✅ namespace ambient-l7 labeled with "istio.io/use-waypoint: waypoint"
 deployment "waypoint" successfully rolled out
 ```
 
@@ -98,9 +99,8 @@ kubectl get ns ambient-l7 --show-labels
 ```text
 NAME       CLASS            PROGRAMMED
 waypoint   istio-waypoint   True
-
 NAME         STATUS   AGE   LABELS
-ambient-l7   Active   12m   istio.io/dataplane-mode=ambient,istio.io/use-waypoint=waypoint,...
+ambient-l7   Active   14s   istio.io/dataplane-mode=ambient,istio.io/use-waypoint=waypoint,kubernetes.io/metadata.name=ambient-l7
 ```
 
 `gatewayClassName: istio-waypoint` is the one field that makes this `Gateway` a waypoint instead of an ingress gateway: same API, same proxy program, a different job. The namespace now carries two labels with two jobs: `istio.io/dataplane-mode` puts it in the mesh at layer 4, and `istio.io/use-waypoint` sends its traffic through layer 7.
@@ -115,7 +115,12 @@ ztunnel shows its routing decision in its **service** view. Ask it about `ambien
 istioctl ztunnel-config service | grep ambient-l7
 ```
 
-On the `notification-service` row, the `WAYPOINT` column names `waypoint`. This is the check the grader runs. The `WAYPOINT` column in the workload view (`istioctl ztunnel-config workload`) stays `None` for a waypoint that serves a Service, so it cannot answer this question.
+```text
+ambient-l7   notification-service        10.96.198.233 waypoint 1/1
+ambient-l7   waypoint                    10.96.56.0    None     1/1
+```
+
+`grep` removes the header; the columns are `NAMESPACE`, `SERVICE NAME`, `SERVICE VIP`, `WAYPOINT` and `ENDPOINTS`. On the `notification-service` row, the `WAYPOINT` column names `waypoint`. This is the check the grader runs. The `WAYPOINT` column in the workload view (`istioctl ztunnel-config workload`) stays `None` for a waypoint that serves a Service, so it cannot answer this question.
 
 The path a request now takes:
 
@@ -138,30 +143,32 @@ The waypoint ends the first tunnel, reads the HTTP request, applies the `HTTPRou
 The `HTTPRoute` is still exactly as you applied it in Step 1. Nothing about it needed fixing: it was correct, and no proxy was carrying it out. Send the request again:
 
 ```sh
-kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-service/ | head -7
+kubectl -n ambient-l7 exec deploy/tester -- curl -s -o /dev/null -D - http://notification-service/ | grep -i -E '^(HTTP/|server:|x-envoy-upstream-service-time:|x-processed-by:)'
 ```
 
 ```text
 HTTP/1.1 200 OK
 server: istio-envoy
-date: ...
-content-type: text/html
-content-length: 615
-x-envoy-upstream-service-time: 2
+x-envoy-upstream-service-time: 1
 x-processed-by: waypoint
 ```
 
-Three signs show that Envoy is now in the path: `x-processed-by: waypoint` (a header nginx does not set), `server: istio-envoy` instead of `nginx/1.27.4`, and `x-envoy-upstream-service-time`, the time Envoy measured for the call to nginx.
+`-D -` prints the response headers, `-o /dev/null` drops the body, and `grep` keeps the status line and the headers that matter. Three signs show that Envoy is now in the path: `x-processed-by: waypoint` (a header nginx does not set), `server: istio-envoy` instead of `nginx/1.27.5`, and `x-envoy-upstream-service-time`, the time Envoy measured for the call to nginx.
 
-You can also look at the route from inside the waypoint's Envoy, with the ordinary proxy tools:
+You can also look at the route from inside the waypoint's Envoy, with the ordinary proxy tools. The table view of `istioctl proxy-config route` does not name the `HTTPRoute`, so read the waypoint's route table for `notification-service` port `80` as JSON and pick out the route entry's name and the header it sets:
 
 ```sh
 WAYPOINT_POD=$(kubectl -n ambient-l7 get pod -l gateway.networking.k8s.io/gateway-name=waypoint \
   -o jsonpath='{.items[0].metadata.name}')
-istioctl proxy-config route "$WAYPOINT_POD.ambient-l7" | head -5
+istioctl proxy-config route "$WAYPOINT_POD.ambient-l7" --name 'inbound-vip|80|http|notification-service.ambient-l7.svc.cluster.local' -o json | grep -E '"name": "ambient-l7|"key": "x-processed-by"'
 ```
 
-The route's name, `notification-header.ambient-l7`, appears in the `VIRTUAL SERVICE` column. That is the strongest proof that the configuration reached the proxy, and does not only exist in the cluster.
+```text
+                        "name": "ambient-l7.notification-header.0",
+                                    "key": "x-processed-by",
+```
+
+`ambient-l7.notification-header.0` is the first rule of your `HTTPRoute`, and `x-processed-by` is the header it sets. That is the strongest proof that the configuration reached the proxy, and does not only exist in the cluster.
 
 ---
 
@@ -196,9 +203,12 @@ kubectl -n ambient-l7 exec deploy/tester -- curl -s -i http://notification-servi
 ```
 
 ```text
+waypoint ambient-l7/waypoint deleted
 HTTP/1.1 200 OK
-Server: nginx/1.27.4
+Server: nginx/1.27.5
 ```
+
+If the response still says `server: istio-envoy`, the waypoint pod is still shutting down; send the request again a few seconds later.
 
 Traffic still flows, still encrypted and still checked by ztunnel. The mesh did not break; it lost its layer 7 features, and the header change stopped with no error. If an `AuthorizationPolicy` had enforced an HTTP-level rule, that rule would no longer be enforced, while the policy object still looked healthy.
 
