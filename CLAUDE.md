@@ -278,6 +278,9 @@ example:
 | ztunnel | The per-node proxy in ambient mode; it does mTLS (mutual TLS) and L4 policy but cannot read HTTP |
 | `istio-cni` node agent | Redirects the traffic of ambient pods to the ztunnel on their node |
 | HBONE | The mTLS tunnel (HTTP-Based Overlay Network Environment) that ztunnels and waypoints use between them |
+| `istioctl verify-install` / `istioctl analyze` | `verify-install` checks the live install against a manifest; `analyze` reads live config and reports problems with codes such as `IST0101` (missing destination host) and `IST0103` (pod without sidecar) |
+| `components.*.k8s` overlay | `IstioOperator` fields (`resources`, `hpaSpec`, `service`) that change the Kubernetes objects of `pilot` or an ingress gateway |
+| Dataplane mode label | `istio.io/dataplane-mode=ambient` on a namespace enrolls it in ambient mode; the sidecar to ambient migration removes the injection label and restarts the pods |
 | Waypoint | An Envoy proxy, deployed as a Gateway API `Gateway`, that applies L7 rules (path, method, headers) for a namespace or Service |
 
 ### The example workloads
@@ -299,7 +302,7 @@ playground actually runs it.
 | `reporting-service` (Deployment and Service) | `nginx:1.27-alpine` | Second backend that stays on layer 4 while `notification-service` uses a service waypoint | `ambient-l7` (section 040, module 2, lab 2) |
 
 Namespaces are named after the module: `mesh-demo`, `inject-demo`,
-`canary-demo`, `inplace-demo`, `ambient-demo`, `ambient-l7`, plus
+`canary-demo`, `inplace-demo`, `ambient-demo`, `ambient-l7`, plus the module-03 namespaces `check-demo` (section 010 playground), `gw-demo` (section 020 playground), `legacy-shop` and `new-shop` (section 040 playground), the lab namespaces `shop`, `edge-demo` and `sidecar-shop`, plus
 `istio-system` (control plane) and `istio-ingress` (the gateway in the Helm
 installs). The section 030 module 1 playground runs `notification-service`
 in `default`.
@@ -344,6 +347,10 @@ in `default`.
 - **One owner per cluster.** A cluster is installed with `istioctl` or with
   Helm, never both. Pages must not mix the two on one cluster.
 
+### Module 03 additions (UNTESTED)
+
+Sections 010, 020 and 040 each have a `module-03` built to close coverage gaps: profile inspection and `verify-install`/`analyze` (010), gateway Service, HPA and resource overlays (020), and sidecar plus ambient coexistence with namespace migration (040). Their playgrounds start from these states: `check-demo` has pods without sidecars and a `VirtualService` pointing at the missing host `notification-svc`; `gw-demo` runs the default ingress gateway; `legacy-shop` has sidecars and `new-shop` is enrolled in ambient mode. All three labs (`ats-013-lab-010-03`, `-020-03`, `-040-03`) are untested and must be run with `astrona test` before release.
+
 ### Where things are in this repo
 
 The tree was written before the general rules above. It has no
@@ -360,8 +367,8 @@ add or rework those pages.
 | Graded lab: task, walkthrough, setup, grader | `.../labs/lab-0N/` (`question.md`, `solution.md`, `bootstrap/`, `solution/apply.sh`, `validation/`) |
 | Ungraded sandbox for a module | `.../playground/` (`config.yaml`, `bootstrap/prepare.sh`, `docs/overview.md`, which is the only learner page) |
 | One graded integration lab per section | `sections/section-0N0/capstone/labs/lab-01/` |
-| Section knowledge check (multiple choice) | `sections/section-0N0/quiz.md` |
-| Closed-book simulation of the whole domain | `sections/final-domain-quiz.md` |
+| Section knowledge check (multiple choice) | `sections/section-0N0/quiz.yaml` (`type: quiz`, pass score 70) |
+| Closed-book simulation of the whole domain | `sections/final-domain-quiz.yaml` |
 | Leftover copies of files the pages tell the learner to create (nothing reads them from here) | `istio-custom.yaml`, `istiod-values.yaml`, `catalog-*.yaml`, `notification-header.yaml` |
 
 A lab folder holds:
@@ -384,7 +391,7 @@ section under `modules:` (`module-010` to `module-040`) and a `final-exam`
 entry. Each section's `content` lists, in order: the section `README.md`,
 then for each module its landing page, its parts, and right after the part a
 lab tests, a `Question` reading (`labs/lab-0N/question.md`) followed by the
-`type: lab` entry; the module's closing page comes last. The section quiz and
+`type: lab` entry; the module's closing page comes last. The section quiz (`quiz.yaml`, `type: quiz`, `pass_score: 70`) and
 then the section capstone close the section. Playgrounds are not listed: the
 landing page's `<!-- astrona:playground -->` marker shows them.
 

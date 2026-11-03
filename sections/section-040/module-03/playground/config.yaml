@@ -1,0 +1,20 @@
+# Mix Sidecar And Ambient Mode And Migrate A Namespace (PLAYGROUND) — Playground environment
+# A clean sandbox: it spins up, runs OS prep, then stays running for free
+# exploration. No task, no grading, no `astrona submit`.
+# Status: UNTESTED (built from static checks only).
+
+metadata:
+  name: "ats-013-playground-040-03"
+  docs:
+    guide: "docs/overview.md"
+
+bootstrap:
+  init:
+    - name: "prepare"
+      description: "OS prep only: install tools/packages, seed sample data. Nothing to solve."
+      type: "file"
+      source: "bootstrap/prepare.sh"
+  manifests: []
+
+teardown:
+  keepCluster: false

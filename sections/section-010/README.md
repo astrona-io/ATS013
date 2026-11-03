@@ -15,6 +15,7 @@ Both methods install the same control plane, configured through the same tree of
 - Finding a version mismatch between the client, the control plane and the data plane with `istioctl version` and `istioctl proxy-status`.
 - The Istio Helm charts (`base`, `istiod`, `gateway`, plus `cni` and `ztunnel` for ambient mode) and why the install order is fixed.
 - Supplying mesh settings from a Helm values file, and reading back what a release applied with `helm get values` and the live `istio` ConfigMap.
+- Comparing profiles with `istioctl profile list`, `dump` and `diff`, and checking an install with `istioctl verify-install` and `istioctl analyze`.
 - Removing Istio completely with `istioctl uninstall --purge` or `helm uninstall`, and cleaning up what both leave behind.
 
 ## Modules in this section
@@ -40,6 +41,13 @@ Work through the modules in this order. Each part teaches one idea. A graded lab
 4. Uninstall And Clean Removal
    - Lab: Remove An Istio Helm Install Completely Lab
 5. Summary
+
+### Inspect Profiles And Verify An Installation
+
+1. Reading Profiles With list, dump And diff
+2. Verifying An Install And Analyzing The Mesh
+   - Lab: Verify A Mesh And Fix What Analyze Reports Lab
+3. Summary
 
 ## Knowledge check and capstone
 

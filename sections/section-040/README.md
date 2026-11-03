@@ -18,6 +18,7 @@ Knowing which component handles each feature is the real subject of this section
 - The boundary: what ztunnel enforces on its own at layer 4 (identities and ports), and what needs a waypoint at layer 7 (HTTP).
 - What a waypoint proxy is, which object `istioctl waypoint apply` creates, and how to scope it to a namespace or to one Service.
 - The path a request takes through a waypoint, applying a Gateway API `HTTPRoute`, and proving layer 7 processing from the response.
+- Running sidecar and ambient namespaces in one mesh, and the order for migrating a namespace from sidecar to ambient.
 
 ## Modules in this section
 
@@ -38,6 +39,13 @@ Work through the modules in this order. Each part teaches one idea. A graded lab
 3. Scoping And Removing Waypoints
    - Lab: Scope A Waypoint To One Service Lab
 4. Summary
+
+### Mix Sidecar And Ambient Mode And Migrate A Namespace
+
+1. Sidecar And Ambient Side By Side
+2. Migrating A Namespace To Ambient
+   - Lab: Migrate A Namespace From Sidecar To Ambient Mode Lab
+3. Summary
 
 ## Knowledge check and capstone
 

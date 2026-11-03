@@ -18,8 +18,10 @@ training:
   description: >
     Training material covering the Istio Certified Associate (ICA)
     Installation, Upgrade And Configuration domain: installing with istioctl
-    and Helm, customizing the installation, controlling sidecar injection,
-    canary and in-place upgrades, and ambient mode with waypoint proxies.
+    and Helm, verifying an install with istioctl analyze, customizing the
+    installation and the ingress gateway, controlling sidecar injection,
+    canary and in-place upgrades, sidecar and ambient mode, migrating a
+    namespace to ambient mode and ambient waypoint proxies.
     Each module pairs a layered reader with an ungraded hands-on playground
     and a graded practice lab. Each section closes with a knowledge check
     and an integration capstone.
@@ -191,8 +193,42 @@ modules:
         path: sections/section-010/module-02/course-05-summary.md
 
       - type: reading
+        title: "Inspect Profiles And Verify An Installation"
+        path: sections/section-010/module-03/course.md
+      - type: reading
+        title: "Reading Profiles: list, dump and diff"
+        path: sections/section-010/module-03/course-01-profiles-list-dump-diff.md
+      - type: reading
+        title: "Verifying An Installation"
+        path: sections/section-010/module-03/course-02-verify-install-and-analyze.md
+      - type: reading
+        title: Question
+        path: sections/section-010/module-03/labs/lab-01/question.md
+      - type: lab
+        title: "Verify A Mesh And Fix What Analyze Reports Lab"
+        path: sections/section-010/module-03/labs/lab-01
+        difficulty: intermediate
+        estimated_duration: 20m
+        topic: istioctl-verify
+        task_kind: troubleshoot
+        tags: [istioctl, analyze, verify-install, proxy-status, injection, virtualservice]
+        learning_goals:
+          - Read istioctl analyze output and fix every problem it reports
+          - Give already-running pods their sidecar and correct a VirtualService host
+          - Prove the result with a clean analysis and a 200 response
+        resources:
+          - name: "istioctl analyze"
+            url: https://istio.io/latest/docs/ops/diagnostic-tools/istioctl-analyze/
+          - name: "istioctl reference"
+            url: https://istio.io/latest/docs/reference/commands/istioctl/
+      - type: reading
+        title: "Summary"
+        path: sections/section-010/module-03/course-03-summary.md
+
+      - type: quiz
         title: "Section 010 Knowledge Check: Installing Istio With istioctl Or Helm"
-        path: sections/section-010/quiz.md
+        path: sections/section-010/quiz.yaml
+        pass_score: 70
       - type: reading
         title: Question
         path: sections/section-010/capstone/labs/lab-01/question.md
@@ -325,8 +361,42 @@ modules:
         path: sections/section-020/module-02/course-04-summary.md
 
       - type: reading
+        title: "Customize Gateways And Control Plane Resources"
+        path: sections/section-020/module-03/course.md
+      - type: reading
+        title: "The components Block And k8s Settings"
+        path: sections/section-020/module-03/course-01-components-and-kubernetes-overlays.md
+      - type: reading
+        title: "Shaping The Ingress Gateway Service And Scaling"
+        path: sections/section-020/module-03/course-02-ingress-gateway-service-and-scaling.md
+      - type: reading
+        title: Question
+        path: sections/section-020/module-03/labs/lab-01/question.md
+      - type: lab
+        title: "Customize The Ingress Gateway With IstioOperator Lab"
+        path: sections/section-020/module-03/labs/lab-01
+        difficulty: intermediate
+        estimated_duration: 25m
+        topic: istio-customize
+        task_kind: build
+        tags: [istioctl, istiooperator, ingress-gateway, nodeport, hpa, resources]
+        learning_goals:
+          - Expose the ingress gateway on a fixed node port with an IstioOperator overlay
+          - Set the autoscaler bounds and the resource requests of the gateway
+          - Prove the change with a 200 response through the node port
+        resources:
+          - name: "Customizing the installation"
+            url: https://istio.io/latest/docs/setup/additional-setup/customize-installation/
+          - name: "IstioOperator options"
+            url: https://istio.io/latest/docs/reference/config/istio.operator.v1alpha1/
+      - type: reading
+        title: "Summary"
+        path: sections/section-020/module-03/course-03-summary.md
+
+      - type: quiz
         title: "Section 020 Knowledge Check: Customizing Your Istio Installation"
-        path: sections/section-020/quiz.md
+        path: sections/section-020/quiz.yaml
+        pass_score: 70
       - type: reading
         title: Question
         path: sections/section-020/capstone/labs/lab-01/question.md
@@ -524,9 +594,10 @@ modules:
         title: "Summary"
         path: sections/section-030/module-03/course-04-summary.md
 
-      - type: reading
+      - type: quiz
         title: "Section 030 Knowledge Check: Upgrading Istio (Canary, In-Place)"
-        path: sections/section-030/quiz.md
+        path: sections/section-030/quiz.yaml
+        pass_score: 70
       - type: reading
         title: Question
         path: sections/section-030/capstone/labs/lab-01/question.md
@@ -652,8 +723,42 @@ modules:
         path: sections/section-040/module-02/course-04-summary.md
 
       - type: reading
+        title: "Mix Sidecar And Ambient Mode And Migrate A Namespace"
+        path: sections/section-040/module-03/course.md
+      - type: reading
+        title: "Sidecar And Ambient Mode Side By Side"
+        path: sections/section-040/module-03/course-01-sidecar-and-ambient-side-by-side.md
+      - type: reading
+        title: "Migrating A Namespace To Ambient Mode"
+        path: sections/section-040/module-03/course-02-migrating-a-namespace-to-ambient.md
+      - type: reading
+        title: Question
+        path: sections/section-040/module-03/labs/lab-01/question.md
+      - type: lab
+        title: "Migrate A Namespace From Sidecar To Ambient Mode Lab"
+        path: sections/section-040/module-03/labs/lab-01
+        difficulty: intermediate
+        estimated_duration: 25m
+        topic: ambient
+        task_kind: migration
+        tags: [ambient, sidecar, migration, ztunnel-config, injection, hbone]
+        learning_goals:
+          - Swap the injection label for the ambient label and create the pods again without sidecars
+          - Prove membership with ztunnel-config and a 200 response
+          - Keep the ConfigMap and workloads in place while the data plane changes
+        resources:
+          - name: "Ambient and Kubernetes"
+            url: https://istio.io/latest/docs/ambient/overview/
+          - name: "Add workloads to the mesh"
+            url: https://istio.io/latest/docs/ambient/usage/add-workloads/
+      - type: reading
+        title: "Summary"
+        path: sections/section-040/module-03/course-03-summary.md
+
+      - type: quiz
         title: "Section 040 Knowledge Check: Installing Istio In Sidecar Or Ambient Mode"
-        path: sections/section-040/quiz.md
+        path: sections/section-040/quiz.yaml
+        pass_score: 70
       - type: reading
         title: Question
         path: sections/section-040/capstone/labs/lab-01/question.md
@@ -684,6 +789,7 @@ modules:
       Configuration domain, drawing on all four sections.
 
     content:
-      - type: reading
+      - type: quiz
         title: "Final Domain Exam Simulator"
-        path: sections/final-domain-quiz.md
+        path: sections/final-domain-quiz.yaml
+        pass_score: 70

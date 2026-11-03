@@ -1,0 +1,401 @@
+# Knowledge check for section 020. Listed in astrona.yaml as a `type: quiz` entry after the section's last module.
+schema_version: 1
+kind: question_bank
+id: ats013-020
+course_id: ATS013
+exam_code: ICA
+status: draft
+provenance: Original practice material written for this course; not official exam
+  questions.
+scope:
+  type: section
+  id: section-020
+  title: Customizing Your Istio Installation
+questions:
+- id: ats013-020-q01
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Find the key that sets the default resource request of every
+    injected sidecar
+  source_readings:
+  - sections/section-020/module-01/course-01-the-four-configuration-layers.md
+  prompt: A task says "every sidecar in the mesh should request 20m of CPU". Which
+    key configures that?
+  options:
+  - id: a
+    text: "`spec.components.proxy.k8s.resources.requests.cpu`"
+    explanation: This option invents a component. There is no `components.proxy`,
+      sidecars are not a deployed component, they are injected into other people's
+      pods.
+  - id: b
+    text: "`spec.components.pilot.k8s.resources.requests.cpu`"
+    explanation: This option sizes `istiod` itself. `pilot` is the historical name
+      of the control-plane component, and it is one Deployment.
+  - id: c
+    text: "`spec.meshConfig.defaultConfig.proxyResources.cpu`"
+    explanation: This option invents a field. `meshConfig.defaultConfig` is real and
+      carries proxy *behaviour* settings, not Kubernetes resource requests.
+  - id: d
+    text: "`spec.values.global.proxy.resources.requests.cpu`"
+    explanation: Correct. `values.global.proxy` sets the defaults applied to every
+      injected sidecar, and it is the key the injection template reads. It is also
+      the one whose cost multiplies, 20m here is 20m per meshed pod, not 20m total.
+      You verify it on an injected pod, not in the `istio` ConfigMap.
+  correct_option: d
+  explanation: "`values.global.proxy` sets the defaults applied to every injected
+    sidecar, and it is the key the injection template reads. It is also the one whose
+    cost multiplies, 20m here is 20m per meshed pod, not 20m total. You verify it
+    on an injected pod, not in the `istio` ConfigMap."
+- id: ats013-020-q02
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Predict the effect of re-running istioctl install with another
+    profile on a customized install
+  source_readings:
+  - sections/section-020/module-01/course-03-writing-validating-reapplying.md
+  prompt: 'You install `istio-custom.yaml`, which disables the egress gateway and
+    sets `outboundTrafficPolicy.mode: REGISTRY_ONLY`. A week later a colleague runs
+    `istioctl install --set profile=demo -y` to "refresh" the install. What is the
+    result?'
+  options:
+  - id: a
+    text: The egress gateway comes back and `outboundTrafficPolicy` disappears, because
+      `istioctl install` reconciles the cluster to the document it was given.
+    explanation: Correct. `istioctl install` is declarative, it renders a complete
+      desired state and reconciles the cluster to it. The stock `demo` profile enables
+      the egress gateway and sets no `outboundTrafficPolicy`, so both of your deviations
+      revert, and the mesh is back to `ALLOW_ANY`. Nothing warns you, because from
+      Istio's point of view the colleague asked for `demo` and got `demo`. This is
+      the argument for one committed file per control plane, passed on every run.
+  - id: b
+    text: The two documents are merged, so both sets of settings are live.
+    explanation: This option describes a merge that does not happen, values from previous
+      runs are not carried over.
+  - id: c
+    text: The command fails with a conflict against the existing installation.
+    explanation: This option invents a conflict check; reconciliation is the normal,
+      expected behaviour.
+  - id: d
+    text: Nothing changes; the second install is a no-op because the same profile
+      is already in use.
+    explanation: This option assumes the profile name is the whole input; the previous
+      overrides were part of a different document.
+  correct_option: a
+  explanation: "`istioctl install` is declarative, it renders a complete desired state
+    and reconciles the cluster to it. The stock `demo` profile enables the egress
+    gateway and sets no `outboundTrafficPolicy`, so both of your deviations revert,
+    and the mesh is back to `ALLOW_ANY`. Nothing warns you, because from Istio's point
+    of view the colleague asked for `demo` and got `demo`. This is the argument for
+    one committed file per control plane, passed on every run."
+- id: ats013-020-q03
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Explain how a gateway entry in components is matched with the
+    profile's entries
+  source_readings:
+  - sections/section-020/module-01/course-03-writing-validating-reapplying.md
+  prompt: 'Your `IstioOperator` builds on the `demo` profile and contains one entry
+    under `components.ingressGateways`: `name: internal-gateway` with `enabled: true`.
+    After the install, `internal-gateway` runs, but `istio-ingressgateway` is gone.
+    Why?'
+  options:
+  - id: a
+    text: The `demo` profile does not include an ingress gateway.
+    explanation: This option is false; `demo` installs both an ingress and an egress
+      gateway.
+  - id: b
+    text: Two ingress gateways cannot run in one cluster, so `istioctl` keeps only
+      the newest one.
+    explanation: This option is false; a cluster can run as many gateways as you list.
+  - id: c
+    text: A gateway list in your document replaces the profile's list as a whole.
+      Your list holds only `internal-gateway`, so `istio-ingressgateway` is no longer
+      in the render, and the install removes it.
+    explanation: 'Correct. `components.ingressGateways` and `components.egressGateways`
+      are lists, because a cluster can run several of each. In Istio 1.30, `istioctl`
+      does not merge your list with the profile''s list entry by entry: your list
+      replaces it. To keep the default gateway, list `istio-ingressgateway` next to
+      `internal-gateway`. `istioctl manifest generate -f <file>` shows this before
+      the install: the rendered manifest has no `istio-ingressgateway` objects.'
+  - id: d
+    text: "`enabled: true` on one entry turns every other entry off."
+    explanation: This option invents semantics for `enabled`; each entry has its own.
+  correct_option: c
+  explanation: "`components.ingressGateways` and `components.egressGateways` are lists,
+    because a cluster can run several of each. In Istio 1.30, `istioctl` does not
+    merge your list with the profile's list entry by entry: your list replaces it.
+    To keep the default gateway, list `istio-ingressgateway` next to `internal-gateway`.
+    `istioctl manifest generate -f <file>` shows this before the install: the rendered
+    manifest has no `istio-ingressgateway` objects."
+- id: ats013-020-q04
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Separate installation settings from runtime resources
+  source_readings:
+  - sections/section-020/module-01/course-02-meshconfig-from-file-to-proxy.md
+  prompt: Which of these belongs in a **runtime** resource rather than in the installation?
+  options:
+  - id: a
+    text: The default access-log destination for every proxy in the mesh.
+    explanation: This option is `spec.meshConfig`, a mesh-wide default. (Per-*workload*
+      logging would be a runtime `Telemetry` resource, which is the distinction worth
+      holding onto.).
+  - id: b
+    text: Retries and a timeout for calls to one specific service.
+    explanation: Correct. Per-service traffic behaviour is a `VirtualService`, an
+      ordinary Kubernetes resource you apply and delete at any time, picked up by
+      `istiod` within seconds. Reaching for an install-time change here means re-running
+      the install and rolling the control plane for something that needed a `kubectl
+      apply`.
+  - id: c
+    text: How many replicas `istiod` runs.
+    explanation: This option is `spec.components.pilot.k8s`, sizing a deployed workload.
+  - id: d
+    text: Whether the mesh has an egress gateway at all.
+    explanation: This option is `spec.components`, which components are deployed.
+  correct_option: b
+  explanation: Per-service traffic behaviour is a `VirtualService`, an ordinary Kubernetes
+    resource you apply and delete at any time, picked up by `istiod` within seconds.
+    Reaching for an install-time change here means re-running the install and rolling
+    the control plane for something that needed a `kubectl apply`.
+- id: ats013-020-q05
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Apply the pod-label precedence rule for sidecar injection
+  source_readings:
+  - sections/section-020/module-02/course-02-the-precedence-rules.md
+  prompt: 'A Deployment carries `sidecar.istio.io/inject: "false"` on its own `metadata.labels`,
+    in an injected namespace. After a rollout restart, what happens?'
+  options:
+  - id: a
+    text: The API server rejects the Deployment.
+    explanation: This option would happen with an unquoted `false` (a YAML boolean
+      is not a valid label value), but a quoted string on the wrong object is perfectly
+      valid.
+  - id: b
+    text: The workload is excluded, but only until the next control-plane restart.
+    explanation: This option invents a time dependency.
+  - id: c
+    text: The workload is excluded from the mesh, as intended.
+    explanation: This option is the intent, not the result.
+  - id: d
+    text: The pods are injected anyway, the webhook is registered against Pods and
+      never sees the Deployment.
+    explanation: Correct. Istio's mutating webhook is registered against the `pods`
+      resource, and its `objectSelector` is evaluated against the Pod being admitted.
+      A label on the Deployment is never copied to the pod unless it is in `spec.template.metadata.labels`.
+      The manifest applies cleanly, nothing errors, and the workload keeps getting
+      a sidecar, which is what makes this the most expensive mistake in the section.
+  correct_option: d
+  explanation: Istio's mutating webhook is registered against the `pods` resource,
+    and its `objectSelector` is evaluated against the Pod being admitted. A label
+    on the Deployment is never copied to the pod unless it is in `spec.template.metadata.labels`.
+    The manifest applies cleanly, nothing errors, and the workload keeps getting a
+    sidecar, which is what makes this the most expensive mistake in the section.
+- id: ats013-020-q06
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Resolve which control plane serves a namespace with both an
+    injection label and a revision label
+  source_readings:
+  - sections/section-020/module-02/course-02-the-precedence-rules.md
+  prompt: A namespace carries **both** `istio-injection=enabled` and `istio.io/rev=1-30-5`.
+    Which control plane serves its workloads?
+  options:
+  - id: a
+    text: The default control plane, `istio-injection` wins and the revision label
+      is silently ignored.
+    explanation: 'Correct. It follows from the webhook selectors rather than from
+      any conflict-resolution logic. The default webhook requires `istio-injection:
+      enabled`; the revisioned webhook requires `istio.io/rev` **and** that `istio-injection`
+      is absent. A namespace carrying both satisfies only the first. This is why removing
+      the old label is step one of moving a namespace to a revision, not a tidy-up
+      afterwards, and it is the reason a canary upgrade can appear to do nothing.'
+  - id: b
+    text: Neither; the conflict makes the webhook skip the namespace entirely.
+    explanation: This option would require both selectors to fail, which is not the
+      case.
+  - id: c
+    text: Both, with pods alternating between them.
+    explanation: This option invents non-deterministic behaviour.
+  - id: d
+    text: Revision `1-30-5`, because the more specific label wins.
+    explanation: This option assumes a specificity rule that does not exist here.
+  correct_option: a
+  explanation: 'It follows from the webhook selectors rather than from any conflict-resolution
+    logic. The default webhook requires `istio-injection: enabled`; the revisioned
+    webhook requires `istio.io/rev` **and** that `istio-injection` is absent. A namespace
+    carrying both satisfies only the first. This is why removing the old label is
+    step one of moving a namespace to a revision, not a tidy-up afterwards, and it
+    is the reason a canary upgrade can appear to do nothing.'
+- id: ats013-020-q07
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Interpret blocked outbound traffic under REGISTRY_ONLY
+  source_readings:
+  - sections/section-020/module-01/course-02-meshconfig-from-file-to-proxy.md
+  prompt: 'You set `meshConfig.outboundTrafficPolicy.mode: REGISTRY_ONLY`. An application
+    that calls a public API starts returning 502 from its sidecar. What is the correct
+    interpretation?'
+  options:
+  - id: a
+    text: The 502 comes from the application, not from Istio.
+    explanation: This option is wrong, the request never reached the application.
+  - id: b
+    text: The mesh is misconfigured and the setting should be reverted.
+    explanation: This option treats the intended behaviour as a fault. The fix is
+      a `ServiceEntry`, or a deliberate decision to go back to `ALLOW_ANY`.
+  - id: c
+    text: 'The setting is working: `REGISTRY_ONLY` blocks every destination not in
+      the mesh registry, so an external host needs a `ServiceEntry` to be reachable.'
+    explanation: Correct. `ALLOW_ANY` (the default) lets a meshed pod reach any host;
+      `REGISTRY_ONLY` is deny-by-default for outbound. It is a useful security posture
+      and it is also an outage if enabled without inventorying outbound dependencies
+      first. The diagnostic tell is an immediate 502 from the proxy rather than a
+      connection timeout, which would suggest a network path problem instead.
+  - id: d
+    text: The sidecar cannot resolve DNS for external hosts in this mode.
+    explanation: This option misattributes it to DNS.
+  correct_option: c
+  explanation: "`ALLOW_ANY` (the default) lets a meshed pod reach any host; `REGISTRY_ONLY`
+    is deny-by-default for outbound. It is a useful security posture and it is also
+    an outage if enabled without inventorying outbound dependencies first. The diagnostic
+    tell is an immediate 502 from the proxy rather than a connection timeout, which
+    would suggest a network path problem instead."
+- id: ats013-020-q08
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Choose the command that validates an IstioOperator file before
+    it is applied
+  source_readings:
+  - sections/section-020/module-01/course-01-the-four-configuration-layers.md
+  prompt: Which command would have caught an indentation error that put `meshConfig`
+    underneath `components` in your `IstioOperator` file?
+  options:
+  - id: a
+    text: "`kubectl apply --dry-run=server -f istio-custom.yaml`"
+    explanation: This option validates against Kubernetes API schemas; an `IstioOperator`
+      file passed to `istioctl` is not applied that way.
+  - id: b
+    text: "`istioctl manifest generate -f istio-custom.yaml`, by showing the rendered
+      result without your setting in it"
+    explanation: Correct. A misplaced key becomes an *unknown field*, and an unknown
+      field does not stop an install. `istioctl validate -f` catches many schema problems,
+      but `istioctl manifest generate -f` is the stronger check because it shows the
+      fully rendered result, if your override is not in the output, it did not take,
+      whatever the reason.
+  - id: c
+    text: "`istioctl proxy-status`"
+    explanation: This option inspects running proxies, long after the mistake.
+  - id: d
+    text: Nothing, the install would have failed with a schema error.
+    explanation: This option is the comforting assumption that makes this class of
+      bug expensive, silently ignored is the normal outcome.
+  correct_option: b
+  explanation: A misplaced key becomes an *unknown field*, and an unknown field does
+    not stop an install. `istioctl validate -f` catches many schema problems, but
+    `istioctl manifest generate -f` is the stronger check because it shows the fully
+    rendered result, if your override is not in the output, it did not take, whatever
+    the reason.
+- id: ats013-020-q09
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Set resources for a component with the k8s block
+  source_readings:
+  - sections/section-020/module-03/course-01-components-and-kubernetes-overlays.md
+  prompt: Where do you set the CPU request of `istiod` in an `IstioOperator` file?
+  options:
+  - id: a
+    text: "`spec.meshConfig.defaultConfig.resources`"
+    explanation: This key does not set the `istiod` Deployment resources.
+  - id: b
+    text: "`spec.values.global.proxy.resources`"
+    explanation: This sets the resources of injected sidecars, not of `istiod`.
+  - id: c
+    text: "`spec.components.base.k8s.resources`"
+    explanation: The `base` component holds the CRDs and cluster-wide objects, not
+      a workload.
+  - id: d
+    text: "`spec.components.pilot.k8s.resources.requests.cpu`"
+    explanation: Correct. The `pilot` component is `istiod`, and `k8s.resources` sets
+      the requests of its Deployment.
+  correct_option: d
+  explanation: The `pilot` component is `istiod`, and `k8s.resources` sets the requests
+    of its Deployment.
+- id: ats013-020-q10
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Change the ingress gateway Service type
+  source_readings:
+  - sections/section-020/module-03/course-02-ingress-gateway-service-and-scaling.md
+  prompt: On a `kind` cluster the ingress gateway Service shows `<pending>` as its
+    external address. Which change in the `IstioOperator` file makes the gateway reachable
+    on a fixed port?
+  options:
+  - id: a
+    text: 'Set `components.ingressGateways[].k8s.service.type: NodePort` and a `nodePort`
+      on the port.'
+    explanation: Correct. `kind` has no load balancer, and a `NodePort` Service opens
+      a fixed port on the node.
+  - id: b
+    text: Set `meshConfig.ingressService`.
+    explanation: This field selects a Service for ingress control and does not change
+      the gateway Service.
+  - id: c
+    text: Set `components.ingressGateways[].k8s.hpaSpec`.
+    explanation: This sets autoscaler bounds, not the Service.
+  - id: d
+    text: 'Set `components.ingressGateways[].enabled: false`.'
+    explanation: This removes the gateway.
+  correct_option: a
+  explanation: "`kind` has no load balancer, and a `NodePort` Service opens a fixed
+    port on the node."
+- id: ats013-020-q11
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Choose between replicaCount and hpaSpec
+  source_readings:
+  - sections/section-020/module-03/course-02-ingress-gateway-service-and-scaling.md
+  prompt: 'An overlay sets `replicaCount: 3` and an `hpaSpec` with `minReplicas: 2`
+    and `maxReplicas: 4` on the ingress gateway. Which statement is true?'
+  options:
+  - id: a
+    text: The gateway always runs exactly three replicas.
+    explanation: The autoscaler manages the replicas within its bounds.
+  - id: b
+    text: "`replicaCount` becomes the maximum of the autoscaler."
+    explanation: The two fields are separate settings.
+  - id: c
+    text: The autoscaler controls the replicas, so the `replicaCount` is ignored.
+    explanation: Correct. The `HorizontalPodAutoscaler` overrides the replica count
+      of the Deployment.
+  - id: d
+    text: The install fails because the two fields are not allowed together.
+    explanation: Both fields are accepted. Only one of them has an effect.
+  correct_option: c
+  explanation: The `HorizontalPodAutoscaler` overrides the replica count of the Deployment.
+- id: ats013-020-q12
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Select a gateway entry by name in an overlay
+  source_readings:
+  - sections/section-020/module-03/course-01-components-and-kubernetes-overlays.md
+  prompt: 'Why must an overlay entry under `components.ingressGateways` carry `name:
+    istio-ingressgateway` to change the gateway that the profile installs?'
+  options:
+  - id: a
+    text: The name is required only for the egress gateway.
+    explanation: Both gateway lists use the `name` field.
+  - id: b
+    text: The `name` field selects the entry, so another name creates a second gateway.
+    explanation: Correct. The gateway lists are matched by `name`, so an overlay with
+      a different name adds a new gateway.
+  - id: c
+    text: The name is only a label and has no effect.
+    explanation: The name decides which entry the settings apply to.
+  - id: d
+    text: The name must match the namespace of the gateway.
+    explanation: The namespace is a separate field.
+  correct_option: b
+  explanation: The gateway lists are matched by `name`, so an overlay with a different
+    name adds a new gateway.

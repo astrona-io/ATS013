@@ -1,0 +1,430 @@
+# Knowledge check for section 040. Listed in astrona.yaml as a `type: quiz` entry after the section's last module.
+schema_version: 1
+kind: question_bank
+id: ats013-040
+course_id: ATS013
+exam_code: ICA
+status: draft
+provenance: Original practice material written for this course; not official exam
+  questions.
+scope:
+  type: section
+  id: section-040
+  title: Installing Istio In Sidecar Or Ambient Mode
+questions:
+- id: ats013-040-q01
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Name the components the ambient profile adds
+  source_readings:
+  - sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
+  prompt: Which components does the `ambient` profile add that the `default` profile
+    does not?
+  options:
+  - id: a
+    text: The `istio-cni-node` and `ztunnel` DaemonSets.
+    explanation: 'Correct. `istiod` is the same control plane in both modes. Ambient
+      adds two DaemonSets: `istio-cni-node`, which programs the traffic redirection
+      at the node level, and `ztunnel`, the per-node L4 proxy. DaemonSet is the load-bearing
+      word, sidecar mode scales proxies with the number of *pods*, ambient mode with
+      the number of *nodes*.'
+  - id: b
+    text: The Gateway API CRDs and a `GatewayClass`.
+    explanation: This option is a real prerequisite for waypoints but Istio does not
+      ship the Gateway API CRDs, you install them separately.
+  - id: c
+    text: A `ztunnel` Deployment and an egress gateway.
+    explanation: This option gets the workload kind wrong; ztunnel is a DaemonSet,
+      and the ambient profile installs no gateways.
+  - id: d
+    text: A second `istiod` and a waypoint proxy.
+    explanation: This option invents a second control plane, and waypoints are opt-in
+      per namespace or service, never installed by the profile.
+  correct_option: a
+  explanation: "`istiod` is the same control plane in both modes. Ambient adds two
+    DaemonSets: `istio-cni-node`, which programs the traffic redirection at the node
+    level, and `ztunnel`, the per-node L4 proxy. DaemonSet is the load-bearing word,
+    sidecar mode scales proxies with the number of *pods*, ambient mode with the number
+    of *nodes*."
+- id: ats013-040-q02
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Explain that ambient enrollment does not restart pods
+  source_readings:
+  - sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
+  prompt: You label a namespace `istio.io/dataplane-mode=ambient`. Its running pods
+    are not restarted. Are they in the mesh?
+  options:
+  - id: a
+    text: Yes, but only for outbound traffic until the pods restart.
+    explanation: Not correct. This is the headline difference from sidecar mode, and
+      it follows from the mechanism. Sidecar injection is a *mutation of the pod spec*,
+      so it can only happen at admission. Ambient enrollment changes things that live
+      outside the pod, the redirection `istio-cni-node` programs, and the workload
+      state `istiod` pushes to ztunnel. The pod does not need to know and does not
+      change. The observable proof is that `AGE` keeps counting and `RESTARTS` stays
+      at 0.
+  - id: b
+    text: No, like sidecar injection, enrollment applies only to pods created afterwards.
+    explanation: This option applies the sidecar rule to a mechanism it does not describe.
+  - id: c
+    text: Yes. Enrollment changes node-level redirection and ztunnel's configuration,
+      both outside the pod, so nothing has to be recreated.
+    explanation: Correct. This is the headline difference from sidecar mode, and it
+      follows from the mechanism. Sidecar injection is a *mutation of the pod spec*,
+      so it can only happen at admission. Ambient enrollment changes things that live
+      outside the pod, the redirection `istio-cni-node` programs, and the workload
+      state `istiod` pushes to ztunnel. The pod does not need to know and does not
+      change. The observable proof is that `AGE` keeps counting and `RESTARTS` stays
+      at 0.
+  - id: d
+    text: Only pods that are restarted within the certificate rotation window.
+    explanation: This option and another option invent partial states that do not
+      exist.
+  correct_option: c
+  explanation: This is the headline difference from sidecar mode, and it follows from
+    the mechanism. Sidecar injection is a *mutation of the pod spec*, so it can only
+    happen at admission. Ambient enrollment changes things that live outside the pod,
+    the redirection `istio-cni-node` programs, and the workload state `istiod` pushes
+    to ztunnel. The pod does not need to know and does not change. The observable
+    proof is that `AGE` keeps counting and `RESTARTS` stays at 0.
+- id: ats013-040-q03
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Verify ambient membership when the container count does not
+    help
+  source_readings:
+  - sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
+  prompt: A colleague runs `kubectl get pods -n ambient-demo`, sees one container
+    per pod, and concludes the mesh is broken. What should you tell them?
+  options:
+  - id: a
+    text: They are right; enrollment failed and the namespace needs relabelling.
+    explanation: This option accepts a wrong diagnosis.
+  - id: b
+    text: In ambient mode a meshed pod is never modified, so container count cannot
+      answer that question. Use `istioctl ztunnel-config workload` and read the `PROTOCOL`
+      column.
+    explanation: 'Correct. Counting containers is the sidecar-mode habit, and in ambient
+      mode it is not merely unhelpful, it actively misleads, because a fully meshed
+      pod looks identical to an unmeshed one. `istioctl ztunnel-config workload` reports
+      what ztunnel actually knows: `HBONE` means enrolled and reached over an mTLS
+      tunnel, `TCP` means plain traffic.'
+  - id: c
+    text: The sidecar appears only after the first request.
+    explanation: This option invents lazy injection.
+  - id: d
+    text: They should look for an `istio-init` container instead.
+    explanation: This option points at another sidecar-mode artifact that ambient
+      pods also do not have.
+  correct_option: b
+  explanation: 'Counting containers is the sidecar-mode habit, and in ambient mode
+    it is not merely unhelpful, it actively misleads, because a fully meshed pod looks
+    identical to an unmeshed one. `istioctl ztunnel-config workload` reports what
+    ztunnel actually knows: `HBONE` means enrolled and reached over an mTLS tunnel,
+    `TCP` means plain traffic.'
+- id: ats013-040-q04
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Define HBONE
+  source_readings:
+  - sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
+  prompt: What does `HBONE` refer to?
+  options:
+  - id: a
+    text: The Gateway API class name for waypoint proxies.
+    explanation: This option describes `istio-waypoint`.
+  - id: b
+    text: The protocol between `istiod` and each proxy for configuration.
+    explanation: This option describes xDS, which is a different protocol on port
+      15012.
+  - id: c
+    text: The health-check port every Istio proxy exposes.
+    explanation: This option describes port 15021.
+  - id: d
+    text: HTTP-Based Overlay Network Environment, the mTLS-encrypted HTTP/2 tunnel
+      ztunnels use to carry the original connection, on port 15008.
+    explanation: Correct. HBONE is ambient mode's transport. The application's connection
+      is carried inside an authenticated, encrypted tunnel between ztunnels, so both
+      ends have a cryptographic identity and the payload is encrypted, without the
+      application knowing. Port 15008 appearing as the destination in a ztunnel access
+      log, instead of the application's own port, is the visible sign of it.
+  correct_option: d
+  explanation: HBONE is ambient mode's transport. The application's connection is
+    carried inside an authenticated, encrypted tunnel between ztunnels, so both ends
+    have a cryptographic identity and the payload is encrypted, without the application
+    knowing. Port 15008 appearing as the destination in a ztunnel access log, instead
+    of the application's own port, is the visible sign of it.
+- id: ats013-040-q05
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Predict what happens to a layer 7 policy without a waypoint
+  source_readings:
+  - sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
+  prompt: You apply an `AuthorizationPolicy` to an ambient namespace that denies requests
+    unless the HTTP method is `GET`. There is no waypoint. What happens?
+  options:
+  - id: a
+    text: The policy is accepted, reports healthy, and has no effect. ztunnel is an
+      L4 proxy and cannot read the method.
+    explanation: Correct. This silent no-op is the single most common ambient-mode
+      mistake. `AuthorizationPolicy` is one CRD, but a rule matching on `principals`
+      or `ports` is L4 and enforceable by ztunnel, while a rule matching on methods,
+      paths or headers is L7 and needs an HTTP-aware proxy in the path. Nothing errors,
+      nothing warns, and the restriction you believe is in place is not.
+  - id: b
+    text: All traffic to the namespace is denied, because the rule cannot be evaluated.
+    explanation: This option invents fail-closed behaviour.
+  - id: c
+    text: The policy is rejected, because L7 rules require a waypoint.
+    explanation: This option assumes a validation step that does not exist.
+  - id: d
+    text: ztunnel enforces it, it can inspect HTTP headers to determine the method.
+    explanation: This option misstates what a TCP-level proxy can do.
+  correct_option: a
+  explanation: This silent no-op is the single most common ambient-mode mistake. `AuthorizationPolicy`
+    is one CRD, but a rule matching on `principals` or `ports` is L4 and enforceable
+    by ztunnel, while a rule matching on methods, paths or headers is L7 and needs
+    an HTTP-aware proxy in the path. Nothing errors, nothing warns, and the restriction
+    you believe is in place is not.
+- id: ats013-040-q06
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Name the prerequisite of a waypoint
+  source_readings:
+  - sections/section-040/module-02/course-01-what-a-waypoint-is.md
+  prompt: '`istioctl waypoint apply` fails with `no matches for kind "Gateway" in
+    version "gateway.networking.k8s.io/v1"`. What is wrong?'
+  options:
+  - id: a
+    text: "`istioctl` is an older version than the control plane."
+    explanation: This option would not produce a missing-kind error.
+  - id: b
+    text: The ambient profile was not installed.
+    explanation: This option would produce a different failure, and `istiod` would
+      be absent entirely.
+  - id: c
+    text: The Gateway API CRDs are not installed. Istio does not ship them, and a
+      waypoint is a `Gateway`.
+    explanation: Correct. The Gateway API is a separate Kubernetes SIG project with
+      its own release cadence, and Istio does not bundle its CRDs. Since a waypoint
+      *is* a `Gateway` of class `istio-waypoint`, the API server rejects the unknown
+      kind. The error reads like an Istio bug and is not, the `ensure CRDs are installed
+      first` clause is the diagnosis.
+  - id: d
+    text: The namespace is not enrolled in ambient mode.
+    explanation: This option would let the Gateway be created and simply route no
+      traffic.
+  correct_option: c
+  explanation: The Gateway API is a separate Kubernetes SIG project with its own release
+    cadence, and Istio does not bundle its CRDs. Since a waypoint *is* a `Gateway`
+    of class `istio-waypoint`, the API server rejects the unknown kind. The error
+    reads like an Istio bug and is not, the `ensure CRDs are installed first` clause
+    is the diagnosis.
+- id: ats013-040-q07
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Explain why a waypoint needs the namespace to be enrolled
+  source_readings:
+  - sections/section-040/module-02/course-03-scoping-and-removing-waypoints.md
+  prompt: 'You run `istioctl waypoint apply -n shop` without `--enroll-namespace`.
+    The Gateway reports `Programmed: True` and the pod is running, but nothing changes.
+    Why?'
+  options:
+  - id: a
+    text: The waypoint needs a `VirtualService` before it takes traffic.
+    explanation: This option names the wrong resource and the wrong mechanism; ztunnel
+      decides the routing, not a route resource.
+  - id: b
+    text: Creating the proxy and pointing traffic at it are separate steps, without
+      `istio.io/use-waypoint` on the namespace or a Service, ztunnel never routes
+      through it.
+    explanation: 'Correct. `waypoint apply` writes the `Gateway`; `--enroll-namespace`
+      adds the `istio.io/use-waypoint` label that tells ztunnel to send the namespace''s
+      traffic to it. Omit the second and you get a healthy, idle Envoy. The check
+      is the `WAYPOINT` column of `istioctl ztunnel-config service`: no Service names
+      the waypoint.'
+  - id: c
+    text: "`Programmed: True` only means the Gateway was accepted, not that a pod
+      exists."
+    explanation: This option misstates `Programmed`, which does mean a proxy was produced.
+  - id: d
+    text: Waypoints take effect only after the workloads are restarted.
+    explanation: This option invents a restart requirement that ambient mode specifically
+      does not have.
+  correct_option: b
+  explanation: "`waypoint apply` writes the `Gateway`; `--enroll-namespace` adds the
+    `istio.io/use-waypoint` label that tells ztunnel to send the namespace's traffic
+    to it. Omit the second and you get a healthy, idle Envoy. The check is the `WAYPOINT`
+    column of `istioctl ztunnel-config service`: no Service names the waypoint."
+- id: ats013-040-q08
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Predict the effect of deleting a waypoint
+  source_readings:
+  - sections/section-040/module-02/course-03-scoping-and-removing-waypoints.md
+  prompt: Someone deletes a waypoint in a namespace that relied on an L7 `AuthorizationPolicy`.
+    What is the immediate effect?
+  options:
+  - id: a
+    text: ztunnel takes over enforcement of the L7 rule.
+    explanation: This option is the assumption that makes this dangerous, ztunnel
+      cannot read HTTP.
+  - id: b
+    text: The `AuthorizationPolicy` is automatically deleted along with the waypoint.
+    explanation: This option invents a garbage-collection relationship.
+  - id: c
+    text: Traffic to the namespace stops until the waypoint is recreated.
+    explanation: This option overstates it; the L4 mesh is unaffected.
+  - id: d
+    text: Traffic keeps flowing, still with mTLS and L4 policy, but the L7 rule silently
+      stops being enforced, while the policy object still looks healthy.
+    explanation: 'Correct. Deleting a waypoint degrades the mesh to L4 rather than
+      breaking it. Identity, mTLS and L4 authorization are ztunnel''s job and are
+      untouched. What is lost is HTTP routing, header manipulation, retries, timeouts
+      and any authorization rule matching on HTTP, silently, in exactly the way those
+      rules never applied before the waypoint existed. That is the security consequence
+      worth remembering: a waypoint''s absence is indistinguishable from its silence.'
+  correct_option: d
+  explanation: 'Deleting a waypoint degrades the mesh to L4 rather than breaking it.
+    Identity, mTLS and L4 authorization are ztunnel''s job and are untouched. What
+    is lost is HTTP routing, header manipulation, retries, timeouts and any authorization
+    rule matching on HTTP, silently, in exactly the way those rules never applied
+    before the waypoint existed. That is the security consequence worth remembering:
+    a waypoint''s absence is indistinguishable from its silence.'
+- id: ats013-040-q09
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Choose between a service waypoint and a namespace waypoint
+  source_readings:
+  - sections/section-040/module-02/course-03-scoping-and-removing-waypoints.md
+  prompt: When is a **service** waypoint (`--for service`) a better choice than a
+    namespace waypoint?
+  options:
+  - id: a
+    text: When only one service in the namespace needs L7, or when one service needs
+      its own independently-scaled proxy.
+    explanation: Correct. A waypoint is an extra hop, so it costs latency and a proxy
+      to run. A namespace waypoint routes *all* the namespace's traffic through it,
+      including traffic that only ever needed L4. Scoping to a Service avoids paying
+      for that, and it also lets a high-throughput service have a dedicated, separately-sized
+      proxy. Both are `Gateway` resources of class `istio-waypoint`, what differs
+      is who is pointed at them, via a namespace label or Service labels.
+  - id: b
+    text: When the namespace contains more than one Service.
+    explanation: This option is not by itself a reason, the question is which services
+      need L7.
+  - id: c
+    text: When the workloads are in sidecar mode rather than ambient mode.
+    explanation: This option is backwards; waypoints are an ambient-mode construct.
+  - id: d
+    text: Always, namespace waypoints are deprecated.
+    explanation: This option is false; namespace waypoints are the common starting
+      point.
+  correct_option: a
+  explanation: A waypoint is an extra hop, so it costs latency and a proxy to run.
+    A namespace waypoint routes *all* the namespace's traffic through it, including
+    traffic that only ever needed L4. Scoping to a Service avoids paying for that,
+    and it also lets a high-throughput service have a dedicated, separately-sized
+    proxy. Both are `Gateway` resources of class `istio-waypoint`, what differs is
+    who is pointed at them, via a namespace label or Service labels.
+- id: ats013-040-q10
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Predict the effect of an ambient label on pods that have sidecars
+  source_readings:
+  - sections/section-040/module-03/course-01-sidecar-and-ambient-side-by-side.md
+  prompt: A namespace has `istio-injection=enabled` and its pods carry sidecars. You
+    add `istio.io/dataplane-mode=ambient` and change nothing else. What happens to
+    the running pods?
+  options:
+  - id: a
+    text: They restart automatically.
+    explanation: No controller restarts the pods because of a label.
+  - id: b
+    text: They run with a sidecar and with ztunnel at the same time.
+    explanation: A pod uses one mode.
+  - id: c
+    text: They keep their sidecars, and ztunnel does not capture them.
+    explanation: Correct. A pod that has a sidecar is not captured by ztunnel, and
+      a label change does not remove a container from a running pod.
+  - id: d
+    text: They lose their sidecars at once.
+    explanation: A label change never removes a container from a running pod.
+  correct_option: c
+  explanation: A pod that has a sidecar is not captured by ztunnel, and a label change
+    does not remove a container from a running pod.
+- id: ats013-040-q11
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Order the steps of a sidecar to ambient migration
+  source_readings:
+  - sections/section-040/module-03/course-02-migrating-a-namespace-to-ambient.md
+  prompt: Which order migrates a namespace from sidecar to ambient mode safely?
+  options:
+  - id: a
+    text: Delete the namespace and create it again.
+    explanation: This is not needed and removes the workloads.
+  - id: b
+    text: Swap the labels, restart the Deployments, then verify membership and traffic.
+    explanation: Correct. The new pods are created without a sidecar and are enrolled
+      by the ambient label.
+  - id: c
+    text: Reinstall Istio with the ambient profile, then restart.
+    explanation: The cluster already runs the ambient data plane, and a reinstall
+      changes nothing for the namespace.
+  - id: d
+    text: Restart the Deployments, then swap the labels.
+    explanation: The new pods would get a sidecar again, because the injection label
+      is still set.
+  correct_option: b
+  explanation: The new pods are created without a sidecar and are enrolled by the
+    ambient label.
+- id: ats013-040-q12
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Verify ambient membership with ztunnel-config
+  source_readings:
+  - sections/section-040/module-03/course-02-migrating-a-namespace-to-ambient.md
+  prompt: After a migration, which command proves that a pod is in the ambient mesh?
+  options:
+  - id: a
+    text: "`kubectl get namespace --show-labels`"
+    explanation: The label shows the intent of the namespace, not what ztunnel carries.
+  - id: b
+    text: "`kubectl get pods` and the container count"
+    explanation: A pod in the ambient mesh has one container, so the count cannot
+      show membership.
+  - id: c
+    text: "`istioctl proxy-status`"
+    explanation: This lists Envoy proxies, and an ambient pod has none.
+  - id: d
+    text: "`istioctl ztunnel-config workload`"
+    explanation: Correct. It lists the workloads ztunnel holds, and `HBONE` in the
+      `PROTOCOL` column means the workload is in the mesh.
+  correct_option: d
+  explanation: It lists the workloads ztunnel holds, and `HBONE` in the `PROTOCOL`
+    column means the workload is in the mesh.
+- id: ats013-040-q13
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Explain that the two data planes interoperate
+  source_readings:
+  - sections/section-040/module-03/course-01-sidecar-and-ambient-side-by-side.md
+  prompt: A service in a sidecar namespace calls a service in an ambient namespace
+    of the same cluster. What happens?
+  options:
+  - id: a
+    text: The request works, because both modes share the control plane and identities.
+    explanation: Correct. This allows a gradual migration.
+  - id: b
+    text: The request works only after a waypoint is added.
+    explanation: A waypoint is for layer 7 features and is not needed for the connection.
+  - id: c
+    text: The request works only in permissive mode with no mutual TLS.
+    explanation: The two data planes are designed to interoperate with mutual TLS.
+  - id: d
+    text: The request fails, because the two modes cannot talk to each other.
+    explanation: Both modes use the same `istiod` and the same kind of workload identity.
+  correct_option: a
+  explanation: This allows a gradual migration.

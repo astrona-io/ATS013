@@ -1,0 +1,330 @@
+# Knowledge check for section 030. Listed in astrona.yaml as a `type: quiz` entry after the section's last module.
+schema_version: 1
+kind: question_bank
+id: ats013-030
+course_id: ATS013
+exam_code: ICA
+status: draft
+provenance: Original practice material written for this course; not official exam
+  questions.
+scope:
+  type: section
+  id: section-030
+  title: Upgrading Istio (Canary, In-Place)
+questions:
+- id: ats013-030-q01
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Explain how helm upgrade computes values when the values file
+    is omitted
+  source_readings:
+  - sections/section-030/module-01/course-02-how-upgrade-computes-values.md
+  prompt: "`istiod` was installed with `-f values.yaml`. Someone runs `helm upgrade
+    istiod istio/istiod -n istio-system --version 1.30.5 --set pilot.resources.requests.cpu=200m`
+    with no other flags. It prints `STATUS: deployed`. What happened to the other
+    values?"
+  options:
+  - id: a
+    text: The upgrade would have failed, because Helm requires the original values
+      file.
+    explanation: This option invents a safety check Helm does not perform.
+  - id: b
+    text: They were carried over, but only the keys that still exist in the new chart.
+    explanation: This option invents partial carry-over.
+  - id: c
+    text: They were carried over automatically; only the chart version changed.
+    explanation: This option describes `--reuse-values`, which is opt-in.
+  - id: d
+    text: They were discarded. Apart from the one `--set` value, the release now uses
+      chart defaults, and the command reported success.
+    explanation: 'Correct. As soon as you pass any `-f` file or `--set` flag, `helm
+      upgrade` computes the release from the chart''s defaults plus the `-f` files
+      and `--set` flags given **on this run**. Values from the previous revision are
+      not carried over. (Only an upgrade with no values at all reuses the previous
+      ones.) Nothing errors, the exit code is zero, and mesh-wide settings quietly
+      revert. The habit that removes the problem entirely: one complete values file,
+      committed, passed with `-f` on every install and every upgrade.'
+  correct_option: d
+  explanation: 'As soon as you pass any `-f` file or `--set` flag, `helm upgrade`
+    computes the release from the chart''s defaults plus the `-f` files and `--set`
+    flags given **on this run**. Values from the previous revision are not carried
+    over. (Only an upgrade with no values at all reuses the previous ones.) Nothing
+    errors, the exit code is zero, and mesh-wide settings quietly revert. The habit
+    that removes the problem entirely: one complete values file, committed, passed
+    with `-f` on every install and every upgrade.'
+- id: ats013-030-q02
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Recover the values an existing Helm release was installed with
+  source_readings:
+  - sections/section-030/module-01/course-01-where-a-release-lives.md
+  prompt: You need to recover the values an existing release was installed with, because
+    nobody committed the file. Which command gives them to you?
+  options:
+  - id: a
+    text: "`helm get values istiod -n istio-system --revision 1`"
+    explanation: Correct. Helm stores each release revision, rendered manifests and
+      the values used, in a Secret in the release's namespace, and keeps old revisions.
+      `helm get values --revision N` reads the values back out. Strip the `USER-SUPPLIED
+      VALUES:` header line, which is for humans and not part of the YAML, then commit
+      the result.
+  - id: b
+    text: "`kubectl -n istio-system get cm istio -o yaml`"
+    explanation: This option shows the live `meshConfig` only, real and useful as
+      a fallback, but it misses `pilot`, `global.proxy` and anything that was set
+      without a visible effect.
+  - id: c
+    text: "`istioctl manifest generate --set profile=istiod`"
+    explanation: This option is not a valid invocation; `istiod` is a release name,
+      not a profile, and `manifest generate` renders install input rather than reading
+      a release.
+  - id: d
+    text: "`helm show values istio/istiod`"
+    explanation: This option prints the **chart's defaults**, not what anyone supplied.
+  correct_option: a
+  explanation: Helm stores each release revision, rendered manifests and the values
+    used, in a Secret in the release's namespace, and keeps old revisions. `helm get
+    values --revision N` reads the values back out. Strip the `USER-SUPPLIED VALUES:`
+    header line, which is for humans and not part of the YAML, then commit the result.
+- id: ats013-030-q03
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Decide the next action when the data plane runs an older version
+    than the control plane
+  source_readings:
+  - sections/section-030/module-01/course-03-upgrading-in-order-and-finishing.md
+  prompt: 'After `helm upgrade` of `istiod` to 1.30.5, `istioctl version` reports
+    `control plane version: 1.30.5` and `data plane version: 1.29.8 (4 proxies)`.
+    Traffic is fine. What is the correct action?'
+  options:
+  - id: a
+    text: Re-run the upgrade with `--force`.
+    explanation: This option re-applies the same manifests and does nothing about
+      the data plane.
+  - id: b
+    text: Roll back immediately; the mesh is in an unsupported state.
+    explanation: This option overreacts to a supported, expected intermediate state.
+  - id: c
+    text: Restart every injected workload, gateways included, to bring the data plane
+      to 1.30.5.
+    explanation: 'Correct. A proxy''s image is fixed at pod creation, so upgrading
+      the control plane, one Deployment, cannot rewrite the stored spec of every pod.
+      This is version skew, supported across one minor version, and it ends only when
+      pods are replaced. Gateways count: they are Envoy workloads with no namespace
+      label driving them, and they are the most commonly forgotten.'
+  - id: d
+    text: Wait, proxies pick up the new version on the next xDS push.
+    explanation: This option invents self-upgrading proxies; a container image changes
+      only when the pod is replaced.
+  correct_option: c
+  explanation: 'A proxy''s image is fixed at pod creation, so upgrading the control
+    plane, one Deployment, cannot rewrite the stored spec of every pod. This is version
+    skew, supported across one minor version, and it ends only when pods are replaced.
+    Gateways count: they are Envoy workloads with no namespace label driving them,
+    and they are the most commonly forgotten.'
+- id: ats013-030-q04
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Describe what installing a revision creates
+  source_readings:
+  - sections/section-030/module-02/course-01-revisions-a-named-control-plane.md
+  prompt: What does `istioctl install --set profile=minimal --set revision=1-30-5`
+    create?
+  options:
+  - id: a
+    text: It replaces the existing `istiod` with a minimal installation named `1-30-5`.
+    explanation: This option describes an in-place upgrade, which is what happens
+      when you omit `revision`.
+  - id: b
+    text: A second control plane, `istiod-1-30-5` with its own Service and its own
+      injection webhook, alongside the existing one.
+    explanation: 'Correct. A revision adds its name as a suffix to every namespaced
+      object the install owns, so names do not collide. Istio''s reconciliation is
+      scoped by the `istio.io/rev` ownership label, which means this install cannot
+      see or prune the default revision''s objects, that scoping is precisely what
+      lets two control planes coexist. Installing a revision is completely non-disruptive:
+      no running pod moves.'
+  - id: c
+    text: A tag pointing at the current control plane.
+    explanation: This option describes `istioctl tag set`.
+  - id: d
+    text: Nothing until a namespace is labelled; the command is a no-op otherwise.
+    explanation: This option is half right about the effect on workloads but wrong
+      about the cluster, real objects are created.
+  correct_option: b
+  explanation: 'A revision adds its name as a suffix to every namespaced object the
+    install owns, so names do not collide. Istio''s reconciliation is scoped by the
+    `istio.io/rev` ownership label, which means this install cannot see or prune the
+    default revision''s objects, that scoping is precisely what lets two control planes
+    coexist. Installing a revision is completely non-disruptive: no running pod moves.'
+- id: ats013-030-q05
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Explain the benefit of revision tags over raw revisions
+  source_readings:
+  - sections/section-030/module-02/course-03-revision-tags.md
+  prompt: Why prefer `istio.io/rev=prod` (a tag) over `istio.io/rev=1-30-5` (a raw
+    revision) on your namespaces?
+  options:
+  - id: a
+    text: Raw revision labels are deprecated in recent Istio versions.
+    explanation: This option is false; raw revision labels remain supported and are
+      the right tool for pinning one workload.
+  - id: b
+    text: Tags allow a namespace to use two control planes at once.
+    explanation: This option invents a capability, a workload is served by exactly
+      one control plane.
+  - id: c
+    text: Tags are validated by the API server; raw revisions are not.
+    explanation: This option invents a validation difference.
+  - id: d
+    text: Because upgrading then means moving one tag rather than relabelling every
+      namespace, and rolling back is the same single command.
+    explanation: Correct. A tag is an alias, mechanically, another mutating webhook
+      configuration whose selector matches `istio.io/rev=<tag>` and whose backend
+      is the tagged revision's control plane. With fifty namespaces, relabelling each
+      one is fifty chances to miss one, and a missed namespace is a workload left
+      on a control plane you are about to delete. Moving the tag rewrites one webhook's
+      backend, and workloads follow it when they are next restarted.
+  correct_option: d
+  explanation: A tag is an alias, mechanically, another mutating webhook configuration
+    whose selector matches `istio.io/rev=<tag>` and whose backend is the tagged revision's
+    control plane. With fifty namespaces, relabelling each one is fifty chances to
+    miss one, and a missed namespace is a workload left on a control plane you are
+    about to delete. Moving the tag rewrites one webhook's backend, and workloads
+    follow it when they are next restarted.
+- id: ats013-030-q06
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Retire an old revision after the workloads have moved
+  source_readings:
+  - sections/section-030/module-02/course-03-revision-tags.md
+  prompt: You have moved every namespace to revision `1-30-5` and restarted the workloads.
+    How do you retire the old control plane?
+  options:
+  - id: a
+    text: "`istioctl uninstall --revision default -y`"
+    explanation: Correct. `--revision <name>` removes one named control plane and
+      the objects labelled for it, leaving other revisions and the shared cluster-wide
+      resources intact, including the Custom Resource Definitions (CRDs). That is
+      exactly what retiring a revision after a canary means.
+  - id: b
+    text: "`kubectl -n istio-system delete deployment istiod`"
+    explanation: This option deletes one object and leaves its Service, webhook and
+      cluster-scoped resources behind, a half-removed control plane that the next
+      `precheck` will complain about.
+  - id: c
+    text: "`istioctl tag remove default -y`"
+    explanation: This option removes a tag, not a control plane.
+  - id: d
+    text: "`istioctl uninstall --purge -y`"
+    explanation: This option removes **every** revision, including the one you just
+      promoted, plus the shared CRDs. This is the destructive mistake the section
+      warns about repeatedly.
+  correct_option: a
+  explanation: "`--revision <name>` removes one named control plane and the objects
+    labelled for it, leaving other revisions and the shared cluster-wide resources
+    intact, including the Custom Resource Definitions (CRDs). That is exactly what
+    retiring a revision after a canary means."
+- id: ats013-030-q07
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Predict the effect of uninstalling a revision that workloads
+    still use
+  source_readings:
+  - sections/section-030/module-01/course-02-how-upgrade-computes-values.md
+  prompt: What goes wrong if you uninstall the old revision **before** restarting
+    the workloads that still use it?
+  options:
+  - id: a
+    text: Nothing; the workloads are immediately re-attached to the remaining control
+      plane.
+    explanation: This option invents automatic re-attachment; the proxy's control-plane
+      address was set at injection.
+  - id: b
+    text: Traffic stops instantly for every affected pod.
+    explanation: This option overstates the immediate impact, which is what makes
+      the mistake easy to miss.
+  - id: c
+    text: The pods keep serving on their last-received configuration, but receive
+      no further updates and cannot renew their workload certificates, so they fail
+      later, in a way that looks unrelated.
+    explanation: 'Correct. A proxy holds its configuration locally and does not need
+      `istiod` to forward a request. What it loses is everything *ongoing*: routing
+      and endpoint updates as pods come and go, and certificate renewal when the current
+      one expires. The delayed, disconnected failure is exactly what makes the ordering
+      rule worth memorising, restart first, uninstall second.'
+  - id: d
+    text: The uninstall is rejected while proxies are still connected.
+    explanation: This option invents a safety interlock.
+  correct_option: c
+  explanation: 'A proxy holds its configuration locally and does not need `istiod`
+    to forward a request. What it loses is everything *ongoing*: routing and endpoint
+    updates as pods come and go, and certificate renewal when the current one expires.
+    The delayed, disconnected failure is exactly what makes the ordering rule worth
+    memorising, restart first, uninstall second.'
+- id: ats013-030-q08
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Describe what an in-place upgrade replaces
+  source_readings:
+  - sections/section-030/module-01/course-02-how-upgrade-computes-values.md
+  prompt: Which statement about an **in-place** upgrade is true?
+  options:
+  - id: a
+    text: It keeps the previous control plane running so a rollback is a label change.
+    explanation: This option describes a canary upgrade.
+  - id: b
+    text: It reuses the same revision, so `istiod` keeps its name and object identity,
+      and rolling back means reinstalling the old version and restarting the whole
+      data plane again.
+    explanation: 'Correct. "In place" is a statement about object identity: the Deployment
+      keeps its name and its `uid`, and Kubernetes rolls its pods. That is the appeal,
+      nothing to relabel, and the risk, because there is nothing left to fall back
+      to. The rollback is a second full data-plane restart, performed while something
+      is already going wrong, which is the honest argument for canary in production.'
+  - id: c
+    text: It restarts injected workloads automatically as part of the install.
+    explanation: This option is the omission the whole section warns about; the install
+      never touches your pods.
+  - id: d
+    text: It is the only upgrade path supported for Helm-managed installations.
+    explanation: This option is false, a Helm version bump behaves like an in-place
+      upgrade, but `istioctl` can do either, and Helm is not restricted to one strategy.
+  correct_option: b
+  explanation: '"In place" is a statement about object identity: the Deployment keeps
+    its name and its `uid`, and Kubernetes rolls its pods. That is the appeal, nothing
+    to relabel, and the risk, because there is nothing left to fall back to. The rollback
+    is a second full data-plane restart, performed while something is already going
+    wrong, which is the honest argument for canary in production.'
+- id: ats013-030-q09
+  type: single_choice
+  difficulty: beginner
+  learning_objective: State the supported version skip rule for upgrades
+  source_readings:
+  - sections/section-030/module-03/course-01-replacing-the-control-plane.md
+  prompt: Why must you not upgrade from 1.28 directly to 1.30?
+  options:
+  - id: a
+    text: "`istioctl x precheck` refuses to run across two minors."
+    explanation: This option invents a refusal, `precheck` warns, it does not block.
+  - id: b
+    text: Istio does not publish charts that skip a minor version.
+    explanation: This option is false; every published chart version is installable.
+  - id: c
+    text: The CRDs cannot be upgraded by more than one version at a time.
+    explanation: This option invents a CRD constraint.
+  - id: d
+    text: During the upgrade every running proxy would be two minor versions behind
+      the control plane, outside the supported one-minor skew window.
+    explanation: Correct. The supported skew window is one minor version between control
+      plane and proxies, and it applies per workload. Jumping two minors means every
+      pod is outside that window for the whole duration of the upgrade, with no guarantee
+      about what the old proxies do with the configuration they are sent. Go 1.28
+      → 1.29, restart the data plane, then 1.29 → 1.30.
+  correct_option: d
+  explanation: The supported skew window is one minor version between control plane
+    and proxies, and it applies per workload. Jumping two minors means every pod is
+    outside that window for the whole duration of the upgrade, with no guarantee about
+    what the old proxies do with the configuration they are sent. Go 1.28 → 1.29,
+    restart the data plane, then 1.29 → 1.30.

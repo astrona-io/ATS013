@@ -37,6 +37,13 @@ Work through the modules in this order. Each part teaches one idea. A graded lab
    - Lab: Exclude A Port From Sidecar Traffic Capture Lab
 4. Summary
 
+### Customize Gateways And Control Plane Resources
+
+1. Components And Kubernetes Overlays
+2. Ingress Gateway Service And Scaling
+   - Lab: Customize The Ingress Gateway With IstioOperator Lab
+3. Summary
+
 ## Knowledge check and capstone
 
 After the last module, a short multiple-choice knowledge check tests your reasoning before you spend time on a cluster.

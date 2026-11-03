@@ -1,0 +1,803 @@
+# Final domain knowledge check across all four sections.
+schema_version: 1
+kind: question_bank
+id: ats013-final
+course_id: ATS013
+exam_code: ICA
+status: draft
+provenance: Original practice material written for this course; not official exam
+  questions.
+scope:
+  type: domain
+  id: installation-upgrade-and-configuration
+  title: Installation, Upgrade And Configuration
+questions:
+- id: ats013-final-q01
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Explain that istioctl install renders and applies once
+  source_readings:
+  - sections/section-030/module-03/course-01-replacing-the-control-plane.md
+  prompt: "`istioctl install --set profile=demo -y` completes. Which statement about
+    the cluster is now true?"
+  options:
+  - id: a
+    text: The manifests were rendered server-side by `istiod` from the profile name
+      you passed.
+    explanation: 'Not correct. `istioctl install` is client-side templating plus an
+      apply: load the profile, overlay `--set` and `-f`, render to manifests, apply,
+      wait. The `IstioOperator` is an *input format*, not an object doing work in
+      the cluster. Older Istio really did run an in-cluster operator; that model is
+      gone, which is why a hand-edit to an installed object persists until the next
+      install overwrites it.'
+  - id: b
+    text: An Istio operator pod is running and will reconcile the `IstioOperator`
+      resource continuously.
+    explanation: 'Not correct. `istioctl install` is client-side templating plus an
+      apply: load the profile, overlay `--set` and `-f`, render to manifests, apply,
+      wait. The `IstioOperator` is an *input format*, not an object doing work in
+      the cluster. Older Istio really did run an in-cluster operator; that model is
+      gone, which is why a hand-edit to an installed object persists until the next
+      install overwrites it.'
+  - id: c
+    text: The `IstioOperator` document was rendered into plain Kubernetes manifests
+      on your machine and applied; nothing in the cluster is reconciling it afterwards.
+    explanation: 'Correct. `istioctl install` is client-side templating plus an apply:
+      load the profile, overlay `--set` and `-f`, render to manifests, apply, wait.
+      The `IstioOperator` is an *input format*, not an object doing work in the cluster.
+      Older Istio really did run an in-cluster operator; that model is gone, which
+      is why a hand-edit to an installed object persists until the next install overwrites
+      it.'
+  - id: d
+    text: The `IstioOperator` was stored as a custom resource, which `istiod` watches.
+    explanation: 'Not correct. `istioctl install` is client-side templating plus an
+      apply: load the profile, overlay `--set` and `-f`, render to manifests, apply,
+      wait. The `IstioOperator` is an *input format*, not an object doing work in
+      the cluster. Older Istio really did run an in-cluster operator; that model is
+      gone, which is why a hand-edit to an installed object persists until the next
+      install overwrites it.'
+  correct_option: c
+  explanation: "`istioctl install` is client-side templating plus an apply: load the
+    profile, overlay `--set` and `-f`, render to manifests, apply, wait. The `IstioOperator`
+    is an *input format*, not an object doing work in the cluster. Older Istio really
+    did run an in-cluster operator; that model is gone, which is why a hand-edit to
+    an installed object persists until the next install overwrites it."
+- id: ats013-final-q02
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Choose the profile that satisfies a gateway requirement
+  source_readings:
+  - sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
+  prompt: Which profile installs `istiod` plus **both** an ingress and an egress gateway?
+  options:
+  - id: a
+    text: "`minimal`"
+    explanation: Not correct. `default` installs `istiod` and the ingress gateway
+      only; `minimal` installs `istiod` alone; `ambient` installs `istiod`, `istio-cni`
+      and `ztunnel` and no gateways. Diffing `istioctl manifest generate --set profile=default`
+      against the same command for `demo` shows the egress gateway objects as the
+      only difference, a profile is a document you can render and diff, not a preset
+      with hidden behaviour.
+  - id: b
+    text: "`demo`"
+    explanation: Correct. `default` installs `istiod` and the ingress gateway only;
+      `minimal` installs `istiod` alone; `ambient` installs `istiod`, `istio-cni`
+      and `ztunnel` and no gateways. Diffing `istioctl manifest generate --set profile=default`
+      against the same command for `demo` shows the egress gateway objects as the
+      only difference, a profile is a document you can render and diff, not a preset
+      with hidden behaviour.
+  - id: c
+    text: "`ambient`"
+    explanation: Not correct. `default` installs `istiod` and the ingress gateway
+      only; `minimal` installs `istiod` alone; `ambient` installs `istiod`, `istio-cni`
+      and `ztunnel` and no gateways. Diffing `istioctl manifest generate --set profile=default`
+      against the same command for `demo` shows the egress gateway objects as the
+      only difference, a profile is a document you can render and diff, not a preset
+      with hidden behaviour.
+  - id: d
+    text: "`default`"
+    explanation: Not correct. `default` installs `istiod` and the ingress gateway
+      only; `minimal` installs `istiod` alone; `ambient` installs `istiod`, `istio-cni`
+      and `ztunnel` and no gateways. Diffing `istioctl manifest generate --set profile=default`
+      against the same command for `demo` shows the egress gateway objects as the
+      only difference, a profile is a document you can render and diff, not a preset
+      with hidden behaviour.
+  correct_option: b
+  explanation: "`default` installs `istiod` and the ingress gateway only; `minimal`
+    installs `istiod` alone; `ambient` installs `istiod`, `istio-cni` and `ztunnel`
+    and no gateways. Diffing `istioctl manifest generate --set profile=default` against
+    the same command for `demo` shows the egress gateway objects as the only difference,
+    a profile is a document you can render and diff, not a preset with hidden behaviour."
+- id: ats013-final-q03
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Explain why the base chart comes first
+  source_readings:
+  - sections/section-030/module-01/course-02-how-upgrade-computes-values.md
+  prompt: "`helm install istiod istio/istiod -n istio-system` fails with `resource
+    mapping not found ... ensure CRDs are installed first`. What is the fix?"
+  options:
+  - id: a
+    text: Create the `istio-system` namespace.
+    explanation: Not correct. The order `base` → `istiod` → `gateway` is a dependency,
+      not a convention. The rejection comes from the **API server**, which does not
+      know the kind, rather than from Helm detecting a missing chart dependency. Read
+      the kind named in the error.
+  - id: b
+    text: Add `--skip-crds`.
+    explanation: Not correct. The order `base` → `istiod` → `gateway` is a dependency,
+      not a convention. The rejection comes from the **API server**, which does not
+      know the kind, rather than from Helm detecting a missing chart dependency. Read
+      the kind named in the error.
+  - id: c
+    text: Run `helm repo update` and retry.
+    explanation: Not correct. The order `base` → `istiod` → `gateway` is a dependency,
+      not a convention. The rejection comes from the **API server**, which does not
+      know the kind, rather than from Helm detecting a missing chart dependency. Read
+      the kind named in the error.
+  - id: d
+    text: Install `istio/base` first, it defines the CRDs that the `istiod` chart's
+      objects depend on.
+    explanation: Correct. The order `base` → `istiod` → `gateway` is a dependency,
+      not a convention. The rejection comes from the **API server**, which does not
+      know the kind, rather than from Helm detecting a missing chart dependency. Read
+      the kind named in the error.
+  correct_option: d
+  explanation: The order `base` → `istiod` → `gateway` is a dependency, not a convention.
+    The rejection comes from the **API server**, which does not know the kind, rather
+    than from Helm detecting a missing chart dependency. Read the kind named in the
+    error.
+- id: ats013-final-q04
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Match a Gateway selector to a Helm gateway
+  source_readings:
+  - sections/section-010/module-02/course-02-installing-the-releases.md
+  prompt: 'A gateway installed as `helm install edge-gw istio/gateway -n edge` is
+    not selected by a `Gateway` resource matching `istio: ingressgateway`. Why?'
+  options:
+  - id: a
+    text: 'The chart derives the Deployment name, Service name and pod labels from
+      the **release name**, so the workload is labelled `istio: edge-gw`.'
+    explanation: Correct. The release name is part of the contract your traffic configuration
+      depends on, not a cosmetic choice. Either rename the release or change the selector.
+  - id: b
+    text: The gateway chart applies no `istio:` label.
+    explanation: Not correct. The release name is part of the contract your traffic
+      configuration depends on, not a cosmetic choice. Either rename the release or
+      change the selector.
+  - id: c
+    text: The `Gateway` resource must live in the same namespace as the workload.
+    explanation: Not correct. The release name is part of the contract your traffic
+      configuration depends on, not a cosmetic choice. Either rename the release or
+      change the selector.
+  - id: d
+    text: "`Gateway` resources only select workloads in `istio-system`."
+    explanation: Not correct. The release name is part of the contract your traffic
+      configuration depends on, not a cosmetic choice. Either rename the release or
+      change the selector.
+  correct_option: a
+  explanation: The release name is part of the contract your traffic configuration
+    depends on, not a cosmetic choice. Either rename the release or change the selector.
+- id: ats013-final-q05
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Find the key that sets the default sidecar resource request
+  source_readings:
+  - sections/section-020/module-01/course-01-the-four-configuration-layers.md
+  prompt: Which key sets the default CPU request for **every injected sidecar**?
+  options:
+  - id: a
+    text: "`spec.components.pilot.k8s.resources.requests.cpu`"
+    explanation: Not correct. `components.pilot` sizes `istiod`, one Deployment. `values.global.proxy`
+      sizes every sidecar, multiplied by every meshed pod. They look similar and configure
+      completely different bills. You verify the second on an injected pod, not in
+      the `istio` ConfigMap.
+  - id: b
+    text: "`spec.meshConfig.defaultConfig.proxyResources.cpu`"
+    explanation: Not correct. `components.pilot` sizes `istiod`, one Deployment. `values.global.proxy`
+      sizes every sidecar, multiplied by every meshed pod. They look similar and configure
+      completely different bills. You verify the second on an injected pod, not in
+      the `istio` ConfigMap.
+  - id: c
+    text: "`spec.values.global.proxy.resources.requests.cpu`"
+    explanation: Correct. `components.pilot` sizes `istiod`, one Deployment. `values.global.proxy`
+      sizes every sidecar, multiplied by every meshed pod. They look similar and configure
+      completely different bills. You verify the second on an injected pod, not in
+      the `istio` ConfigMap.
+  - id: d
+    text: "`spec.components.proxy.k8s.resources.requests.cpu`"
+    explanation: Not correct. `components.pilot` sizes `istiod`, one Deployment. `values.global.proxy`
+      sizes every sidecar, multiplied by every meshed pod. They look similar and configure
+      completely different bills. You verify the second on an injected pod, not in
+      the `istio` ConfigMap.
+  correct_option: c
+  explanation: "`components.pilot` sizes `istiod`, one Deployment. `values.global.proxy`
+    sizes every sidecar, multiplied by every meshed pod. They look similar and configure
+    completely different bills. You verify the second on an injected pod, not in the
+    `istio` ConfigMap."
+- id: ats013-final-q06
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Predict the effect of re-running istioctl install with another
+    profile
+  source_readings:
+  - sections/section-020/module-01/course-03-writing-validating-reapplying.md
+  prompt: You install from `istio-custom.yaml`, which disables the egress gateway.
+    A colleague later runs `istioctl install --set profile=demo -y`. What happens?
+  options:
+  - id: a
+    text: The two inputs are merged.
+    explanation: Not correct. Reconciliation deletes what the new document omits and
+      restores what the profile contains. Istio tracks its own objects through ownership
+      labels, so it knows exactly which ones to prune. This is the argument for one
+      committed file per control plane, passed on every run.
+  - id: b
+    text: The egress gateway returns, because the install reconciles the cluster to
+      the document it was given.
+    explanation: Correct. Reconciliation deletes what the new document omits and restores
+      what the profile contains. Istio tracks its own objects through ownership labels,
+      so it knows exactly which ones to prune. This is the argument for one committed
+      file per control plane, passed on every run.
+  - id: c
+    text: The command fails with a conflict.
+    explanation: Not correct. Reconciliation deletes what the new document omits and
+      restores what the profile contains. Istio tracks its own objects through ownership
+      labels, so it knows exactly which ones to prune. This is the argument for one
+      committed file per control plane, passed on every run.
+  - id: d
+    text: Nothing; the profile is unchanged.
+    explanation: Not correct. Reconciliation deletes what the new document omits and
+      restores what the profile contains. Istio tracks its own objects through ownership
+      labels, so it knows exactly which ones to prune. This is the argument for one
+      committed file per control plane, passed on every run.
+  correct_option: b
+  explanation: Reconciliation deletes what the new document omits and restores what
+    the profile contains. Istio tracks its own objects through ownership labels, so
+    it knows exactly which ones to prune. This is the argument for one committed file
+    per control plane, passed on every run.
+- id: ats013-final-q07
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Apply the pod-label precedence rule for sidecar injection
+  source_readings:
+  - sections/section-020/module-02/course-02-the-precedence-rules.md
+  prompt: 'A namespace carries `istio-injection=enabled`. You add `sidecar.istio.io/inject:
+    "false"` to a Deployment''s own `metadata.labels` and restart it. The pods are
+    still injected. Why?'
+  options:
+  - id: a
+    text: Namespace labels always win over pod labels.
+    explanation: 'Not correct. A label on the Deployment is never copied to the pod
+      unless it is in the template. The manifest applies cleanly and achieves nothing,
+      which is what makes this the most expensive injection mistake. (Note *C* is
+      wrong in general: the pod-template label beats the namespace in both directions.).'
+  - id: b
+    text: The change needs a second restart to take effect.
+    explanation: 'Not correct. A label on the Deployment is never copied to the pod
+      unless it is in the template. The manifest applies cleanly and achieves nothing,
+      which is what makes this the most expensive injection mistake. (Note *C* is
+      wrong in general: the pod-template label beats the namespace in both directions.).'
+  - id: c
+    text: The label must be `"disabled"`, not `"false"`.
+    explanation: 'Not correct. A label on the Deployment is never copied to the pod
+      unless it is in the template. The manifest applies cleanly and achieves nothing,
+      which is what makes this the most expensive injection mistake. (Note *C* is
+      wrong in general: the pod-template label beats the namespace in both directions.).'
+  - id: d
+    text: The webhook is registered against Pods and evaluates its selector against
+      the Pod, the label must be on `spec.template.metadata.labels`.
+    explanation: 'Correct. A label on the Deployment is never copied to the pod unless
+      it is in the template. The manifest applies cleanly and achieves nothing, which
+      is what makes this the most expensive injection mistake. (Note *C* is wrong
+      in general: the pod-template label beats the namespace in both directions.).'
+  correct_option: d
+  explanation: 'A label on the Deployment is never copied to the pod unless it is
+    in the template. The manifest applies cleanly and achieves nothing, which is what
+    makes this the most expensive injection mistake. (Note *C* is wrong in general:
+    the pod-template label beats the namespace in both directions.)'
+- id: ats013-final-q08
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Resolve a namespace with an injection label and a revision label
+  source_readings:
+  - sections/section-030/module-02/course-03-revision-tags.md
+  prompt: A namespace carries both `istio-injection=enabled` and `istio.io/rev=1-30-5`.
+    Which control plane serves it?
+  options:
+  - id: a
+    text: The default control plane.
+    explanation: 'Correct. It follows from the webhook selectors, not from conflict-resolution
+      logic: the default webhook requires `istio-injection: enabled`, and the revisioned
+      webhook requires `istio.io/rev` **and** that `istio-injection` is absent. A
+      namespace with both satisfies only the first, which is why a canary upgrade
+      can appear to do nothing.'
+  - id: b
+    text: Neither.
+    explanation: 'Not correct. It follows from the webhook selectors, not from conflict-resolution
+      logic: the default webhook requires `istio-injection: enabled`, and the revisioned
+      webhook requires `istio.io/rev` **and** that `istio-injection` is absent. A
+      namespace with both satisfies only the first, which is why a canary upgrade
+      can appear to do nothing.'
+  - id: c
+    text: Both.
+    explanation: 'Not correct. It follows from the webhook selectors, not from conflict-resolution
+      logic: the default webhook requires `istio-injection: enabled`, and the revisioned
+      webhook requires `istio.io/rev` **and** that `istio-injection` is absent. A
+      namespace with both satisfies only the first, which is why a canary upgrade
+      can appear to do nothing.'
+  - id: d
+    text: Revision `1-30-5`.
+    explanation: 'Not correct. It follows from the webhook selectors, not from conflict-resolution
+      logic: the default webhook requires `istio-injection: enabled`, and the revisioned
+      webhook requires `istio.io/rev` **and** that `istio-injection` is absent. A
+      namespace with both satisfies only the first, which is why a canary upgrade
+      can appear to do nothing.'
+  correct_option: a
+  explanation: 'It follows from the webhook selectors, not from conflict-resolution
+    logic: the default webhook requires `istio-injection: enabled`, and the revisioned
+    webhook requires `istio.io/rev` **and** that `istio-injection` is absent. A namespace
+    with both satisfies only the first, which is why a canary upgrade can appear to
+    do nothing.'
+- id: ats013-final-q09
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Explain how helm upgrade computes values
+  source_readings:
+  - sections/section-030/module-01/course-02-how-upgrade-computes-values.md
+  prompt: "`helm upgrade istiod istio/istiod -n istio-system --version 1.30.5 --set
+    pilot.traceSampling=1.0` runs with no other flags, on a release that was installed
+    with `-f values.yaml`. What happens to the values from `values.yaml`?"
+  options:
+  - id: a
+    text: Only keys still present in the new chart are kept.
+    explanation: Not correct. As soon as you pass any value, `helm upgrade` computes
+      the release from chart defaults plus what you pass **on this run**; only an
+      upgrade with no values at all reuses the previous ones. `--reuse-values` opts
+      into carrying the previous set over, but it also keeps the old chart's defaults
+      (the Istio image tag included), and it merges rather than replaces, so a `-f`
+      file that removes a key does not remove it. One complete committed file passed
+      every time avoids both traps.
+  - id: b
+    text: Values are carried over automatically.
+    explanation: Not correct. As soon as you pass any value, `helm upgrade` computes
+      the release from chart defaults plus what you pass **on this run**; only an
+      upgrade with no values at all reuses the previous ones. `--reuse-values` opts
+      into carrying the previous set over, but it also keeps the old chart's defaults
+      (the Istio image tag included), and it merges rather than replaces, so a `-f`
+      file that removes a key does not remove it. One complete committed file passed
+      every time avoids both traps.
+  - id: c
+    text: 'They are dropped: the release falls back to chart defaults plus the one
+      `--set` value, and the command reports success.'
+    explanation: Correct. As soon as you pass any value, `helm upgrade` computes the
+      release from chart defaults plus what you pass **on this run**; only an upgrade
+      with no values at all reuses the previous ones. `--reuse-values` opts into carrying
+      the previous set over, but it also keeps the old chart's defaults (the Istio
+      image tag included), and it merges rather than replaces, so a `-f` file that
+      removes a key does not remove it. One complete committed file passed every time
+      avoids both traps.
+  - id: d
+    text: The upgrade fails.
+    explanation: Not correct. As soon as you pass any value, `helm upgrade` computes
+      the release from chart defaults plus what you pass **on this run**; only an
+      upgrade with no values at all reuses the previous ones. `--reuse-values` opts
+      into carrying the previous set over, but it also keeps the old chart's defaults
+      (the Istio image tag included), and it merges rather than replaces, so a `-f`
+      file that removes a key does not remove it. One complete committed file passed
+      every time avoids both traps.
+  correct_option: c
+  explanation: As soon as you pass any value, `helm upgrade` computes the release
+    from chart defaults plus what you pass **on this run**; only an upgrade with no
+    values at all reuses the previous ones. `--reuse-values` opts into carrying the
+    previous set over, but it also keeps the old chart's defaults (the Istio image
+    tag included), and it merges rather than replaces, so a `-f` file that removes
+    a key does not remove it. One complete committed file passed every time avoids
+    both traps.
+- id: ats013-final-q10
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Interpret a control plane and data plane version difference
+  source_readings:
+  - sections/section-010/module-01/course-04-reconciliation-and-removal.md
+  prompt: "`istioctl version` reports `control plane version: 1.30.5` and `data plane
+    version: 1.29.8 (4 proxies)`. Traffic is healthy. What is this?"
+  options:
+  - id: a
+    text: A broken upgrade that must be rolled back.
+    explanation: Not correct. A proxy's image is fixed at pod creation, so a control-plane
+      upgrade cannot rewrite every pod's stored spec. Istio supports one minor version
+      of skew precisely so a rolling upgrade is possible. It is a window to pass through,
+      not a resting place, and it is why you never skip a minor version.
+  - id: b
+    text: Supported version skew, the upgrade is incomplete until every injected workload,
+      gateways included, is restarted.
+    explanation: Correct. A proxy's image is fixed at pod creation, so a control-plane
+      upgrade cannot rewrite every pod's stored spec. Istio supports one minor version
+      of skew precisely so a rolling upgrade is possible. It is a window to pass through,
+      not a resting place, and it is why you never skip a minor version.
+  - id: c
+    text: A reporting bug in `istioctl`.
+    explanation: Not correct. A proxy's image is fixed at pod creation, so a control-plane
+      upgrade cannot rewrite every pod's stored spec. Istio supports one minor version
+      of skew precisely so a rolling upgrade is possible. It is a window to pass through,
+      not a resting place, and it is why you never skip a minor version.
+  - id: d
+    text: Normal steady state; proxies never match the control plane.
+    explanation: Not correct. A proxy's image is fixed at pod creation, so a control-plane
+      upgrade cannot rewrite every pod's stored spec. Istio supports one minor version
+      of skew precisely so a rolling upgrade is possible. It is a window to pass through,
+      not a resting place, and it is why you never skip a minor version.
+  correct_option: b
+  explanation: A proxy's image is fixed at pod creation, so a control-plane upgrade
+    cannot rewrite every pod's stored spec. Istio supports one minor version of skew
+    precisely so a rolling upgrade is possible. It is a window to pass through, not
+    a resting place, and it is why you never skip a minor version.
+- id: ats013-final-q11
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Describe what installing a revision creates
+  source_readings:
+  - sections/section-010/module-01/course-01-render-and-apply-pipeline.md
+  prompt: What does `istioctl install --set profile=minimal --set revision=1-30-5`
+    do to running workloads?
+  options:
+  - id: a
+    text: It migrates every meshed namespace to the new revision.
+    explanation: Not correct. A revision suffixes every namespaced object it owns,
+      and reconciliation is scoped by the `istio.io/rev` ownership label, so the new
+      install cannot see or prune the default revision's objects. Installing a revision
+      is completely non-disruptive, which is the property that makes canary upgrades
+      safe to start.
+  - id: b
+    text: It replaces the existing control plane in place.
+    explanation: Not correct. A revision suffixes every namespaced object it owns,
+      and reconciliation is scoped by the `istio.io/rev` ownership label, so the new
+      install cannot see or prune the default revision's objects. Installing a revision
+      is completely non-disruptive, which is the property that makes canary upgrades
+      safe to start.
+  - id: c
+    text: It restarts injected pods so they attach to the new revision.
+    explanation: Not correct. A revision suffixes every namespaced object it owns,
+      and reconciliation is scoped by the `istio.io/rev` ownership label, so the new
+      install cannot see or prune the default revision's objects. Installing a revision
+      is completely non-disruptive, which is the property that makes canary upgrades
+      safe to start.
+  - id: d
+    text: Nothing. It creates a second control plane; no pod moves until it is recreated.
+    explanation: Correct. A revision suffixes every namespaced object it owns, and
+      reconciliation is scoped by the `istio.io/rev` ownership label, so the new install
+      cannot see or prune the default revision's objects. Installing a revision is
+      completely non-disruptive, which is the property that makes canary upgrades
+      safe to start.
+  correct_option: d
+  explanation: A revision suffixes every namespaced object it owns, and reconciliation
+    is scoped by the `istio.io/rev` ownership label, so the new install cannot see
+    or prune the default revision's objects. Installing a revision is completely non-disruptive,
+    which is the property that makes canary upgrades safe to start.
+- id: ats013-final-q12
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Retire an old revision
+  source_readings:
+  - sections/section-030/module-02/course-03-revision-tags.md
+  prompt: Every namespace has moved to revision `1-30-5` and been restarted. How do
+    you retire the old control plane?
+  options:
+  - id: a
+    text: "`istioctl uninstall --revision default -y`"
+    explanation: Correct. `--purge` removes **every** revision plus the shared cluster-scoped
+      resources and CRDs, including the canary you just promoted. Deleting the Deployment
+      by hand leaves its Service, webhook and cluster resources behind. Name the revision.
+  - id: b
+    text: "`kubectl -n istio-system delete deployment istiod`"
+    explanation: Not correct. `--purge` removes **every** revision plus the shared
+      cluster-scoped resources and CRDs, including the canary you just promoted. Deleting
+      the Deployment by hand leaves its Service, webhook and cluster resources behind.
+      Name the revision.
+  - id: c
+    text: "`istioctl tag remove default -y`"
+    explanation: Not correct. `--purge` removes **every** revision plus the shared
+      cluster-scoped resources and CRDs, including the canary you just promoted. Deleting
+      the Deployment by hand leaves its Service, webhook and cluster resources behind.
+      Name the revision.
+  - id: d
+    text: "`istioctl uninstall --purge -y`"
+    explanation: Not correct. `--purge` removes **every** revision plus the shared
+      cluster-scoped resources and CRDs, including the canary you just promoted. Deleting
+      the Deployment by hand leaves its Service, webhook and cluster resources behind.
+      Name the revision.
+  correct_option: a
+  explanation: "`--purge` removes **every** revision plus the shared cluster-scoped
+    resources and CRDs, including the canary you just promoted. Deleting the Deployment
+    by hand leaves its Service, webhook and cluster resources behind. Name the revision."
+- id: ats013-final-q13
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Explain why ambient enrollment needs no restart
+  source_readings:
+  - sections/section-020/module-01/course-01-the-four-configuration-layers.md
+  prompt: Why does enrolling a namespace in ambient mode not require restarting its
+    pods?
+  options:
+  - id: a
+    text: It does require a restart; the documentation is out of date.
+    explanation: Not correct. Sidecar injection mutates the pod spec, so it can only
+      happen at admission. Ambient enrollment changes the redirection `istio-cni-node`
+      programs and the workload state `istiod` pushes to ztunnel. The observable proof
+      is that `AGE` keeps counting and `RESTARTS` stays 0, and the same cheapness
+      makes un-enrolling reversible.
+  - id: b
+    text: Ambient proxies are injected lazily on the first request.
+    explanation: Not correct. Sidecar injection mutates the pod spec, so it can only
+      happen at admission. Ambient enrollment changes the redirection `istio-cni-node`
+      programs and the workload state `istiod` pushes to ztunnel. The observable proof
+      is that `AGE` keeps counting and `RESTARTS` stays 0, and the same cheapness
+      makes un-enrolling reversible.
+  - id: c
+    text: Enrollment changes node-level redirection and ztunnel's configuration, both
+      outside the pod, which is never modified.
+    explanation: Correct. Sidecar injection mutates the pod spec, so it can only happen
+      at admission. Ambient enrollment changes the redirection `istio-cni-node` programs
+      and the workload state `istiod` pushes to ztunnel. The observable proof is that
+      `AGE` keeps counting and `RESTARTS` stays 0, and the same cheapness makes un-enrolling
+      reversible.
+  - id: d
+    text: The kubelet re-reads the pod spec on every label change.
+    explanation: Not correct. Sidecar injection mutates the pod spec, so it can only
+      happen at admission. Ambient enrollment changes the redirection `istio-cni-node`
+      programs and the workload state `istiod` pushes to ztunnel. The observable proof
+      is that `AGE` keeps counting and `RESTARTS` stays 0, and the same cheapness
+      makes un-enrolling reversible.
+  correct_option: c
+  explanation: Sidecar injection mutates the pod spec, so it can only happen at admission.
+    Ambient enrollment changes the redirection `istio-cni-node` programs and the workload
+    state `istiod` pushes to ztunnel. The observable proof is that `AGE` keeps counting
+    and `RESTARTS` stays 0, and the same cheapness makes un-enrolling reversible.
+- id: ats013-final-q14
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Predict what a layer 7 policy does without a waypoint
+  source_readings:
+  - sections/section-040/module-01/course-02-enrollment-and-the-l4-boundary.md
+  prompt: In an ambient namespace with **no waypoint**, you apply an `AuthorizationPolicy`
+    denying everything except HTTP `GET`. What happens?
+  options:
+  - id: a
+    text: The policy is rejected at admission.
+    explanation: 'Not correct. `AuthorizationPolicy` is one CRD spanning two layers.
+      Rules on `principals`, namespaces or ports are L4 and enforceable by ztunnel;
+      rules on methods, paths or headers are L7 and need an HTTP-aware proxy in the
+      path. The silent no-op is the most common ambient-mode mistake, and it is a
+      security problem: the restriction you believe is in place is not.'
+  - id: b
+    text: It is accepted, reports healthy, and has no effect, ztunnel is L4 and cannot
+      read the method.
+    explanation: 'Correct. `AuthorizationPolicy` is one CRD spanning two layers. Rules
+      on `principals`, namespaces or ports are L4 and enforceable by ztunnel; rules
+      on methods, paths or headers are L7 and need an HTTP-aware proxy in the path.
+      The silent no-op is the most common ambient-mode mistake, and it is a security
+      problem: the restriction you believe is in place is not.'
+  - id: c
+    text: All traffic is denied because the rule cannot be evaluated.
+    explanation: 'Not correct. `AuthorizationPolicy` is one CRD spanning two layers.
+      Rules on `principals`, namespaces or ports are L4 and enforceable by ztunnel;
+      rules on methods, paths or headers are L7 and need an HTTP-aware proxy in the
+      path. The silent no-op is the most common ambient-mode mistake, and it is a
+      security problem: the restriction you believe is in place is not.'
+  - id: d
+    text: ztunnel enforces it.
+    explanation: 'Not correct. `AuthorizationPolicy` is one CRD spanning two layers.
+      Rules on `principals`, namespaces or ports are L4 and enforceable by ztunnel;
+      rules on methods, paths or headers are L7 and need an HTTP-aware proxy in the
+      path. The silent no-op is the most common ambient-mode mistake, and it is a
+      security problem: the restriction you believe is in place is not.'
+  correct_option: b
+  explanation: "`AuthorizationPolicy` is one CRD spanning two layers. Rules on `principals`,
+    namespaces or ports are L4 and enforceable by ztunnel; rules on methods, paths
+    or headers are L7 and need an HTTP-aware proxy in the path. The silent no-op is
+    the most common ambient-mode mistake, and it is a security problem: the restriction
+    you believe is in place is not."
+- id: ats013-final-q15
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Predict the effect of deleting a waypoint
+  source_readings:
+  - sections/section-040/module-02/course-03-scoping-and-removing-waypoints.md
+  prompt: A waypoint is deleted from a namespace that relied on it for an L7 authorization
+    rule. What is the immediate effect?
+  options:
+  - id: a
+    text: ztunnel takes over the L7 rule.
+    explanation: Not correct. Deleting a waypoint degrades the mesh to L4 rather than
+      breaking it. Identity, encryption and L4 authorization are ztunnel's job and
+      are untouched; HTTP routing, header manipulation, retries, timeouts and L7 authorization
+      all go away, while the policy object remains, looking healthy. A waypoint's
+      absence is indistinguishable from its silence.
+  - id: b
+    text: The `AuthorizationPolicy` is deleted with it.
+    explanation: Not correct. Deleting a waypoint degrades the mesh to L4 rather than
+      breaking it. Identity, encryption and L4 authorization are ztunnel's job and
+      are untouched; HTTP routing, header manipulation, retries, timeouts and L7 authorization
+      all go away, while the policy object remains, looking healthy. A waypoint's
+      absence is indistinguishable from its silence.
+  - id: c
+    text: Traffic stops until it is recreated.
+    explanation: Not correct. Deleting a waypoint degrades the mesh to L4 rather than
+      breaking it. Identity, encryption and L4 authorization are ztunnel's job and
+      are untouched; HTTP routing, header manipulation, retries, timeouts and L7 authorization
+      all go away, while the policy object remains, looking healthy. A waypoint's
+      absence is indistinguishable from its silence.
+  - id: d
+    text: Traffic keeps flowing with mTLS and L4 policy intact, while the L7 rule
+      silently stops being enforced.
+    explanation: Correct. Deleting a waypoint degrades the mesh to L4 rather than
+      breaking it. Identity, encryption and L4 authorization are ztunnel's job and
+      are untouched; HTTP routing, header manipulation, retries, timeouts and L7 authorization
+      all go away, while the policy object remains, looking healthy. A waypoint's
+      absence is indistinguishable from its silence.
+  correct_option: d
+  explanation: Deleting a waypoint degrades the mesh to L4 rather than breaking it.
+    Identity, encryption and L4 authorization are ztunnel's job and are untouched;
+    HTTP routing, header manipulation, retries, timeouts and L7 authorization all
+    go away, while the policy object remains, looking healthy. A waypoint's absence
+    is indistinguishable from its silence.
+- id: ats013-final-q16
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Check a finished installation with istioctl verify-install
+  source_readings:
+  - sections/section-010/module-03/course-02-verify-install-and-analyze.md
+  prompt: A script must stop when the installed control plane is incomplete or a Deployment
+    is not ready. Which command exits with a non-zero code in that case?
+  options:
+  - id: a
+    text: "`istioctl verify-install`"
+    explanation: Correct. It compares the cluster with the expected manifests, reports
+      a missing object or a Deployment that is not ready and exits with a non-zero
+      code.
+  - id: b
+    text: "`istioctl manifest generate`"
+    explanation: This command renders manifests and never contacts the cluster.
+  - id: c
+    text: "`istioctl profile list`"
+    explanation: This command only prints the names of the built-in profiles.
+  - id: d
+    text: "`istioctl profile dump default`"
+    explanation: This command prints a profile and never reads the cluster.
+  correct_option: a
+  explanation: It compares the cluster with the expected manifests, reports a missing
+    object or a Deployment that is not ready and exits with a non-zero code.
+- id: ats013-final-q17
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Read the analysis code IST0103 and fix it
+  source_readings:
+  - sections/section-010/module-03/course-02-verify-install-and-analyze.md
+  prompt: "`istioctl analyze -n shop` reports `IST0103` for the pods of a namespace
+    that has `istio-injection=enabled`. What does it mean and what fixes it?"
+  options:
+  - id: a
+    text: The namespace needs a revision tag, so remove the injection label.
+    explanation: A revision tag is not the cause of this message.
+  - id: b
+    text: The injection webhook certificate expired, so `istioctl install` must run
+      again.
+    explanation: The message names a pod without a sidecar, not a webhook failure.
+  - id: c
+    text: The pods have no sidecar because they were created before the label was
+      set. Restart the workloads so the webhook injects the sidecar.
+    explanation: Correct. Injection runs only when a pod is created, so a label set
+      later does not change running pods.
+  - id: d
+    text: A `VirtualService` refers to a missing host, so delete the `VirtualService`.
+    explanation: That is the message `IST0101`, and the fix is to correct the reference,
+      not to delete the object.
+  correct_option: c
+  explanation: Injection runs only when a pod is created, so a label set later does
+    not change running pods.
+- id: ats013-final-q18
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Set resources for a component with the k8s block
+  source_readings:
+  - sections/section-020/module-03/course-01-components-and-kubernetes-overlays.md
+  prompt: Where do you set the CPU request of `istiod` in an `IstioOperator` file?
+  options:
+  - id: a
+    text: "`spec.components.base.k8s.resources`"
+    explanation: The `base` component holds the CRDs and cluster-wide objects, not
+      a workload.
+  - id: b
+    text: "`spec.components.pilot.k8s.resources.requests.cpu`"
+    explanation: Correct. The `pilot` component is `istiod`, and `k8s.resources` sets
+      the requests of its Deployment.
+  - id: c
+    text: "`spec.meshConfig.defaultConfig.resources`"
+    explanation: This key does not set the `istiod` Deployment resources.
+  - id: d
+    text: "`spec.values.global.proxy.resources`"
+    explanation: This sets the resources of injected sidecars, not of `istiod`.
+  correct_option: b
+  explanation: The `pilot` component is `istiod`, and `k8s.resources` sets the requests
+    of its Deployment.
+- id: ats013-final-q19
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Change the ingress gateway Service type
+  source_readings:
+  - sections/section-020/module-03/course-02-ingress-gateway-service-and-scaling.md
+  prompt: On a `kind` cluster the ingress gateway Service shows `<pending>` as its
+    external address. Which change in the `IstioOperator` file makes the gateway reachable
+    on a fixed port?
+  options:
+  - id: a
+    text: Set `meshConfig.ingressService`.
+    explanation: This field selects a Service for ingress control and does not change
+      the gateway Service.
+  - id: b
+    text: Set `components.ingressGateways[].k8s.hpaSpec`.
+    explanation: This sets autoscaler bounds, not the Service.
+  - id: c
+    text: 'Set `components.ingressGateways[].enabled: false`.'
+    explanation: This removes the gateway.
+  - id: d
+    text: 'Set `components.ingressGateways[].k8s.service.type: NodePort` and a `nodePort`
+      on the port.'
+    explanation: Correct. `kind` has no load balancer, and a `NodePort` Service opens
+      a fixed port on the node.
+  correct_option: d
+  explanation: "`kind` has no load balancer, and a `NodePort` Service opens a fixed
+    port on the node."
+- id: ats013-final-q20
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Predict the effect of an ambient label on pods that have sidecars
+  source_readings:
+  - sections/section-040/module-03/course-01-sidecar-and-ambient-side-by-side.md
+  prompt: A namespace has `istio-injection=enabled` and its pods carry sidecars. You
+    add `istio.io/dataplane-mode=ambient` and change nothing else. What happens to
+    the running pods?
+  options:
+  - id: a
+    text: They keep their sidecars, and ztunnel does not capture them.
+    explanation: Correct. A pod that has a sidecar is not captured by ztunnel, and
+      a label change does not remove a container from a running pod.
+  - id: b
+    text: They lose their sidecars at once.
+    explanation: A label change never removes a container from a running pod.
+  - id: c
+    text: They restart automatically.
+    explanation: No controller restarts the pods because of a label.
+  - id: d
+    text: They run with a sidecar and with ztunnel at the same time.
+    explanation: A pod uses one mode.
+  correct_option: a
+  explanation: A pod that has a sidecar is not captured by ztunnel, and a label change
+    does not remove a container from a running pod.
+- id: ats013-final-q21
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Order the steps of a sidecar to ambient migration
+  source_readings:
+  - sections/section-040/module-03/course-02-migrating-a-namespace-to-ambient.md
+  prompt: Which order migrates a namespace from sidecar to ambient mode safely?
+  options:
+  - id: a
+    text: Restart the Deployments, then swap the labels.
+    explanation: The new pods would get a sidecar again, because the injection label
+      is still set.
+  - id: b
+    text: Delete the namespace and create it again.
+    explanation: This is not needed and removes the workloads.
+  - id: c
+    text: Swap the labels, restart the Deployments, then verify membership and traffic.
+    explanation: Correct. The new pods are created without a sidecar and are enrolled
+      by the ambient label.
+  - id: d
+    text: Reinstall Istio with the ambient profile, then restart.
+    explanation: The cluster already runs the ambient data plane, and a reinstall
+      changes nothing for the namespace.
+  correct_option: c
+  explanation: The new pods are created without a sidecar and are enrolled by the
+    ambient label.

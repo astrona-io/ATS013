@@ -1,0 +1,449 @@
+# Knowledge check for section 010. Listed in astrona.yaml as a `type: quiz` entry after the section's last module.
+schema_version: 1
+kind: question_bank
+id: ats013-010
+course_id: ATS013
+exam_code: ICA
+status: draft
+provenance: Original practice material written for this course; not official exam
+  questions.
+scope:
+  type: section
+  id: section-010
+  title: Installing Istio With istioctl Or Helm
+questions:
+- id: ats013-010-q01
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Explain that istioctl install renders and applies once and that
+    nothing reverts manual edits
+  source_readings:
+  - sections/section-010/module-01/course-02-profiles-and-installed-objects.md
+  prompt: You ran `istioctl install --set profile=demo -y` yesterday. Today a colleague
+    edits the `istiod` Deployment by hand to add a node selector. What happens to
+    that edit?
+  options:
+  - id: a
+    text: The in-cluster Istio operator reverts it within seconds, because `IstioOperator`
+      is continuously reconciled.
+    explanation: This option describes the old in-cluster operator model, which modern
+      Istio no longer uses.
+  - id: b
+    text: It persists indefinitely, nothing in the cluster is watching, until the
+      next `istioctl install`, which renders the Deployment from the profile and overwrites
+      it.
+    explanation: Correct. `istioctl install` is client-side templating plus an apply.
+      The `IstioOperator` document is an *input format*, not an object living in the
+      cluster doing work. There is no reconciling controller, so a hand-edit survives,
+      right up until someone re-runs the install, which is the worst possible duration
+      because the revert is disconnected in time from the edit.
+  - id: c
+    text: It is rejected at admission, because the validating webhook protects control-plane
+      objects.
+    explanation: This option confuses the validating webhook, which checks Istio *configuration*
+      resources like `VirtualService`, with control-plane workload objects.
+  - id: d
+    text: It persists forever; `istioctl install` only creates objects and never updates
+      existing ones.
+    explanation: 'This option is wrong in the other direction: the install reconciles,
+      so it updates and even deletes objects it owns.'
+  correct_option: b
+  explanation: "`istioctl install` is client-side templating plus an apply. The `IstioOperator`
+    document is an *input format*, not an object living in the cluster doing work.
+    There is no reconciling controller, so a hand-edit survives, right up until someone
+    re-runs the install, which is the worst possible duration because the revert is
+    disconnected in time from the edit."
+- id: ats013-010-q02
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Choose the profile that satisfies a stated gateway requirement
+  source_readings:
+  - sections/section-010/module-01/course-02-profiles-and-installed-objects.md
+  prompt: A task says "install Istio so that both an ingress and an egress gateway
+    are running". Which profile satisfies it with no overrides?
+  options:
+  - id: a
+    text: "`ambient`"
+    explanation: This option installs the ambient data plane, `istiod`, `istio-cni`
+      and `ztunnel`, which is a different mode entirely, not a gateway choice.
+  - id: b
+    text: "`default`"
+    explanation: This option installs `istiod` plus the **ingress** gateway only.
+  - id: c
+    text: "`minimal`"
+    explanation: This option installs `istiod` and no gateways at all.
+  - id: d
+    text: "`demo`"
+    explanation: Correct. `demo` is the profile that enables both gateways, along
+      with more verbose telemetry. It is the fastest way to satisfy a task phrased
+      this way, and diffing `istioctl manifest generate --set profile=default` against
+      the same command for `demo` shows you exactly that the egress gateway objects
+      are the difference.
+  correct_option: d
+  explanation: "`demo` is the profile that enables both gateways, along with more
+    verbose telemetry. It is the fastest way to satisfy a task phrased this way, and
+    diffing `istioctl manifest generate --set profile=default` against the same command
+    for `demo` shows you exactly that the egress gateway objects are the difference."
+- id: ats013-010-q03
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Explain why the base chart must be installed before istiod
+  source_readings:
+  - sections/section-010/module-02/course-02-installing-the-releases.md
+  prompt: '`helm install istiod istio/istiod -n istio-system` fails with `resource
+    mapping not found ... no matches for kind "EnvoyFilter"`. What is wrong?'
+  options:
+  - id: a
+    text: The `istio/base` chart has not been installed, so the CRDs that define Istio's
+      kinds do not exist yet.
+    explanation: Correct. The `istiod` chart creates objects of kinds that `base`
+      defines. Until the CRDs exist, the **API server** rejects them, this is not
+      Helm detecting a missing dependency, it is Kubernetes refusing an unknown kind.
+      That is why the order `base` → `istiod` → `gateway` is a dependency rather than
+      a convention. Read the kind named in the error.
+  - id: b
+    text: The `istio-system` namespace was not created.
+    explanation: This option produces a different, explicit error about the namespace
+      not existing.
+  - id: c
+    text: The chart repository is stale and needs `helm repo update`.
+    explanation: This option would mean the chart could not be found at all, which
+      is a different message.
+  - id: d
+    text: The chart version is incompatible with your Helm version.
+    explanation: This option would produce a chart API-version error, not a missing-kind
+      error.
+  correct_option: a
+  explanation: The `istiod` chart creates objects of kinds that `base` defines. Until
+    the CRDs exist, the **API server** rejects them, this is not Helm detecting a
+    missing dependency, it is Kubernetes refusing an unknown kind. That is why the
+    order `base` → `istiod` → `gateway` is a dependency rather than a convention.
+    Read the kind named in the error.
+- id: ats013-010-q04
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Explain that sidecar injection happens only when a pod is created
+  source_readings:
+  - sections/section-010/module-02/course-02-installing-the-releases.md
+  prompt: You add `istio-injection=enabled` to a namespace that already runs three
+    Deployments. You check the pods a minute later and every pod still has one container.
+    What is happening?
+  options:
+  - id: a
+    text: Injection is asynchronous and can take up to five minutes to reconcile existing
+      pods.
+    explanation: This option describes a reconciliation loop that does not exist for
+      injection.
+  - id: b
+    text: The webhook is broken, check that `istiod` is reachable.
+    explanation: This option is the wrong diagnosis; if the webhook were unreachable
+      you would see *new* pods failing to create, because its `failurePolicy` is `Fail`.
+  - id: c
+    text: Nothing is wrong. Injection is a mutating admission decision made at pod
+      **creation**, so pods that already exist are unaffected until they are recreated.
+    explanation: Correct. Istio registers a mutating webhook against the `pods` resource
+      on the `CREATE` operation. The pods in question were admitted and stored before
+      the webhook applied to their namespace, and admission cannot retroactively rewrite
+      a stored object. `kubectl rollout restart deployment` is the step that actually
+      performs the injection.
+  - id: d
+    text: The label is wrong; the correct one is `istio.io/inject=true` on the namespace.
+    explanation: This option invents a label. The namespace labels are `istio-injection=enabled`
+      or `istio.io/rev=<revision>`.
+  correct_option: c
+  explanation: Istio registers a mutating webhook against the `pods` resource on the
+    `CREATE` operation. The pods in question were admitted and stored before the webhook
+    applied to their namespace, and admission cannot retroactively rewrite a stored
+    object. `kubectl rollout restart deployment` is the step that actually performs
+    the injection.
+- id: ats013-010-q05
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Predict what installing a smaller profile over an existing install
+    removes
+  source_readings:
+  - sections/section-010/module-01/course-02-profiles-and-installed-objects.md
+  prompt: A cluster runs the `demo` profile. Someone runs `istioctl install --set
+    profile=minimal -y` to "slim down the telemetry". What is the effect on the gateways?
+  options:
+  - id: a
+    text: Nothing, the gateways were installed separately and are unaffected.
+    explanation: This option would be true for a *Helm* gateway release, which is
+      a separate release, but not for gateways installed by an `istioctl` profile.
+  - id: b
+    text: Both gateway Deployments are deleted, because the rendered `minimal` document
+      does not contain them and `istioctl install` reconciles the cluster to it.
+    explanation: Correct. `istioctl install` renders a complete desired state and
+      reconciles the cluster to it. Istio tracks which objects it owns through labels
+      such as `operator.istio.io/component` and `istio.io/rev`, lists the ones that
+      are no longer in the rendered set, and deletes them. Components present only
+      in the *previous* document go away, and the only signal is the absence of a
+      tick in the install summary.
+  - id: c
+    text: The gateways are scaled to zero but their Deployments remain.
+    explanation: This option invents a scale-down behaviour; the objects are removed.
+  - id: d
+    text: The command fails with a conflict, because components cannot be removed
+      by an install.
+    explanation: This option contradicts the declarative model, removal is exactly
+      what reconciliation does.
+  correct_option: b
+  explanation: "`istioctl install` renders a complete desired state and reconciles
+    the cluster to it. Istio tracks which objects it owns through labels such as `operator.istio.io/component`
+    and `istio.io/rev`, lists the ones that are no longer in the rendered set, and
+    deletes them. Components present only in the *previous* document go away, and
+    the only signal is the absence of a tick in the install summary."
+- id: ats013-010-q06
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Describe what helm uninstall of the base chart leaves behind
+  source_readings:
+  - sections/section-010/module-02/course-04-uninstall-and-clean-removal.md
+  prompt: You run `helm uninstall istio-base -n istio-system` and then `kubectl get
+    crd | grep istio.io`, which still returns fifteen CRDs. Is something broken?
+  options:
+  - id: a
+    text: Yes, CRDs require `helm uninstall --purge`, which is the flag you forgot.
+    explanation: This option invents a flag; `--purge` was a Helm 2 concept and is
+      not how Helm 3 handles CRDs.
+  - id: b
+    text: No, but they will be garbage-collected within the hour.
+    explanation: This option invents a garbage-collection path that does not exist
+      for CRDs.
+  - id: c
+    text: Yes, the uninstall failed partway through; re-run it.
+    explanation: This option misreads expected behaviour as a failure.
+  - id: d
+    text: No. Helm deliberately does not delete CRDs on uninstall, because deleting
+      a CRD deletes every custom resource of that kind cluster-wide.
+    explanation: Correct. This is documented Helm behaviour, not an Istio quirk. Removing
+      a CRD cascades to every object of that kind in every namespace, which would
+      be catastrophic if another release or another team depended on them. The consequence
+      is that a cluster that looks clean to `helm` is not clean to Istio, the next
+      install starts on top of stale definitions, which is exactly what `istioctl
+      x precheck` warns about. Remove them explicitly, knowing what it deletes.
+  correct_option: d
+  explanation: This is documented Helm behaviour, not an Istio quirk. Removing a CRD
+    cascades to every object of that kind in every namespace, which would be catastrophic
+    if another release or another team depended on them. The consequence is that a
+    cluster that looks clean to `helm` is not clean to Istio, the next install starts
+    on top of stale definitions, which is exactly what `istioctl x precheck` warns
+    about. Remove them explicitly, knowing what it deletes.
+- id: ats013-010-q07
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Read the xDS columns of istioctl proxy-status
+  source_readings:
+  - sections/section-010/module-01/course-03-injection-and-version-alignment.md
+  prompt: "`istioctl proxy-status` shows an ingress gateway with `SYNCED` in `CDS`,
+    `LDS` and `EDS`, but `NOT SENT` in `RDS`. What does that tell you?"
+  options:
+  - id: a
+    text: There is nothing of that resource type to send, no `Gateway` resource is
+      attached yet, so there are no HTTP routes for this proxy.
+    explanation: Correct. The four columns are Envoy's xDS resource types, Cluster,
+      Listener, Endpoint and Route Discovery Service. `SYNCED` means the proxy acknowledged
+      the current version, `STALE` means `istiod` sent an update and is waiting, and
+      `NOT SENT` means there is simply nothing of that type for this proxy. A freshly
+      installed gateway with no `Gateway` resource pointed at it has no routes, so
+      `NOT SENT` under `RDS` is the healthy, expected state.
+  - id: b
+    text: The control plane is overloaded and deferring route pushes.
+    explanation: This option also manifests as `STALE`.
+  - id: c
+    text: The gateway is running an older proxy version that does not support RDS.
+    explanation: This option would produce a version mismatch in `istioctl version`,
+      not this column value.
+  - id: d
+    text: The gateway is misconfigured and cannot receive route updates.
+    explanation: This option would show as `STALE` persisting, not `NOT SENT`.
+  correct_option: a
+  explanation: The four columns are Envoy's xDS resource types, Cluster, Listener,
+    Endpoint and Route Discovery Service. `SYNCED` means the proxy acknowledged the
+    current version, `STALE` means `istiod` sent an update and is waiting, and `NOT
+    SENT` means there is simply nothing of that type for this proxy. A freshly installed
+    gateway with no `Gateway` resource pointed at it has no routes, so `NOT SENT`
+    under `RDS` is the healthy, expected state.
+- id: ats013-010-q08
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Match a Gateway selector to the labels of a gateway installed
+    with Helm
+  source_readings:
+  - sections/section-010/module-02/course-02-installing-the-releases.md
+  prompt: 'You install the gateway chart with `helm install edge-gw istio/gateway
+    -n edge`. A colleague''s `Gateway` resource selecting `istio: ingressgateway`
+    matches nothing. Why?'
+  options:
+  - id: a
+    text: The gateway chart does not apply an `istio:` label at all; you must add
+      it manually.
+    explanation: This option is wrong, the chart does apply the labels, just derived
+      from the release name.
+  - id: b
+    text: "`Gateway` resources cannot select workloads outside `istio-system`."
+    explanation: This option invents a namespace restriction; selecting a gateway
+      in another namespace is the normal pattern.
+  - id: c
+    text: 'The gateway chart derives its Deployment name, Service name and pod labels
+      from the **release name**, so this workload is labelled `istio: edge-gw`, not
+      `istio: ingressgateway`.'
+    explanation: Correct. The release name is not cosmetic, it becomes the object
+      names *and* the selector labels, which is why it is part of the contract your
+      traffic configuration depends on. A `Gateway` resource selects a gateway workload
+      by label, so the selector has to match the labels the chart actually applied.
+      Either rename the release or change the selector.
+  - id: d
+    text: The `Gateway` resource must be created in `istio-system` regardless of where
+      the gateway runs.
+    explanation: This option is the same invented restriction from the other side.
+  correct_option: c
+  explanation: The release name is not cosmetic, it becomes the object names *and*
+    the selector labels, which is why it is part of the contract your traffic configuration
+    depends on. A `Gateway` resource selects a gateway workload by label, so the selector
+    has to match the labels the chart actually applied. Either rename the release
+    or change the selector.
+- id: ats013-010-q09
+  type: single_choice
+  difficulty: beginner
+  learning_objective: Interpret a control plane and data plane version difference
+  source_readings:
+  - sections/section-010/module-01/course-04-reconciliation-and-removal.md
+  prompt: 'After an upgrade, `istioctl version` reports `control plane version: 1.30.5`
+    and `data plane version: 1.29.8 (4 proxies)`. Application traffic is working normally.
+    What is the correct reading?'
+  options:
+  - id: a
+    text: The mesh is broken and traffic is only working by luck; roll back immediately.
+    explanation: This option overreacts to a supported, expected state.
+  - id: b
+    text: The upgrade is incomplete but supported, this is version skew, allowed across
+      one minor version, and it ends when every injected workload (gateways included)
+      is restarted.
+    explanation: Correct. A sidecar's image is fixed at pod creation, so upgrading
+      the control plane, one Deployment, cannot rewrite the stored spec of every pod.
+      Istio supports one minor version of skew precisely so a rolling upgrade is possible;
+      without it there would be no safe intermediate state. The fix is `kubectl rollout
+      restart` across every meshed namespace **and** the gateway Deployments, which
+      are proxies too.
+  - id: c
+    text: The data plane will upgrade itself on the next xDS push.
+    explanation: This option invents self-upgrading proxies; a container image only
+      changes when the pod is replaced.
+  - id: d
+    text: "`istioctl` is reporting stale cache; re-run it."
+    explanation: This option dismisses a real reading of the cluster.
+  correct_option: b
+  explanation: A sidecar's image is fixed at pod creation, so upgrading the control
+    plane, one Deployment, cannot rewrite the stored spec of every pod. Istio supports
+    one minor version of skew precisely so a rolling upgrade is possible; without
+    it there would be no safe intermediate state. The fix is `kubectl rollout restart`
+    across every meshed namespace **and** the gateway Deployments, which are proxies
+    too.
+- id: ats013-010-q10
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Check a finished installation with istioctl verify-install
+  source_readings:
+  - sections/section-010/module-03/course-02-verify-install-and-analyze.md
+  prompt: A script must stop when the installed control plane is incomplete or a Deployment
+    is not ready. Which command exits with a non-zero code in that case?
+  options:
+  - id: a
+    text: "`istioctl manifest generate`"
+    explanation: This command renders manifests and never contacts the cluster.
+  - id: b
+    text: "`istioctl profile list`"
+    explanation: This command only prints the names of the built-in profiles.
+  - id: c
+    text: "`istioctl profile dump default`"
+    explanation: This command prints a profile and never reads the cluster.
+  - id: d
+    text: "`istioctl verify-install`"
+    explanation: Correct. It compares the cluster with the expected manifests, reports
+      a missing object or a Deployment that is not ready and exits with a non-zero
+      code.
+  correct_option: d
+  explanation: It compares the cluster with the expected manifests, reports a missing
+    object or a Deployment that is not ready and exits with a non-zero code.
+- id: ats013-010-q11
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Read the analysis code IST0103 and fix it
+  source_readings:
+  - sections/section-010/module-03/course-02-verify-install-and-analyze.md
+  prompt: "`istioctl analyze -n shop` reports `IST0103` for the pods of a namespace
+    that has `istio-injection=enabled`. What does it mean and what fixes it?"
+  options:
+  - id: a
+    text: The pods have no sidecar because they were created before the label was
+      set. Restart the workloads so the webhook injects the sidecar.
+    explanation: Correct. Injection runs only when a pod is created, so a label set
+      later does not change running pods.
+  - id: b
+    text: A `VirtualService` refers to a missing host, so delete the `VirtualService`.
+    explanation: That is the message `IST0101`, and the fix is to correct the reference,
+      not to delete the object.
+  - id: c
+    text: The namespace needs a revision tag, so remove the injection label.
+    explanation: A revision tag is not the cause of this message.
+  - id: d
+    text: The injection webhook certificate expired, so `istioctl install` must run
+      again.
+    explanation: The message names a pod without a sidecar, not a webhook failure.
+  correct_option: a
+  explanation: Injection runs only when a pod is created, so a label set later does
+    not change running pods.
+- id: ats013-010-q12
+  type: single_choice
+  difficulty: advanced
+  learning_objective: Compare two profiles with istioctl profile diff
+  source_readings:
+  - sections/section-010/module-03/course-01-profiles-list-dump-diff.md
+  prompt: You must show that the `demo` profile differs from the `default` profile
+    before you choose one, and nothing in the cluster may change. Which command does
+    this?
+  options:
+  - id: a
+    text: "`kubectl diff -f demo.yaml`"
+    explanation: This compares a file with live objects and needs a rendered manifest
+      first.
+  - id: b
+    text: "`istioctl verify-install -f demo.yaml`"
+    explanation: This checks an installation; it does not compare profiles.
+  - id: c
+    text: "`istioctl profile diff default demo`"
+    explanation: Correct. It prints the lines that differ between the two profiles,
+      using only the profiles inside the `istioctl` binary.
+  - id: d
+    text: "`istioctl analyze --all-namespaces`"
+    explanation: This checks configuration objects in the cluster, not profiles.
+  correct_option: c
+  explanation: It prints the lines that differ between the two profiles, using only
+    the profiles inside the `istioctl` binary.
+- id: ats013-010-q13
+  type: single_choice
+  difficulty: intermediate
+  learning_objective: Render manifests without applying them
+  source_readings:
+  - sections/section-010/module-03/course-01-profiles-list-dump-diff.md
+  prompt: You wrote an `IstioOperator` overlay file and want to see the Kubernetes
+    objects it would create without changing the cluster. Which command does this?
+  options:
+  - id: a
+    text: "`istioctl install -f istio-custom.yaml -y`"
+    explanation: This applies the manifests to the cluster.
+  - id: b
+    text: "`istioctl manifest generate -f istio-custom.yaml`"
+    explanation: Correct. It runs the render step of the install and prints the manifests.
+      Nothing is applied.
+  - id: c
+    text: "`istioctl analyze istio-custom.yaml`"
+    explanation: This checks Istio configuration resources, not an installation overlay.
+  - id: d
+    text: "`istioctl profile dump -f istio-custom.yaml`"
+    explanation: This prints profile defaults and does not render your overlay into
+      manifests.
+  correct_option: b
+  explanation: It runs the render step of the install and prints the manifests. Nothing
+    is applied.

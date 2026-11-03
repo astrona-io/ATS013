@@ -1,0 +1,34 @@
+# STATUS: UNTESTED (built from static checks only).
+metadata:
+  name: "ats-013-lab-020-03"
+  docs:
+    solution: "solution.md"
+    question: "question.md"
+
+bootstrap:
+  init:
+    - name: "install-istio"
+      description: "Installs istioctl 1.30.5 and the default profile with the ingress gateway"
+      type: "file"
+      source: "bootstrap/01-install-istio.sh"
+    - name: "seed-workloads"
+      description: "Creates edge-demo with a service published through the ingress gateway"
+      type: "file"
+      source: "bootstrap/02-seed-workloads.sh"
+
+testing:
+  init:
+    - name: "solution"
+      description: "Reference solution applied by `astrona test` in CI"
+      type: "file"
+      source: "solution/apply.sh"
+
+validation:
+  scripts:
+    - name: "verify-completed"
+      description: "Confirms NodePort 30080, HPA bounds 2 to 4, resource requests and a 200 through the node port"
+      type: "file"
+      source: "validation/validate-completed.sh"
+
+teardown:
+  keepCluster: false
