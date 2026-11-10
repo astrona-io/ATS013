@@ -31,7 +31,7 @@ training:
     name: Istio Certified Associate
     code: ICA
     provider: CNCF / Linux Foundation
-    domain: Installation, Upgrade And Configuration
+    domain: Installation, Upgrade & Configuration
     weight: 20
 
 modules:
