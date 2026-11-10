@@ -10,7 +10,7 @@ provenance: Original practice material written for this course; not official exa
 scope:
   type: domain
   id: installation-upgrade-and-configuration
-  title: Installation, Upgrade And Configuration
+  title: Installation, Upgrade & Configuration
 questions:
 - id: ats013-final-q01
   type: single_choice

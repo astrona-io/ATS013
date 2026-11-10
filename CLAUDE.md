@@ -386,7 +386,7 @@ A lab folder holds:
 ### Lab metadata in `astrona.yaml`
 
 `astrona.yaml` has a `training:` block (id `ATS013`, domain
-`Installation, Upgrade And Configuration`, weight `20`), one entry per
+`Installation, Upgrade & Configuration`, weight `20`), one entry per
 section under `modules:` (`module-010` to `module-040`) and a `final-exam`
 entry. Each section's `content` lists, in order: the section `README.md`,
 then for each module its landing page, its parts, and right after the part a
