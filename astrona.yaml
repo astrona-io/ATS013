@@ -210,7 +210,7 @@ modules:
         difficulty: intermediate
         estimated_duration: 20m
         topic: istioctl-verify
-        task_kind: troubleshoot
+        task_kind: troubleshooting
         tags: [istioctl, analyze, verify-install, proxy-status, injection, virtualservice]
         learning_goals:
           - Read istioctl analyze output and fix every problem it reports
